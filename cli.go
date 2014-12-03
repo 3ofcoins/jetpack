@@ -106,7 +106,7 @@ func (cli *Cli) Dispatch() error {
 	case cli.DoSet:
 		return cli.GetJail().SetProperties(cli.ParseProperties())
 	case cli.DoStatus && cli.Jail == "":
-		return Root.Status()
+		return Host.Status()
 	case cli.DoStatus:
 		return cli.GetJail().Status()
 	case cli.DoStart:
@@ -118,7 +118,7 @@ func (cli *Cli) Dispatch() error {
 	case cli.DoConsole:
 		return cli.GetJail().RunJexec("", cli.Command)
 	case cli.DoInit:
-		return Root.Init(cli.ParseProperties())
+		return Host.Init(cli.ParseProperties())
 	default:
 		return errors.New("CAN'T HAPPEN")
 	}

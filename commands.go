@@ -10,23 +10,23 @@ import "github.com/3ofcoins/go-zfs"
 func (cli Cli) CmdGlobalInfo() error {
 	log.Println("Version:", Version)
 	log.Println("Root ZFS dataset:", ZFSRoot)
-	if !Root.Exists() {
+	if !Host.Exists() {
 		log.Println("Root ZFS dataset does not exist. Please run `zjail init`.")
 	} else {
-		log.Println("File system root:", Root.Mountpoint)
-		if children, err := Root.Children(); err != nil {
+		log.Println("File system root:", Host.Mountpoint)
+		if children, err := Host.Children(); err != nil {
 			return err
 		} else {
 			log.Println("Jails:", children)
-			log.Println("Parameters:", Root.JailParameters())
-			if iface, err := net.InterfaceByName(Root.Properties["jail:interface"]); err != nil {
+			log.Println("Parameters:", Host.JailParameters())
+			if iface, err := net.InterfaceByName(Host.Properties["jail:interface"]); err != nil {
 				return err
 			} else {
 				addrs, _ := iface.Addrs()
 				log.Println("Interface:", iface, addrs, addrs[0].Network())
 				log.Printf("%#v %#v\n", iface, addrs[0])
 			}
-			if err := Root.WriteConfigTo(os.Stdout); err != nil {
+			if err := Host.WriteConfigTo(os.Stdout); err != nil {
 				return err
 			}
 		}
@@ -42,7 +42,7 @@ func (cli Cli) CmdJailInfo(jail Jail) error {
 
 // FIXME: implement own fetch+install
 func (cli Cli) CmdInstall() error {
-	if fs, err := zfs.CreateFilesystem(Root.Name+"/"+cli.Jail, nil); err != nil {
+	if fs, err := zfs.CreateFilesystem(Host.Name+"/"+cli.Jail, nil); err != nil {
 		return err
 	} else {
 		for _, subcmd := range []string{
@@ -67,5 +67,5 @@ func (cli Cli) CmdInstall() error {
 			}
 		}
 	}
-	return Root.WriteJailConf()
+	return Host.WriteJailConf()
 }

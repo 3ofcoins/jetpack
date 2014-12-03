@@ -25,15 +25,15 @@ func init() {
 type Jail struct{ Dataset }
 
 func GetJail(name string) Jail {
-	return Jail{GetDataset(Root.Name + "/" + name)}
+	return Jail{GetDataset(Host.Name + "/" + name)}
 }
 
 func (j Jail) String() string {
-	return j.Name[len(Root.Name)+1:]
+	return j.Name[len(Host.Name)+1:]
 }
 
 func (j Jail) Jid() int {
-	return Root.Jails()[j.String()]
+	return Host.Jails()[j.String()]
 }
 
 func (j Jail) IsActive() bool {
@@ -85,5 +85,5 @@ func (j Jail) SetProperties(properties map[string]string) error {
 	if err := j.Dataset.SetProperties(properties); err != nil {
 		return err
 	}
-	return Root.WriteJailConf()
+	return Host.WriteJailConf()
 }

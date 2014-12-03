@@ -5,13 +5,13 @@ import "log"
 import "os"
 import "sort"
 
-type rootDS struct {
+type hostData struct {
 	Dataset
 	JailsCache map[string]int
 }
 
 var ZFSRoot = "zroot/zjail"
-var Root rootDS
+var Host hostData
 
 var RootProperties = map[string]string{
 	"atime":              "off",
@@ -27,10 +27,10 @@ var RootProperties = map[string]string{
 }
 
 func init() {
-	Root = rootDS{GetDataset(ZFSRoot), nil}
+	Host = hostData{GetDataset(ZFSRoot), nil}
 }
 
-func (r rootDS) Init(properties map[string]string) error {
+func (r hostData) Init(properties map[string]string) error {
 	if r.Exists() {
 		if err := r.SetProperties(RootProperties); err != nil {
 			return err
@@ -47,14 +47,14 @@ func (r rootDS) Init(properties map[string]string) error {
 	return nil
 }
 
-func (r rootDS) Jails() map[string]int {
+func (r hostData) Jails() map[string]int {
 	if r.JailsCache == nil {
 		r.JailsCache = Jls()
 	}
 	return r.JailsCache
 }
 
-func (r rootDS) Children() ([]Jail, error) {
+func (r hostData) Children() ([]Jail, error) {
 	children, err := r.Dataset.Children(0)
 	rv := make([]Jail, len(children))
 	for i := range children {
@@ -69,7 +69,7 @@ func (jj jailsByName) Len() int           { return len(jj) }
 func (jj jailsByName) Swap(i, j int)      { jj[i], jj[j] = jj[j], jj[i] }
 func (jj jailsByName) Less(i, j int) bool { return jj[i].Name < jj[j].Name }
 
-func (r rootDS) Status() error {
+func (r hostData) Status() error {
 	children, err := r.Children()
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (r rootDS) Status() error {
 	return nil
 }
 
-func (r rootDS) WriteConfigTo(w io.Writer) error {
+func (r hostData) WriteConfigTo(w io.Writer) error {
 	children, err := r.Children()
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func (r rootDS) WriteConfigTo(w io.Writer) error {
 	return nil
 }
 
-func (r rootDS) WriteJailConf() error {
+func (r hostData) WriteJailConf() error {
 	jailconf, err := os.OpenFile("/etc/.jail.conf.new", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
