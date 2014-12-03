@@ -2,14 +2,13 @@ package main
 
 import "io"
 import "log"
-import "path"
 import "text/template"
 
 var jailConfTmpl *template.Template
 
 func init() {
-	tmpl, err := template.New("jail.conf").Parse(`"{{.}}" {
-  host.hostname = "{{.}}";
+	tmpl, err := template.New("jail.conf").Parse(`"{{.JailName}}" {
+  host.hostname = "{{.JailName}}";
   path = "{{.Mountpoint}}";
   exec.consolelog = "{{.Mountpoint}}.log";
 {{ range .JailParameters }}  {{.}};
@@ -27,8 +26,24 @@ func GetJail(name string) Jail {
 	return Jail{GetDataset(Root.Name + "/" + name)}
 }
 
+func (j Jail) JailName() string {
+	return j.Name[len(Root.Name)+1:]
+}
+
+func (j Jail) Jid() int {
+	return Root.Jails()[j.JailName()]
+}
+
+func (j Jail) IsActive() bool {
+	return j.Jid() > 0
+}
+
 func (j Jail) String() string {
-	return path.Base(j.Name)
+	rv := j.JailName()
+	if j.IsActive() {
+		rv = "*" + rv
+	}
+	return rv
 }
 
 func (j Jail) WriteConfigTo(w io.Writer) error {

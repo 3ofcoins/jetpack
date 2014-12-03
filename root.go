@@ -5,7 +5,10 @@ import "log"
 import "os"
 import "sort"
 
-type rootDS struct{ Dataset }
+type rootDS struct {
+	Dataset
+	JailsCache map[string]int
+}
 
 var ZFSRoot = "zroot/zjail"
 var Root rootDS
@@ -24,7 +27,7 @@ var RootProperties = map[string]string{
 }
 
 func init() {
-	Root = rootDS{GetDataset(ZFSRoot)}
+	Root = rootDS{GetDataset(ZFSRoot), nil}
 }
 
 func (r rootDS) Init() error {
@@ -34,6 +37,13 @@ func (r rootDS) Init() error {
 		log.Fatalln("NFY: creating root dataset")
 	}
 	return nil
+}
+
+func (r rootDS) Jails() map[string]int {
+	if r.JailsCache == nil {
+		r.JailsCache = Jls()
+	}
+	return r.JailsCache
 }
 
 func (r rootDS) Children() ([]Jail, error) {
