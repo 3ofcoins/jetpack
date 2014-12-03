@@ -8,7 +8,7 @@ import "text/template"
 var jailConfTmpl *template.Template
 
 func init() {
-	tmpl, err := template.New("jail.conf").Parse(`{{.}} {
+	tmpl, err := template.New("jail.conf").Parse(`"{{.}}" {
   host.hostname = "{{.}}";
   path = "{{.Mountpoint}}";
   exec.consolelog = "{{.Mountpoint}}.log";
@@ -31,6 +31,6 @@ func (j Jail) String() string {
 	return path.Base(j.Name)
 }
 
-func (j Jail) WriteConfig(w io.Writer) error {
+func (j Jail) WriteConfigTo(w io.Writer) error {
 	return jailConfTmpl.Execute(w, j)
 }

@@ -47,9 +47,6 @@ func (ds Dataset) JailParameters() []JailParameter {
 	rv := make([]JailParameter, len(keys))
 	for i, k := range keys {
 		v := ds.Properties[k]
-		if v == "on" {
-			v = ""
-		}
 		if strings.HasPrefix(v, "\"") {
 			if uv, err := strconv.Unquote(v); err != nil {
 				log.Println("ERROR:", err)
@@ -62,18 +59,11 @@ func (ds Dataset) JailParameters() []JailParameter {
 	return rv
 }
 
-func (ds Dataset) setJailParameter(name, value string) error {
-	if value == "" {
-		return ds.SetProperty("jail:"+name, "on")
-	} else {
-		return ds.SetProperty("jail:"+name, strconv.Quote(value))
-	}
-}
-
-func (ds Dataset) SetJailParameters(params map[string]string) {
-	for n, v := range params {
-		if err := ds.setJailParameter(n, v); err != nil {
-			log.Println("ERROR:", err)
+func (ds Dataset) SetProperties(properties map[string]string) error {
+	for n, v := range properties {
+		if err := ds.SetProperty(n, v); err != nil {
+			return err
 		}
 	}
+	return nil
 }

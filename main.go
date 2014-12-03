@@ -50,6 +50,9 @@ func main() {
 						log.Println("Interface:", iface, addrs, addrs[0].Network())
 						log.Printf("%#v %#v\n", iface, addrs[0])
 					}
+					if err := Root.WriteConfigTo(os.Stdout); err != nil {
+						log.Fatalln("ERROR:", err)
+					}
 				}
 			}
 		} else {
@@ -57,7 +60,7 @@ func main() {
 				log.Println("Could not find", cli.Jail)
 			} else {
 				log.Printf("Configuration for %v:\n", jail)
-				jail.WriteConfig(os.Stdout)
+				jail.WriteConfigTo(os.Stdout)
 			}
 		}
 	case cli.DoInstall:
@@ -70,9 +73,23 @@ func main() {
 			bsdinstall(fs.Mountpoint, "config")
 			bsdinstall(fs.Mountpoint, "entropy")
 		}
+		if err := Root.WriteJailConf(); err != nil {
+			log.Fatalln("ERROR:", err)
+		}
 	case cli.DoSet:
-		cli.GetJail().SetJailParameters(cli.GetProperties())
-	// TODO: cli.DoInit create zfs root w/ default properties
+		cli.GetJail().SetProperties(cli.ParseProperties())
+		if err := Root.WriteJailConf(); err != nil {
+			log.Fatalln("ERROR:", err)
+		}
+	case cli.DoInit:
+		if err := Root.Init(); err != nil {
+			log.Fatalln("ERROR:", err)
+		} else {
+			Root.SetProperties(cli.ParseProperties())
+			if err := Root.WriteJailConf(); err != nil {
+				log.Fatalln("ERROR:", err)
+			}
+		}
 	default:
 		log.Fatalln("Not There Yet")
 	}
