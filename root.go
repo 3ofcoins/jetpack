@@ -30,9 +30,17 @@ func init() {
 	Root = rootDS{GetDataset(ZFSRoot), nil}
 }
 
-func (r rootDS) Init() error {
+func (r rootDS) Init(properties map[string]string) error {
 	if r.Exists() {
-		return r.SetProperties(RootProperties)
+		if err := r.SetProperties(RootProperties); err != nil {
+			return err
+		}
+		if len(properties) > 0 {
+			if err := r.SetProperties(properties); err != nil {
+				return err
+			}
+		}
+		return r.WriteJailConf()
 	} else {
 		log.Fatalln("NFY: creating root dataset")
 	}
@@ -60,6 +68,20 @@ type jailsByName []Jail
 func (jj jailsByName) Len() int           { return len(jj) }
 func (jj jailsByName) Swap(i, j int)      { jj[i], jj[j] = jj[j], jj[i] }
 func (jj jailsByName) Less(i, j int) bool { return jj[i].Name < jj[j].Name }
+
+func (r rootDS) Status() error {
+	children, err := r.Children()
+	if err != nil {
+		return err
+	}
+	sort.Sort(jailsByName(children))
+	for _, child := range children {
+		if err := child.Status(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (r rootDS) WriteConfigTo(w io.Writer) error {
 	children, err := r.Children()

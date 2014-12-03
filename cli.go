@@ -1,5 +1,6 @@
 package main
 
+import "errors"
 import "log"
 import "strings"
 import "strconv"
@@ -92,4 +93,41 @@ func (cli Cli) ParseProperties() map[string]string {
 	}
 
 	return rv
+}
+
+func (cli *Cli) Dispatch() error {
+	switch {
+	case cli.DoInfo && cli.Jail == "":
+		return cli.CmdGlobalInfo()
+	case cli.DoInfo:
+		return cli.CmdJailInfo(cli.GetJail())
+	case cli.DoInstall:
+		return cli.CmdInstall()
+	case cli.DoSet:
+		return cli.GetJail().SetProperties(cli.ParseProperties())
+	case cli.DoStatus && cli.Jail == "":
+		return Root.Status()
+	case cli.DoStatus:
+		return cli.GetJail().Status()
+	case cli.DoStart:
+		return cli.GetJail().RunJail("-c")
+	case cli.DoStop:
+		return cli.GetJail().RunJail("-r")
+	case cli.DoRestart:
+		return cli.GetJail().RunJail("-rc")
+	case cli.DoConsole:
+		return cli.GetJail().RunJexec("", cli.Command)
+	case cli.DoInit:
+		return Root.Init(cli.ParseProperties())
+	default:
+		return errors.New("CAN'T HAPPEN")
+	}
+}
+
+func RunCli() error {
+	if cli, err := ParseArgs(); err != nil {
+		return err
+	} else {
+		return cli.Dispatch()
+	}
 }
