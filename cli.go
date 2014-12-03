@@ -10,9 +10,11 @@ import "github.com/mitchellh/mapstructure"
 var (
 	Version = "0.0.0-wip0"
 	usage   = `Usage:
-  zjail list
   zjail install <JAIL>
   zjail info [<JAIL>]
+  zjail status [<JAIL>]
+  zjail (start|stop|restart) <JAIL>
+  zjail console <JAIL> [<COMMAND>...]
   zjail set <JAIL> [-o ZFSPROP]... <PROPERTY>...
   zjail init [-o ZFSPROP]... [<PROPERTY>...]
   zjail -h | --help | --version
@@ -28,10 +30,16 @@ type Cli struct {
 	DoInstall bool `mapstructure:"install"`
 	DoSet     bool `mapstructure:"set"`
 	DoInit    bool `mapstructure:"init"`
+	DoStatus  bool `mapstructure:"status"`
+	DoStart   bool `mapstructure:"start"`
+	DoStop    bool `mapstructure:"stop"`
+	DoRestart bool `mapstructure:"restart"`
+	DoConsole bool `mapstructure:"console"`
 
 	Jail           string   `mapstructure:"<JAIL>"`
 	JailProperties []string `mapstructure:"<PROPERTY>"`
 	ZfsProperties  []string `mapstructure:"-o"`
+	Command        []string `mapstructure:"<COMMAND>"`
 }
 
 func ParseArgs() (cli Cli, err error) {
@@ -49,7 +57,11 @@ func ParseArgs() (cli Cli, err error) {
 }
 
 func (cli Cli) GetJail() Jail {
-	return GetJail(cli.Jail)
+	jail := GetJail(cli.Jail)
+	if !jail.Exists() {
+		log.Fatalln("Jail does not exist:", cli.Jail)
+	}
+	return jail
 }
 
 func (cli Cli) ParseProperties() map[string]string {

@@ -56,12 +56,9 @@ func main() {
 				}
 			}
 		} else {
-			if jail := cli.GetJail(); !jail.Exists() {
-				log.Println("Could not find", cli.Jail)
-			} else {
-				log.Printf("Configuration for %v:\n", jail)
-				jail.WriteConfigTo(os.Stdout)
-			}
+			jail := cli.GetJail()
+			log.Printf("Configuration for %v:\n", jail)
+			jail.WriteConfigTo(os.Stdout)
 		}
 	case cli.DoInstall:
 		if fs, err := zfs.CreateFilesystem(Root.Name+"/"+cli.Jail, nil); err != nil {
@@ -79,6 +76,34 @@ func main() {
 	case cli.DoSet:
 		cli.GetJail().SetProperties(cli.ParseProperties())
 		if err := Root.WriteJailConf(); err != nil {
+			log.Fatalln("ERROR:", err)
+		}
+	case cli.DoStatus:
+		if cli.Jail == "" {
+			if children, err := Root.Children(); err != nil {
+				log.Fatalf("ERROR: %#v", err.Error())
+			} else {
+				for _, child := range children {
+					child.Status()
+				}
+			}
+		} else {
+			cli.GetJail().Status()
+		}
+	case cli.DoStart:
+		if err := cli.GetJail().RunJail("-c"); err != nil {
+			log.Fatalln("ERROR:", err)
+		}
+	case cli.DoStop:
+		if err := cli.GetJail().RunJail("-r"); err != nil {
+			log.Fatalln("ERROR:", err)
+		}
+	case cli.DoRestart:
+		if err := cli.GetJail().RunJail("-rc"); err != nil {
+			log.Fatalln("ERROR:", err)
+		}
+	case cli.DoConsole:
+		if err := cli.GetJail().RunJexec("", cli.Command); err != nil {
 			log.Fatalln("ERROR:", err)
 		}
 	case cli.DoInit:
