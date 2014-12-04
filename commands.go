@@ -5,7 +5,7 @@ import "net"
 import "os"
 import "os/exec"
 
-func (cli *Cli) CmdGlobalInfo() error {
+func (cli *OldCli) CmdGlobalInfo() error {
 	log.Println("Version:", Version)
 	log.Println("Root ZFS dataset:", ZFSRoot)
 	if !Host.Exists() {
@@ -28,14 +28,14 @@ func (cli *Cli) CmdGlobalInfo() error {
 	return nil
 }
 
-func (cli *Cli) CmdJailInfo(jail Jail) error {
+func (cli *OldCli) CmdJailInfo(jail Jail) error {
 	jail.Status()
 	log.Println("Snapshots:", jail.Snapshots())
 	jail.WriteConfigTo(os.Stdout)
 	return nil
 }
 
-func (cli *Cli) CmdCreate() error {
+func (cli *OldCli) CmdCreate() error {
 	log.Printf("%v\n%#v\n", cli.Properties(), cli)
 	jail, err := CreateJail(cli.Jail, cli.Properties())
 	if err != nil {
@@ -70,7 +70,7 @@ func (cli *Cli) CmdCreate() error {
 	return Host.WriteJailConf()
 }
 
-func (cli *Cli) CmdSnapshot(jail Jail) error {
+func (cli *OldCli) CmdSnapshot(jail Jail) error {
 	_, err := jail.Snapshot(cli.Snapshot, false)
 	return err
 }

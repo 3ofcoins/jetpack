@@ -1,7 +1,11 @@
 package zettajail
 
+import "errors"
+import "flag"
 import "fmt"
 import "log"
+import "os"
+import "sort"
 import "strings"
 import "strconv"
 
@@ -27,7 +31,7 @@ Options:
 `
 )
 
-type Cli struct {
+type OldCli struct {
 	// commands
 	DoInfo     bool `mapstructure:"info"`
 	DoCreate   bool `mapstructure:"create"`
@@ -48,14 +52,14 @@ type Cli struct {
 	raw map[string]interface{}
 }
 
-func ParseArgs() (cli *Cli, err error) {
+func ParseArgs() (cli *OldCli, err error) {
 	rawArgs, derr := docopt.Parse(usage, nil, true, Version, true)
 	if derr != nil {
 		err = derr
 		return
 	}
 
-	cli = &Cli{raw: rawArgs}
+	cli = &OldCli{raw: rawArgs}
 	err = mapstructure.Decode(rawArgs, cli)
 	if err != nil {
 		log.Printf("%v -> %#v\n", err, rawArgs)
@@ -63,7 +67,7 @@ func ParseArgs() (cli *Cli, err error) {
 	return
 }
 
-func (cli *Cli) GetJail() Jail {
+func (cli *OldCli) GetJail() Jail {
 	if cli.Jail == "" && cli.Snapshot == "" {
 		log.Fatalln("No jail given")
 	}
@@ -139,11 +143,11 @@ func parseProperties(properties []string) map[string]string {
 	return pmap
 }
 
-func (cli *Cli) Properties() map[string]string {
+func (cli *OldCli) Properties() map[string]string {
 	return parseProperties(cli.RawProperties)
 }
 
-func (cli *Cli) Dispatch() error {
+func (cli *OldCli) Dispatch() error {
 	switch {
 	case cli.DoInfo && cli.Jail == "":
 		return cli.CmdGlobalInfo()
@@ -178,10 +182,136 @@ func (cli *Cli) Dispatch() error {
 	}
 }
 
-func RunCli() error {
+func oldRunCli() error {
 	if cli, err := ParseArgs(); err != nil {
 		return err
 	} else {
 		return cli.Dispatch()
 	}
+}
+
+type CommandRunner func(string, []string, interface{}) error
+
+type Command struct {
+	*flag.FlagSet
+	Name     string
+	Synopsis string
+	Runner   CommandRunner
+	Sink     interface{}
+}
+
+func NewCommand(name, synopsis string, runner CommandRunner, sink interface{}) *Command {
+	cmd := &Command{
+		FlagSet:  flag.NewFlagSet(name, flag.ContinueOnError),
+		Name:     name,
+		Synopsis: synopsis,
+		Runner:   runner,
+		Sink:     sink,
+	}
+	cmd.FlagSet.Usage = cmd.Usage
+	return cmd
+}
+
+func (cmd *Command) Run() error {
+	if !cmd.Parsed() {
+		return errors.New("Cannot Run() before Parse()")
+	}
+	return cmd.Runner(cmd.Name, cmd.Args(), cmd.Sink)
+}
+
+func (cmd *Command) Usage() {
+	fmt.Fprintln(os.Stderr, "Usage:", cmd)
+	cmd.PrintDefaults()
+}
+
+func (cmd *Command) String() string {
+	return cmd.Name + " " + cmd.Synopsis
+}
+
+type Cli struct {
+	*flag.FlagSet
+	Name     string
+	Commands map[string]*Command
+}
+
+func (cli *Cli) Usage() {
+	fmt.Fprintf(os.Stderr,
+		"Usage: %s [flags] command [args...]\nKnown commands:\n", cli.Name)
+	commands := make([]string, 0, len(cli.Commands))
+	for cmd := range cli.Commands {
+		commands = append(commands, cmd)
+	}
+	sort.Strings(commands)
+	for _, cmd := range commands {
+		fmt.Fprintf(os.Stderr, "  %s %s\n", cli.Name, cli.Commands[cmd])
+	}
+	fmt.Fprintf(os.Stderr, "  %s help [COMMAND]\nGlobal flags:\n", cli.Name)
+	cli.PrintDefaults()
+}
+
+func NewCli(name string) *Cli {
+	if name == "" {
+		name = os.Args[0]
+	}
+	rv := &Cli{
+		FlagSet:  flag.NewFlagSet(name, flag.ContinueOnError),
+		Name:     name,
+		Commands: make(map[string]*Command),
+	}
+	rv.FlagSet.Usage = rv.Usage
+	return rv
+}
+
+func (cli *Cli) AddCommand(name, synopsis string, runner CommandRunner, sink interface{}) *Command {
+	cmd := NewCommand(name, synopsis, runner, sink)
+	cli.Commands[name] = cmd
+	return cmd
+}
+
+func (cli *Cli) MustGetCommand(name string) *Command {
+	if cmd, hasCommand := cli.Commands[name]; hasCommand {
+		return cmd
+	} else {
+		fmt.Fprintln(os.Stderr, "Unknown command:", name)
+		cli.Usage()
+		os.Exit(2)
+	}
+	return nil
+}
+
+func (cli *Cli) Parse(args []string) {
+	if args == nil {
+		args = os.Args[1:]
+	}
+
+	if err := cli.FlagSet.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(0)
+		} else {
+			os.Exit(2)
+		}
+	}
+
+	if cli.NArg() == 0 || cli.Arg(0) == "help" {
+		if cli.NArg() > 1 {
+			cli.MustGetCommand(cli.Arg(1)).Usage()
+		} else {
+			cli.Usage()
+		}
+		os.Exit(0)
+	}
+
+	cli.MustGetCommand(cli.Arg(0))
+}
+
+func (cli *Cli) Run() error {
+	cmd := cli.Commands[cli.Arg(0)]
+	if err := cmd.Parse(cli.Args()[1:]); err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(0)
+		} else {
+			os.Exit(2)
+		}
+	}
+	return cmd.Run()
 }
