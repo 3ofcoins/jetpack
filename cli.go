@@ -11,7 +11,7 @@ import "github.com/mitchellh/mapstructure"
 var (
 	Version = "0.0.0-wip0"
 	usage   = `Usage:
-  zjail install <JAIL>
+  zjail create <JAIL> [<PROPERTY>...]
   zjail info [<JAIL>]
   zjail status [<JAIL>]
   zjail (start|stop|restart) <JAIL>
@@ -20,13 +20,17 @@ var (
   zjail init [<PROPERTY>...]
   zjail snapshot <JAIL@SNAPSHOT>
   zjail -h | --help | --version
+
+Options:
+  -h, --help          Show help
+  --version           Show version number
 `
 )
 
 type Cli struct {
 	// commands
 	DoInfo     bool `mapstructure:"info"`
-	DoInstall  bool `mapstructure:"install"`
+	DoCreate   bool `mapstructure:"create"`
 	DoSet      bool `mapstructure:"set"`
 	DoInit     bool `mapstructure:"init"`
 	DoStatus   bool `mapstructure:"status"`
@@ -36,10 +40,10 @@ type Cli struct {
 	DoConsole  bool `mapstructure:"console"`
 	DoSnapshot bool `mapstructure:"snapshot"`
 
-	Jail       string   `mapstructure:"<JAIL>"`
-	Snapshot   string   `mapstructure:"<JAIL@SNAPSHOT>"`
-	properties []string `mapstructure:"<PROPERTY>"`
-	Command    []string `mapstructure:"<COMMAND>"`
+	Jail          string   `mapstructure:"<JAIL>"`
+	Snapshot      string   `mapstructure:"<JAIL@SNAPSHOT>"`
+	RawProperties []string `mapstructure:"<PROPERTY>"`
+	Command       []string `mapstructure:"<COMMAND>"`
 
 	raw map[string]interface{}
 }
@@ -136,7 +140,7 @@ func parseProperties(properties []string) map[string]string {
 }
 
 func (cli *Cli) Properties() map[string]string {
-	return parseProperties(cli.properties)
+	return parseProperties(cli.RawProperties)
 }
 
 func (cli *Cli) Dispatch() error {
@@ -145,8 +149,10 @@ func (cli *Cli) Dispatch() error {
 		return cli.CmdGlobalInfo()
 	case cli.DoInfo:
 		return cli.CmdJailInfo(cli.GetJail())
-	case cli.DoInstall:
-		return cli.CmdInstall()
+	case cli.DoCreate:
+		log.Printf("%#v\n", cli)
+		return nil
+		// return cli.CmdCreate()
 	case cli.DoSet:
 		return cli.GetJail().SetProperties(cli.Properties())
 	case cli.DoStatus && cli.Jail == "":

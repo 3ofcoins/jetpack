@@ -5,8 +5,6 @@ import "net"
 import "os"
 import "os/exec"
 
-import "github.com/3ofcoins/go-zfs"
-
 func (cli *Cli) CmdGlobalInfo() error {
 	log.Println("Version:", Version)
 	log.Println("Root ZFS dataset:", ZFSRoot)
@@ -37,31 +35,36 @@ func (cli *Cli) CmdJailInfo(jail Jail) error {
 	return nil
 }
 
-// FIXME: implement own fetch+install
-func (cli *Cli) CmdInstall() error {
-	if fs, err := zfs.CreateFilesystem(Host.Name+"/"+cli.Jail, nil); err != nil {
+func (cli *Cli) CmdCreate() error {
+	log.Printf("%v\n%#v\n", cli.Properties(), cli)
+	jail, err := CreateJail(cli.Jail, cli.Properties())
+	if err != nil {
 		return err
-	} else {
-		for _, subcmd := range []string{
-			"distfetch",
-			"checksum",
-			"distextract",
-			"config",
-			"entropy",
-		} {
-			cmd := exec.Command("bsdinstall", subcmd)
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			cmd.Env = append(os.Environ(),
-				"DISTRIBUTIONS=base.txz",
-				"BSDINSTALL_CHROOT="+fs.Mountpoint,
-				"BSDINSTALL_DISTSITE=ftp://ftp.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE",
-				"BSDINSTALL_LOG="+fs.Mountpoint+".log",
-			)
-			if err := cmd.Run(); err != nil {
-				return err
-			}
+	}
+
+	// FIXME: implement own fetch+install
+	for _, subcmd := range []string{
+		"distfetch",
+		"checksum",
+		"distextract",
+		"config",
+		"entropy",
+	} {
+		cmd := exec.Command("bsdinstall", subcmd)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Env = append(os.Environ(),
+			"DISTRIBUTIONS=base.txz",
+			"BSDINSTALL_CHROOT="+jail.Mountpoint,
+			"BSDINSTALL_DISTSITE=ftp://ftp.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE",
+		)
+		if log, hasLog := jail.Properties["zettajail:jail:exec.consolelog"]; hasLog {
+			cmd.Env = append(cmd.Env, "BSDINSTALL_LOG="+log)
+		}
+
+		if err := cmd.Run(); err != nil {
+			return err
 		}
 	}
 	return Host.WriteJailConf()

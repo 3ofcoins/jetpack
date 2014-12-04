@@ -2,15 +2,17 @@ package zettajail
 
 import "io"
 import "log"
+import "path"
 import "os"
 import "os/exec"
 import "text/template"
+
+import "github.com/3ofcoins/go-zfs"
 
 var jailConfTmpl *template.Template
 
 func init() {
 	tmpl, err := template.New("jail.conf").Parse(`"{{.}}" {
-  host.hostname = "{{.}}";
   path = "{{.Mountpoint}}";
   exec.consolelog = "{{.Mountpoint}}.log";
 {{ range .JailParameters }}  {{.}};
@@ -25,7 +27,35 @@ func init() {
 type Jail struct{ Dataset }
 
 func GetJail(name string) Jail {
-	return Jail{GetDataset(Host.Name + "/" + name)}
+	return Jail{GetDataset(path.Join(Host.Name, name))}
+}
+
+func CreateJail(name string, properties map[string]string) (Jail, error) {
+	if properties == nil {
+		properties = make(map[string]string)
+	}
+
+	// Set mountpoint to have a reference path later on
+	if _, hasMountpoint := properties["mountpoint"]; !hasMountpoint {
+		properties["mountpoint"] = path.Join(Host.Mountpoint, name)
+	}
+
+	if _, hasHostname := properties["zettajail:jail:host.hostname"]; !hasHostname {
+		properties["zettajail:jail:host.hostname"] = path.Base(name)
+	}
+
+	// Expand default console log
+	switch properties["zettajail:jail:exec.consolelog"] {
+	case "true":
+		properties["zettajail:jail:exec.consolelog"] = properties["mountpoint"] + ".log"
+	case "false":
+		delete(properties, "zettajail:jail:exec.consolelog")
+	}
+
+	properties["zettajail:jail"] = "on"
+
+	ds, err := zfs.CreateFilesystem(path.Join(Host.Name, name), properties)
+	return Jail{Dataset{ds}}, err
 }
 
 func (j Jail) String() string {
