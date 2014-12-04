@@ -1,4 +1,4 @@
-package main
+package zettajail
 
 import "log"
 import "os/exec"
