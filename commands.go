@@ -32,6 +32,7 @@ func (cli *Cli) CmdGlobalInfo() error {
 
 func (cli *Cli) CmdJailInfo(jail Jail) error {
 	jail.Status()
+	log.Println("Snapshots:", jail.Snapshots())
 	jail.WriteConfigTo(os.Stdout)
 	return nil
 }

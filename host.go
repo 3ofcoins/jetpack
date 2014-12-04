@@ -7,7 +7,7 @@ import "sort"
 
 type hostData struct {
 	Dataset
-	JailsCache map[string]int
+	JidCache map[string]int
 }
 
 var ZFSRoot = "zroot/zjail"
@@ -47,11 +47,11 @@ func (r hostData) Init(properties map[string]string) error {
 	return nil
 }
 
-func (r hostData) Jails() map[string]int {
-	if r.JailsCache == nil {
-		r.JailsCache = Jls()
+func (r hostData) Jid(name string) int {
+	if r.JidCache == nil {
+		r.JidCache = Jls()
 	}
-	return r.JailsCache
+	return r.JidCache[name]
 }
 
 type jailsByName []Jail

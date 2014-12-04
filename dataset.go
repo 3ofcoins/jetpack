@@ -67,3 +67,19 @@ func (ds Dataset) SetProperties(properties map[string]string) error {
 	}
 	return nil
 }
+
+func (ds Dataset) Snapshots() []Dataset {
+	snaps, err := ds.Dataset.Snapshots()
+	if err != nil {
+		log.Fatalln("ERROR:", err)
+	}
+	rv := make([]Dataset, len(snaps))
+	for i, snap := range snaps {
+		rv[i] = Dataset{snap}
+	}
+	return rv
+}
+
+func (ds Dataset) String() string {
+	return ds.Name[len(Host.Name)+1:]
+}

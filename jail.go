@@ -33,7 +33,7 @@ func (j Jail) String() string {
 }
 
 func (j Jail) Jid() int {
-	return Host.Jails()[j.String()]
+	return Host.Jid(j.String())
 }
 
 func (j Jail) IsActive() bool {
