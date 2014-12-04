@@ -54,43 +54,38 @@ func (r hostData) Jails() map[string]int {
 	return r.JailsCache
 }
 
-func (r hostData) Children() ([]Jail, error) {
-	children, err := r.Dataset.Children(0)
-	rv := make([]Jail, len(children))
-	for i := range children {
-		rv[i] = Jail{Dataset{children[i]}}
-	}
-	return rv, err
-}
-
 type jailsByName []Jail
 
 func (jj jailsByName) Len() int           { return len(jj) }
 func (jj jailsByName) Swap(i, j int)      { jj[i], jj[j] = jj[j], jj[i] }
 func (jj jailsByName) Less(i, j int) bool { return jj[i].Name < jj[j].Name }
 
-func (r hostData) Status() error {
-	children, err := r.Children()
+func (r hostData) Jails() []Jail {
+	children, err := r.Dataset.Children(0)
 	if err != nil {
-		return err
+		log.Fatalln("ERROR:", err)
 	}
-	sort.Sort(jailsByName(children))
+
+	rv := make([]Jail, 0, len(children))
 	for _, child := range children {
-		if err := child.Status(); err != nil {
-			return err
+		if child.Type == "filesystem" {
+			jail := Jail{Dataset{child}}
+			rv = append(rv, jail)
 		}
 	}
-	return nil
+
+	sort.Sort(jailsByName(rv))
+	return rv
+}
+
+func (r hostData) Status() {
+	for _, child := range r.Jails() {
+		child.Status()
+	}
 }
 
 func (r hostData) WriteConfigTo(w io.Writer) error {
-	children, err := r.Children()
-	if err != nil {
-		return err
-	}
-	sort.Sort(jailsByName(children))
-
-	for _, child := range children {
+	for _, child := range r.Jails() {
 		if err := child.WriteConfigTo(w); err != nil {
 			return err
 		}

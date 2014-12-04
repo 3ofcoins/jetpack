@@ -1,6 +1,6 @@
 package main
 
-import "errors"
+import "fmt"
 import "log"
 import "strings"
 import "strconv"
@@ -18,6 +18,7 @@ var (
   zjail console <JAIL> [<COMMAND>...]
   zjail set <JAIL> [-o ZFSPROP]... <PROPERTY>...
   zjail init [-o ZFSPROP]... [<PROPERTY>...]
+  zjail snapshot <JAIL@SNAPSHOT>
   zjail -h | --help | --version
 
 Options:
@@ -27,37 +28,53 @@ Options:
 
 type Cli struct {
 	// commands
-	DoInfo    bool `mapstructure:"info"`
-	DoInstall bool `mapstructure:"install"`
-	DoSet     bool `mapstructure:"set"`
-	DoInit    bool `mapstructure:"init"`
-	DoStatus  bool `mapstructure:"status"`
-	DoStart   bool `mapstructure:"start"`
-	DoStop    bool `mapstructure:"stop"`
-	DoRestart bool `mapstructure:"restart"`
-	DoConsole bool `mapstructure:"console"`
+	DoInfo     bool `mapstructure:"info"`
+	DoInstall  bool `mapstructure:"install"`
+	DoSet      bool `mapstructure:"set"`
+	DoInit     bool `mapstructure:"init"`
+	DoStatus   bool `mapstructure:"status"`
+	DoStart    bool `mapstructure:"start"`
+	DoStop     bool `mapstructure:"stop"`
+	DoRestart  bool `mapstructure:"restart"`
+	DoConsole  bool `mapstructure:"console"`
+	DoSnapshot bool `mapstructure:"snapshot"`
 
 	Jail           string   `mapstructure:"<JAIL>"`
+	Snapshot       string   `mapstructure:"<JAIL@SNAPSHOT>"`
 	JailProperties []string `mapstructure:"<PROPERTY>"`
 	ZfsProperties  []string `mapstructure:"-o"`
 	Command        []string `mapstructure:"<COMMAND>"`
+
+	raw map[string]interface{}
 }
 
-func ParseArgs() (cli Cli, err error) {
+func ParseArgs() (cli *Cli, err error) {
 	rawArgs, derr := docopt.Parse(usage, nil, true, Version, true)
 	if derr != nil {
 		err = derr
 		return
 	}
 
-	err = mapstructure.Decode(rawArgs, &cli)
+	cli = &Cli{raw: rawArgs}
+	err = mapstructure.Decode(rawArgs, cli)
 	if err != nil {
 		log.Printf("%v -> %#v\n", err, rawArgs)
 	}
 	return
 }
 
-func (cli Cli) GetJail() Jail {
+func (cli *Cli) GetJail() Jail {
+	if cli.Jail == "" && cli.Snapshot == "" {
+		log.Fatalln("No jail given")
+	}
+	if cli.Jail == "" {
+		splut := strings.Split(cli.Snapshot, "@")
+		if len(splut) != 2 {
+			log.Fatalf("Invalid JAIL@SNAPSHOT spec: %#v\n", cli.Snapshot)
+		}
+		cli.Jail = splut[0]
+		cli.Snapshot = splut[1]
+	}
 	jail := GetJail(cli.Jail)
 	if !jail.Exists() {
 		log.Fatalln("Jail does not exist:", cli.Jail)
@@ -65,7 +82,7 @@ func (cli Cli) GetJail() Jail {
 	return jail
 }
 
-func (cli Cli) ParseProperties() map[string]string {
+func (cli *Cli) ParseProperties() map[string]string {
 	if cli.JailProperties == nil && cli.ZfsProperties == nil {
 		return nil
 	}
@@ -106,9 +123,11 @@ func (cli *Cli) Dispatch() error {
 	case cli.DoSet:
 		return cli.GetJail().SetProperties(cli.ParseProperties())
 	case cli.DoStatus && cli.Jail == "":
-		return Host.Status()
+		Host.Status()
+		return nil
 	case cli.DoStatus:
-		return cli.GetJail().Status()
+		cli.GetJail().Status()
+		return nil
 	case cli.DoStart:
 		return cli.GetJail().RunJail("-c")
 	case cli.DoStop:
@@ -119,8 +138,10 @@ func (cli *Cli) Dispatch() error {
 		return cli.GetJail().RunJexec("", cli.Command)
 	case cli.DoInit:
 		return Host.Init(cli.ParseProperties())
+	case cli.DoSnapshot:
+		return cli.CmdSnapshot(cli.GetJail())
 	default:
-		return errors.New("CAN'T HAPPEN")
+		return fmt.Errorf("CAN'T HAPPEN: %#v", cli)
 	}
 }
 
