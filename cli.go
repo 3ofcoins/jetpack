@@ -16,13 +16,10 @@ var (
   zjail status [<JAIL>]
   zjail (start|stop|restart) <JAIL>
   zjail console <JAIL> [<COMMAND>...]
-  zjail set <JAIL> [-o ZFSPROP]... <PROPERTY>...
-  zjail init [-o ZFSPROP]... [<PROPERTY>...]
+  zjail set <JAIL> <PROPERTY>...
+  zjail init [<PROPERTY>...]
   zjail snapshot <JAIL@SNAPSHOT>
   zjail -h | --help | --version
-
-Options:
-  -o ZFSPROP   Literal ZFS property
 `
 )
 
@@ -39,11 +36,10 @@ type Cli struct {
 	DoConsole  bool `mapstructure:"console"`
 	DoSnapshot bool `mapstructure:"snapshot"`
 
-	Jail           string   `mapstructure:"<JAIL>"`
-	Snapshot       string   `mapstructure:"<JAIL@SNAPSHOT>"`
-	JailProperties []string `mapstructure:"<PROPERTY>"`
-	ZfsProperties  []string `mapstructure:"-o"`
-	Command        []string `mapstructure:"<COMMAND>"`
+	Jail       string   `mapstructure:"<JAIL>"`
+	Snapshot   string   `mapstructure:"<JAIL@SNAPSHOT>"`
+	properties []string `mapstructure:"<PROPERTY>"`
+	Command    []string `mapstructure:"<COMMAND>"`
 
 	raw map[string]interface{}
 }
@@ -82,34 +78,44 @@ func (cli *Cli) GetJail() Jail {
 	return jail
 }
 
-func (cli *Cli) ParseProperties() map[string]string {
-	if cli.JailProperties == nil && cli.ZfsProperties == nil {
+func parseProperties(properties []string) map[string]string {
+	if properties == nil {
 		return nil
 	}
-	rv := make(map[string]string)
-	for _, property := range cli.JailProperties {
+	pmap := make(map[string]string)
+	for _, property := range properties {
+		isJailProperty := false
+		switch property[0] {
+		case '+': // "+property" is raw ZFS property
+			property = property[1:]
+		case '@': // "@property" is zettajail: property
+			property = "zettajail:" + property[1:]
+		default: // "property" is zettajail:jail: (jail property)
+			property = "zettajail:jail:" + property
+			isJailProperty = true
+		}
+
 		splut := strings.SplitN(property, "=", 2)
 		if len(splut) == 1 {
-			if strings.HasPrefix(splut[0], "no") {
-				rv["zettajail:jail:"+splut[0][2:]] = "false"
+			if isJailProperty {
+				// TODO: look for a "no"
+				pmap[splut[0]] = "true"
 			} else {
-				rv["zettajail:jail:"+splut[0]] = "true"
+				pmap[splut[0]] = "on"
 			}
 		} else {
-			rv["zettajail:jail:"+splut[0]] = strconv.Quote(splut[1])
+			if isJailProperty {
+				pmap[splut[0]] = strconv.Quote(splut[1])
+			} else {
+				pmap[splut[0]] = splut[1]
+			}
 		}
 	}
+	return pmap
+}
 
-	for _, property := range cli.ZfsProperties {
-		splut := strings.SplitN(property, "=", 2)
-		if len(splut) == 1 {
-			rv[splut[0]] = "on"
-		} else {
-			rv[splut[0]] = splut[1]
-		}
-	}
-
-	return rv
+func (cli *Cli) Properties() map[string]string {
+	return parseProperties(cli.properties)
 }
 
 func (cli *Cli) Dispatch() error {
@@ -121,7 +127,7 @@ func (cli *Cli) Dispatch() error {
 	case cli.DoInstall:
 		return cli.CmdInstall()
 	case cli.DoSet:
-		return cli.GetJail().SetProperties(cli.ParseProperties())
+		return cli.GetJail().SetProperties(cli.Properties())
 	case cli.DoStatus && cli.Jail == "":
 		Host.Status()
 		return nil
@@ -137,7 +143,7 @@ func (cli *Cli) Dispatch() error {
 	case cli.DoConsole:
 		return cli.GetJail().RunJexec("", cli.Command)
 	case cli.DoInit:
-		return Host.Init(cli.ParseProperties())
+		return Host.Init(cli.Properties())
 	case cli.DoSnapshot:
 		return cli.CmdSnapshot(cli.GetJail())
 	default:

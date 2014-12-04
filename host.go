@@ -68,7 +68,7 @@ func (r hostData) Jails() []Jail {
 
 	rv := make([]Jail, 0, len(children))
 	for _, child := range children {
-		if child.Type == "filesystem" && child.Properties["zettajail:jail"] == "yes" {
+		if child.Type == "filesystem" && child.Properties["zettajail:jail"] == "on" {
 			jail := Jail{Dataset{child}}
 			rv = append(rv, jail)
 		}
