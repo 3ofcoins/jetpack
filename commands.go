@@ -16,7 +16,7 @@ func (cli *Cli) CmdGlobalInfo() error {
 		log.Println("File system root:", Host.Mountpoint)
 		log.Println("Jails:", Host.Jails())
 		log.Println("Parameters:", Host.JailParameters())
-		if iface, err := net.InterfaceByName(Host.Properties["jail:interface"]); err != nil {
+		if iface, err := net.InterfaceByName(Host.Properties["zettajail:jail:interface"]); err != nil {
 			return err
 		} else {
 			addrs, _ := iface.Addrs()

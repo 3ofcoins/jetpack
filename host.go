@@ -14,16 +14,16 @@ var ZFSRoot = "zroot/zjail"
 var Host hostData
 
 var RootProperties = map[string]string{
-	"atime":              "off",
-	"compress":           "lz4",
-	"dedup":              "on",
-	"jail:devfs_ruleset": "4",
-	"jail:exec.clean":    "true",
-	"jail:exec.start":    "/bin/sh /etc/rc",
-	"jail:exec.stop":     "/bin/sh /etc/rc.shutdown",
-	"jail:interface":     "lo1",
-	"jail:mount.devfs":   "true",
-	// "mountpoint":         "/srv/jail",
+	"atime":                        "off",
+	"compress":                     "lz4",
+	"dedup":                        "on",
+	"zettajail:jail":               "no",
+	"zettajail:jail:devfs_ruleset": "4",
+	"zettajail:jail:exec.clean":    "true",
+	"zettajail:jail:exec.start":    "/bin/sh /etc/rc",
+	"zettajail:jail:exec.stop":     "/bin/sh /etc/rc.shutdown",
+	"zettajail:jail:interface":     "lo1",
+	"zettajail:jail:mount.devfs":   "true",
 }
 
 func init() {
@@ -68,7 +68,7 @@ func (r hostData) Jails() []Jail {
 
 	rv := make([]Jail, 0, len(children))
 	for _, child := range children {
-		if child.Type == "filesystem" {
+		if child.Type == "filesystem" && child.Properties["zettajail:jail"] == "yes" {
 			jail := Jail{Dataset{child}}
 			rv = append(rv, jail)
 		}

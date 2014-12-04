@@ -91,12 +91,12 @@ func (cli *Cli) ParseProperties() map[string]string {
 		splut := strings.SplitN(property, "=", 2)
 		if len(splut) == 1 {
 			if strings.HasPrefix(splut[0], "no") {
-				rv["jail:"+splut[0][2:]] = "false"
+				rv["zettajail:jail:"+splut[0][2:]] = "false"
 			} else {
-				rv["jail:"+splut[0]] = "true"
+				rv["zettajail:jail:"+splut[0]] = "true"
 			}
 		} else {
-			rv["jail:"+splut[0]] = strconv.Quote(splut[1])
+			rv["zettajail:jail:"+splut[0]] = strconv.Quote(splut[1])
 		}
 	}
 

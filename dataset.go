@@ -39,7 +39,7 @@ func (jp JailParameter) String() string {
 func (ds Dataset) JailParameters() []JailParameter {
 	keys := make([]string, 0, len(ds.Properties))
 	for k := range ds.Properties {
-		if strings.HasPrefix(k, "jail:") {
+		if strings.HasPrefix(k, "zettajail:jail:") {
 			keys = append(keys, k)
 		}
 	}
@@ -54,7 +54,7 @@ func (ds Dataset) JailParameters() []JailParameter {
 				v = uv
 			}
 		}
-		rv[i] = JailParameter{k[5:], v}
+		rv[i] = JailParameter{k[len("zettajail:jail:"):], v}
 	}
 	return rv
 }
