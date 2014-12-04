@@ -99,7 +99,6 @@ func (j Jail) RunJexec(user string, jcmd []string) error {
 	args = append(args, j.String())
 	args = append(args, jcmd...)
 
-	log.Println("JEXEC:", args)
 	cmd := exec.Command("jexec", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

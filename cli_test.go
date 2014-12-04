@@ -43,7 +43,7 @@ var parsePropertiesCases = []struct {
 
 func TestParseProperties(t *testing.T) {
 	for _, tc := range parsePropertiesCases {
-		props := parseProperties(tc.in)
+		props := ParseProperties(tc.in)
 		if !reflect.DeepEqual(props, tc.out) {
 			t.Errorf("parseProperties(%#v) returns %#v, want %#v", tc.in, props, tc.out)
 		}
