@@ -85,29 +85,50 @@ func parseProperties(properties []string) map[string]string {
 	pmap := make(map[string]string)
 	for _, property := range properties {
 		isJailProperty := false
+		prefix := ""
+
 		switch property[0] {
 		case '+': // "+property" is raw ZFS property
 			property = property[1:]
 		case '@': // "@property" is zettajail: property
-			property = "zettajail:" + property[1:]
+			property = property[1:]
+			prefix = "zettajail:"
 		default: // "property" is zettajail:jail: (jail property)
-			property = "zettajail:jail:" + property
+			prefix = "zettajail:jail:"
 			isJailProperty = true
 		}
 
-		splut := strings.SplitN(property, "=", 2)
-		if len(splut) == 1 {
+		if splut := strings.SplitN(property, "=", 2); len(splut) == 1 {
+			// No "=" in string -> a flag
+
+			// Check for negation
+			isTrue := true
+			if strings.HasPrefix(property, "no") {
+				property = property[2:]
+				isTrue = false
+			} else if strings.Contains(property, ".no") {
+				property = strings.Replace(property, ".no", ".", 1)
+				isTrue = false
+			}
+
 			if isJailProperty {
-				// TODO: look for a "no"
-				pmap[splut[0]] = "true"
+				if isTrue {
+					pmap[prefix+property] = "true"
+				} else {
+					pmap[prefix+property] = "false"
+				}
 			} else {
-				pmap[splut[0]] = "on"
+				if isTrue {
+					pmap[prefix+property] = "on"
+				} else {
+					pmap[prefix+property] = "off"
+				}
 			}
 		} else {
 			if isJailProperty {
-				pmap[splut[0]] = strconv.Quote(splut[1])
+				pmap[prefix+splut[0]] = strconv.Quote(splut[1])
 			} else {
-				pmap[splut[0]] = splut[1]
+				pmap[prefix+splut[0]] = splut[1]
 			}
 		}
 	}
