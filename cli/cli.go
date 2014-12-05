@@ -5,6 +5,7 @@ import "flag"
 import "fmt"
 import "os"
 import "sort"
+import "strings"
 
 var ErrUsage = errors.New("Invalid usage")
 
@@ -13,6 +14,7 @@ type CommandRunner func(string, []string) error
 type Command struct {
 	*flag.FlagSet
 	Name     string
+	CliName  string
 	Synopsis string
 	Runner   CommandRunner
 }
@@ -47,7 +49,12 @@ func (cmd *Command) Usage() {
 }
 
 func (cmd *Command) String() string {
-	return cmd.Name + " " + cmd.Synopsis
+	pieces := []string{}
+	if cmd.CliName != "" {
+		pieces = append(pieces, cmd.CliName)
+	}
+	pieces = append(pieces, cmd.Name, cmd.Synopsis)
+	return strings.Join(pieces, " ")
 }
 
 type Cli struct {
@@ -58,16 +65,16 @@ type Cli struct {
 
 func (cli *Cli) Usage() {
 	fmt.Fprintf(os.Stderr,
-		"Usage: %s [flags] command [args...]\nKnown commands:\n", cli.Name)
+		"Usage: %s [flags] command [args...]\nKnown commands:\n  %s help [COMMAND] -- show help\n", cli.Name, cli.Name)
 	commands := make([]string, 0, len(cli.Commands))
 	for cmd := range cli.Commands {
 		commands = append(commands, cmd)
 	}
 	sort.Strings(commands)
 	for _, cmd := range commands {
-		fmt.Fprintf(os.Stderr, "  %s %s\n", cli.Name, cli.Commands[cmd])
+		fmt.Fprintf(os.Stderr, "  %s\n", cli.Commands[cmd])
 	}
-	fmt.Fprintf(os.Stderr, "  %s help [COMMAND]\nGlobal flags:\n", cli.Name)
+	fmt.Fprintln(os.Stderr, "Global flags:")
 	cli.PrintDefaults()
 }
 
@@ -85,7 +92,9 @@ func NewCli(name string) *Cli {
 }
 
 func (cli *Cli) AddCommand(name, synopsis string, runner CommandRunner) {
-	cli.Commands[name] = NewCommand(name, synopsis, runner)
+	cmd := NewCommand(name, synopsis, runner)
+	cmd.CliName = cli.Name
+	cli.Commands[name] = cmd
 }
 
 func (cli *Cli) MustGetCommand(name string) *Command {
