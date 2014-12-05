@@ -52,27 +52,37 @@ devd_enable="NO"
 syslogd_enable="NO"
 `
 
-var flag struct {
-	User     string
-	Snapshot string
-	Install  string
+var fl struct {
+	User               string
+	Snapshot           string
+	Install            string
+	ModForce, ModStart bool
 }
 
-var jailCmdSwitch = map[string]string{
-	"start":              "-c",
-	"stop":               "-r",
-	"restart":            "-rc",
-	"modify":             "-m",
-	"force-modify":       "-rm",
-	"start-modify":       "-cm",
-	"start-force-modify": "-cmr",
-}
-
-func cmdCtlJail(cmd string, args []string) error {
-	flag := jailCmdSwitch[cmd]
+func cmdCtlJail(command string, args []string) error {
+	var op string
+	switch command {
+	case "start":
+		op = "-c"
+	case "stop":
+		op = "-r"
+	case "restart":
+		op = "-rc"
+	case "modify":
+		switch {
+		case fl.ModForce && fl.ModStart:
+			op = "-cmr"
+		case fl.ModForce:
+			op = "-rm"
+		case fl.ModStart:
+			op = "-cm"
+		default:
+			op = "-m"
+		}
+	}
 	return ForEachJail(args, func(jail Jail) error {
 		// FIXME: feedback
-		return jail.RunJail(flag)
+		return jail.RunJail(op)
 	})
 }
 
@@ -172,13 +182,13 @@ func cmdConsole(_ string, args []string) error {
 	args = args[1:]
 
 	if len(args) == 0 {
-		args = []string{"login", "-f", flag.User}
-		flag.User = ""
+		args = []string{"login", "-f", fl.User}
+		fl.User = ""
 	}
-	if flag.User == "root" {
-		flag.User = ""
+	if fl.User == "root" {
+		fl.User = ""
 	}
-	return jail.RunJexec(flag.User, args)
+	return jail.RunJexec(fl.User, args)
 }
 
 func cmdSet(_ string, args []string) error {
@@ -200,7 +210,7 @@ func cmdInit(_ string, args []string) error {
 func cmdSnapshot(_ string, args []string) error {
 	return ForEachJail(args, func(jail Jail) error {
 		// FIXME: feedback
-		_, err := jail.Snapshot(flag.Snapshot, false)
+		_, err := jail.Snapshot(fl.Snapshot, false)
 		return err
 	})
 }
@@ -210,21 +220,21 @@ func cmdCreate(_ string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if flag.Install == "" {
+	if fl.Install == "" {
 		return nil
 	}
 
 	// Maybe just use fetch(1)'s copy/link behaviour here?
-	switch fi, err := os.Stat(flag.Install); {
+	switch fi, err := os.Stat(fl.Install); {
 	case err == nil && fi.IsDir():
-		flag.Install = filepath.Join(flag.Install, "base.txz")
-		if _, err = os.Stat(flag.Install); err != nil {
+		fl.Install = filepath.Join(fl.Install, "base.txz")
+		if _, err = os.Stat(fl.Install); err != nil {
 			return err
 		}
 	case err == nil:
 		// Pass. It is a file, so we assume it's base.txz
 	case os.IsNotExist(err):
-		if url, err := url.Parse(flag.Install); err != nil {
+		if url, err := url.Parse(fl.Install); err != nil {
 			return err
 		} else {
 			// FIXME: fetch MANIFEST, check checksum
@@ -242,7 +252,7 @@ func cmdCreate(_ string, args []string) error {
 			if err := RunCommand("fetch", "-o", distfile, "-m", "-l", url.String()); err != nil {
 				return err
 			}
-			flag.Install = distfile
+			fl.Install = distfile
 		}
 		// Check if it's an URL, fetch if yes, bomb if not
 	default:
@@ -250,8 +260,8 @@ func cmdCreate(_ string, args []string) error {
 		return err
 	}
 
-	log.Println("Unpacking", flag.Install)
-	if err := RunCommand("tar", "-C", jail.Mountpoint, "-xpf", flag.Install); err != nil {
+	log.Println("Unpacking", fl.Install)
+	if err := RunCommand("tar", "-C", jail.Mountpoint, "-xpf", fl.Install); err != nil {
 		return err
 	}
 
@@ -288,31 +298,27 @@ func cmdClone(_ string, args []string) error {
 var Cli = cli.NewCli("")
 
 func init() {
-	// Global vars
+	// Global flags
 	Cli.StringVar(&ZFSRoot, "root", ZFSRoot, "Root ZFS filesystem")
 
 	// Commands
-	Cli.AddCommand("info", "[JAIL...] -- show global info or jail details", cmdInfo)
-	Cli.AddCommand("tree", "-- show family tree of jails", cmdTree)
-	Cli.AddCommand("status", "[JAIL...] -- show jail status", cmdStatus)
-
-	// FIXME: less proliferation, nicer error handling, better feedback
-	Cli.AddCommand("start", "[JAIL...] -- start some or all jails", cmdCtlJail)
-	Cli.AddCommand("stop", "[JAIL...] -- stop some or all jails", cmdCtlJail)
-	Cli.AddCommand("restart", "[JAIL...] -- restart some or all jails", cmdCtlJail)
-	Cli.AddCommand("modify", "[JAIL...] -- modify some or all jails", cmdCtlJail)
-	Cli.AddCommand("force-modify", "[JAIL...] -- modify, restarting if necessary, some or all jails", cmdCtlJail)
-	Cli.AddCommand("start-modify", "[JAIL...] -- start some or all jails, modify if started", cmdCtlJail)
-	Cli.AddCommand("start-force-modify", "[JAIL...] -- start some or all jails, force-modify if started", cmdCtlJail)
-
-	Cli.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", cmdConsole)
-	Cli.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", cmdSet)
-	Cli.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", cmdInit)
-	Cli.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot existing jails", cmdSnapshot)
-	Cli.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", cmdCreate)
 	Cli.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", cmdClone)
+	Cli.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", cmdConsole)
+	Cli.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", cmdCreate)
+	Cli.AddCommand("info", "[JAIL...] -- show global info or jail details", cmdInfo)
+	Cli.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", cmdInit)
+	Cli.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", cmdCtlJail)
+	Cli.AddCommand("restart", "[JAIL...] -- restart some or all jails", cmdCtlJail)
+	Cli.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", cmdSet)
+	Cli.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot some or all jails", cmdSnapshot)
+	Cli.AddCommand("start", "[JAIL...] -- start (create) some or all jails", cmdCtlJail)
+	Cli.AddCommand("status", "[JAIL...] -- show jail status", cmdStatus)
+	Cli.AddCommand("stop", "[JAIL...] -- stop (remove) some or all jails", cmdCtlJail)
+	Cli.AddCommand("tree", "-- show family tree of jails", cmdTree)
 
-	Cli.Commands["console"].StringVar(&flag.User, "u", "root", "User to run command as")
-	Cli.Commands["snapshot"].StringVar(&flag.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
-	Cli.Commands["create"].StringVar(&flag.Install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
+	Cli.Commands["console"].StringVar(&fl.User, "u", "root", "User to run command as")
+	Cli.Commands["create"].StringVar(&fl.Install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
+	Cli.Commands["modify"].BoolVar(&fl.ModForce, "r", false, "Restart jail if necessary")
+	Cli.Commands["modify"].BoolVar(&fl.ModStart, "c", false, "Start (create) jail if not started")
+	Cli.Commands["snapshot"].StringVar(&fl.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
 }
