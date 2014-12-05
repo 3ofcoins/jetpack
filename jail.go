@@ -25,19 +25,21 @@ func init() {
 
 type Jail struct{ Dataset }
 
+var ZeroJail = Jail{}
+
 func GetJail(name string) (Jail, error) {
 	ds, err := GetDataset(path.Join(Host.Name, name))
 	if err != nil {
-		return Jail{}, err
+		return ZeroJail, err
 	}
 	if ds.Type == "filesystem" && ds.Properties["zettajail:jail"] == "on" {
 		return Jail{ds}, nil
 	} else {
-		return Jail{}, fmt.Errorf("Not a jail: %v", ds.Name)
+		return ZeroJail, fmt.Errorf("Not a jail: %v", ds.Name)
 	}
 }
 
-func CreateJail(name string, properties map[string]string) (Jail, error) {
+func newJailProperties(name string, properties map[string]string) map[string]string {
 	if properties == nil {
 		properties = make(map[string]string)
 	}
@@ -60,10 +62,29 @@ func CreateJail(name string, properties map[string]string) (Jail, error) {
 	}
 
 	properties["zettajail:jail"] = "on"
+	return properties
+}
+
+func CreateJail(name string, properties map[string]string) (Jail, error) {
+	properties = newJailProperties(name, properties)
 
 	ds, err := zfs.CreateFilesystem(path.Join(Host.Name, name), properties)
 	if err != nil {
-		return Jail{}, err
+		return ZeroJail, err
+	}
+	return Jail{Dataset{ds}}, Host.WriteJailConf()
+}
+
+func CloneJail(snapshot, name string, properties map[string]string) (Jail, error) {
+	// FIXME: base properties off snapshot's properties, at least for zettajail:*
+	properties = newJailProperties(name, properties)
+	snap, err := zfs.GetDataset(path.Join(Host.Name, snapshot))
+	if err != nil {
+		return ZeroJail, err
+	}
+	ds, err := snap.Clone(path.Join(Host.Name, name), properties)
+	if err != nil {
+		return ZeroJail, err
 	}
 	return Jail{Dataset{ds}}, Host.WriteJailConf()
 }

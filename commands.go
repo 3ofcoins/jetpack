@@ -8,6 +8,7 @@ import "net/url"
 import "os"
 import "path"
 import "path/filepath"
+import "strings"
 import "time"
 
 import "github.com/augustoroman/multierror"
@@ -98,9 +99,57 @@ func cmdInfo(_ string, args []string) error {
 		if err := jail.Status(); err != nil {
 			return err
 		}
+		if jail.Origin != "" {
+			origin := jail.Origin
+			if strings.HasPrefix(origin, Host.Name+"/") {
+				origin = origin[len(Host.Name)+1:]
+			}
+			log.Println("Origin:", origin)
+		}
 		log.Println("Snapshots:", jail.Snapshots())
 		return jail.WriteConfigTo(os.Stdout)
 	})
+}
+
+func printTree(allJails []Jail, snap Dataset, indent string) {
+	origin := ""
+	if snap != ZeroDataset {
+		origin = snap.Name
+	}
+
+	jails := []Jail{}
+	for _, jail := range allJails {
+		if jail.Origin == origin {
+			jails = append(jails, jail)
+		}
+	}
+
+	for i, jail := range jails {
+		halfdent := "┃"
+		item := "┠"
+		if i == len(jails)-1 {
+			halfdent = " "
+			item = "┖"
+		}
+		fmt.Printf("%s%s%s\n", indent, item, jail)
+
+		snaps := jail.Snapshots()
+		for i, snap := range snaps {
+			halfdent2 := "│"
+			item := "├"
+			if i == len(snaps)-1 {
+				halfdent2 = " "
+				item = "└"
+			}
+			fmt.Printf("%s%s%s%s\n", indent, halfdent, item, snap)
+			printTree(allJails, snap, indent+halfdent+halfdent2)
+		}
+	}
+}
+
+func cmdTree(_ string, _ []string) error {
+	printTree(Host.Jails(), ZeroDataset, "")
+	return nil
 }
 
 func cmdStatus(_ string, args []string) error {
@@ -231,6 +280,11 @@ func cmdCreate(_ string, args []string) error {
 	return ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/entropy"), entropy, 0600)
 }
 
+func cmdClone(_ string, args []string) error {
+	_, err := CloneJail(args[0], args[1], ParseProperties(args[2:]))
+	return err
+}
+
 var Cli = cli.NewCli("")
 
 func init() {
@@ -239,6 +293,7 @@ func init() {
 
 	// Commands
 	Cli.AddCommand("info", "[JAIL...] -- show global info or jail details", cmdInfo)
+	Cli.AddCommand("tree", "-- show family tree of jails", cmdTree)
 	Cli.AddCommand("status", "[JAIL...] -- show jail status", cmdStatus)
 
 	// FIXME: less proliferation, nicer error handling, better feedback
@@ -255,6 +310,7 @@ func init() {
 	Cli.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", cmdInit)
 	Cli.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot existing jails", cmdSnapshot)
 	Cli.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", cmdCreate)
+	Cli.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", cmdClone)
 
 	Cli.Commands["console"].StringVar(&flag.User, "u", "root", "User to run command as")
 	Cli.Commands["snapshot"].StringVar(&flag.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
