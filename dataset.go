@@ -12,12 +12,9 @@ type Dataset struct {
 	*zfs.Dataset
 }
 
-func GetDataset(name string) Dataset {
+func GetDataset(name string) (Dataset, error) {
 	ds, err := zfs.GetDataset(name)
-	if err != nil {
-		log.Println("ERROR:", strings.Replace(err.Error(), "\n", " | ", -1))
-	}
-	return Dataset{ds}
+	return Dataset{ds}, err
 }
 
 func (ds Dataset) Exists() bool {

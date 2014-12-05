@@ -1,5 +1,6 @@
 package zettajail
 
+import "fmt"
 import "io"
 import "log"
 import "path"
@@ -24,8 +25,16 @@ func init() {
 
 type Jail struct{ Dataset }
 
-func GetJail(name string) Jail {
-	return Jail{GetDataset(path.Join(Host.Name, name))}
+func GetJail(name string) (Jail, error) {
+	ds, err := GetDataset(path.Join(Host.Name, name))
+	if err != nil {
+		return Jail{}, err
+	}
+	if ds.Type == "filesystem" && ds.Properties["zettajail:jail"] == "on" {
+		return Jail{ds}, nil
+	} else {
+		return Jail{}, fmt.Errorf("Not a jail: %v", ds.Name)
+	}
 }
 
 func CreateJail(name string, properties map[string]string) (Jail, error) {
@@ -53,7 +62,10 @@ func CreateJail(name string, properties map[string]string) (Jail, error) {
 	properties["zettajail:jail"] = "on"
 
 	ds, err := zfs.CreateFilesystem(path.Join(Host.Name, name), properties)
-	return Jail{Dataset{ds}}, err
+	if err != nil {
+		return Jail{}, err
+	}
+	return Jail{Dataset{ds}}, Host.WriteJailConf()
 }
 
 func (j Jail) String() string {

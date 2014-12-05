@@ -8,7 +8,6 @@ import "net/url"
 import "os"
 import "path"
 import "path/filepath"
-import "strings"
 import "time"
 
 import "github.com/augustoroman/multierror"
@@ -19,18 +18,16 @@ func ParseJails(args []string) ([]Jail, error) {
 	if len(args) == 0 {
 		return Host.Jails(), nil // FIXME: Jails() should return an error
 	}
-	jails := make([]Jail, len(args))
-	notFound := []string{}
-	for i, jailName := range args {
-		jails[i] = GetJail(jailName)
-		if !jails[i].Exists() {
-			notFound = append(notFound, jailName)
+	jails := make([]Jail, 0, len(args))
+	var errs multierror.Accumulator
+	for _, jailName := range args {
+		if jail, err := GetJail(jailName); err != nil {
+			errs.Push(err)
+		} else {
+			jails = append(jails, jail)
 		}
 	}
-	if len(notFound) > 0 {
-		return nil, fmt.Errorf("Could not find: %s", strings.Join(notFound, ", "))
-	}
-	return jails, nil
+	return jails, errs.Error()
 }
 
 func ForEachJail(jailNames []string, fn func(Jail) error) error {
@@ -116,9 +113,9 @@ func cmdConsole(_ string, args []string) error {
 	if len(args) == 0 {
 		return cli.ErrUsage
 	}
-	jail := GetJail(args[0])
-	if !jail.Exists() {
-		return fmt.Errorf("%s does not exist", args[0])
+	jail, err := GetJail(args[0])
+	if err != nil {
+		return err
 	}
 	if !jail.IsActive() {
 		return fmt.Errorf("%s is not started", args[0])
@@ -140,9 +137,9 @@ func cmdSet(_ string, args []string) error {
 	if len(args) < 2 {
 		return cli.ErrUsage
 	}
-	jail := GetJail(args[0])
-	if !jail.Exists() {
-		return fmt.Errorf("%s does not exist", args[0])
+	jail, err := GetJail(args[0])
+	if err != nil {
+		return err
 	}
 	return jail.SetProperties(ParseProperties(args[1:]))
 }

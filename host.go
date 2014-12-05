@@ -27,7 +27,12 @@ var RootProperties = map[string]string{
 }
 
 func init() {
-	Host = hostData{GetDataset(ZFSRoot), nil}
+	// FIXME SO MUCH: this should happen after parsing flags
+	if ds, err := GetDataset(ZFSRoot); err != nil {
+		log.Fatalln(err)
+	} else {
+		Host = hostData{ds, nil}
+	}
 }
 
 func (r hostData) Init(properties map[string]string) error {
