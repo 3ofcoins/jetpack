@@ -6,7 +6,6 @@ import "log"
 import "net"
 import "net/url"
 import "os"
-import "os/exec"
 import "path"
 import "path/filepath"
 import "strings"
@@ -75,7 +74,6 @@ var Commands = []*Command{
 	NewCommand("info", "[JAIL...] -- show global info or jail details",
 		func(_ string, args []string) error {
 			if len(args) == 0 {
-				log.Println("Version:", Version)
 				log.Println("Root ZFS dataset:", ZFSRoot)
 				if !Host.Exists() {
 					log.Println("Root ZFS dataset does not exist. Please run `zjail init`.")
@@ -262,33 +260,12 @@ var Commands = []*Command{
 	}(),
 }
 
-func (cli *OldCli) CmdCreate() error {
-	log.Printf("%v\n%#v\n", cli.Properties(), cli)
-	jail := GetJail("DUPA")
-	// FIXME: implement own fetch+install
-	for _, subcmd := range []string{
-		"distfetch",
-		"checksum",
-		"distextract",
-		"config",
-		"entropy",
-	} {
-		cmd := exec.Command("bsdinstall", subcmd)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Env = append(os.Environ(),
-			"DISTRIBUTIONS=base.txz",
-			"BSDINSTALL_CHROOT="+jail.Mountpoint,
-			"BSDINSTALL_DISTSITE=ftp://ftp.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE",
-		)
-		if log, hasLog := jail.Properties["zettajail:jail:exec.consolelog"]; hasLog {
-			cmd.Env = append(cmd.Env, "BSDINSTALL_LOG="+log)
-		}
-
-		if err := cmd.Run(); err != nil {
-			return err
-		}
+func RunZettajail() error {
+	cli := NewCli("")
+	cli.StringVar(&ZFSRoot, "root", ZFSRoot, "Root ZFS filesystem")
+	for _, cmd := range Commands {
+		cli.AddCommand(cmd)
 	}
-	return Host.WriteJailConf()
+	cli.Parse(nil)
+	return cli.Run()
 }
