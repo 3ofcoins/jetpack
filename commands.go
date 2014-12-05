@@ -1,10 +1,14 @@
 package zettajail
 
 import "fmt"
+import "io/ioutil"
 import "log"
 import "net"
+import "net/url"
 import "os"
 import "os/exec"
+import "path"
+import "path/filepath"
 import "strings"
 import "time"
 
@@ -40,6 +44,14 @@ func ForEachJail(jailNames []string, fn func(Jail) error) error {
 	return errs.Error()
 
 }
+
+const jailRcConf = `sendmail_submit_enable="NO"
+sendmail_outbound_enable="NO"
+sendmail_msp_queue_enable="NO"
+cron_enable="NO"
+devd_enable="NO"
+syslogd_enable="NO"
+`
 
 var jailCmdSwitch = map[string]string{
 	"start":              "-c",
@@ -168,15 +180,91 @@ var Commands = []*Command{
 		cmd.StringVar(&snap, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
 		return cmd
 	}(),
+
+	func() *Command {
+		var install string
+		cmd := NewCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail",
+			func(_ string, args []string) error {
+				jail, err := CreateJail(args[0], ParseProperties(args[1:]))
+				if err != nil {
+					return err
+				}
+				if install != "" {
+					// Maybe just use fetch(1)'s copy/link behaviour here?
+					switch fi, err := os.Stat(install); {
+					case err == nil && fi.IsDir():
+						install = filepath.Join(install, "base.txz")
+						if _, err = os.Stat(install); err != nil {
+							return err
+						}
+					case err == nil:
+						// Pass. It is a file, so we assume it's base.txz
+					case os.IsNotExist(err):
+						if url, err := url.Parse(install); err != nil {
+							return err
+						} else {
+							// FIXME: fetch MANIFEST, check checksum
+							if path.Ext(url.Path) != "txz" {
+								// Directory URL
+								url.Path = path.Join(url.Path, "base.txz")
+							}
+							distdir := jail.Mountpoint + ".dist"
+							if err := os.MkdirAll(distdir, 0755); err != nil {
+								return err
+							}
+							distfile := filepath.Join(distdir, path.Base(url.Path))
+
+							log.Println("Downloading", url)
+							if err := RunCommand("fetch", "-o", distfile, "-m", "-l", url.String()); err != nil {
+								return err
+							}
+							install = distfile
+						}
+						// Check if it's an URL, fetch if yes, bomb if not
+					default:
+						// Weird error we can't handle
+						return err
+					}
+
+					log.Println("Unpacking", install)
+					if err := RunCommand("tar", "-C", jail.Mountpoint, "-xpf", install); err != nil {
+						return err
+					}
+
+					log.Println("Configuring", jail.Mountpoint)
+					if err := ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/etc/rc.conf"), []byte(jailRcConf), 0644); err != nil {
+						return err
+					}
+
+					if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+						return err
+					} else {
+						if err := ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/etc/resolv.conf"), bb, 0644); err != nil {
+							return err
+						}
+					}
+
+					rf, err := os.Open("/dev/random")
+					if err != nil {
+						return err
+					}
+					defer rf.Close()
+					entropy := make([]byte, 4096)
+					if _, err := rf.Read(entropy); err != nil {
+						return err
+					}
+					return ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/entropy"), entropy, 0600)
+				}
+				return nil
+			})
+		cmd.StringVar(&install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
+		return cmd
+	}(),
 }
 
 func (cli *OldCli) CmdCreate() error {
 	log.Printf("%v\n%#v\n", cli.Properties(), cli)
-	jail, err := CreateJail(cli.Jail, cli.Properties())
-	if err != nil {
-		return err
-	}
-
+	jail := GetJail("DUPA")
 	// FIXME: implement own fetch+install
 	for _, subcmd := range []string{
 		"distfetch",

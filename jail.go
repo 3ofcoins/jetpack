@@ -3,8 +3,6 @@ package zettajail
 import "io"
 import "log"
 import "path"
-import "os"
-import "os/exec"
 import "text/template"
 
 import "github.com/3ofcoins/go-zfs"
@@ -80,11 +78,7 @@ func (j Jail) Status() error {
 }
 
 func (j Jail) RunJail(op string) error {
-	cmd := exec.Command("jail", op, j.String())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return RunCommand("jail", "-v", op, j.String())
 }
 
 func (j Jail) RunJexec(user string, jcmd []string) error {
@@ -99,11 +93,7 @@ func (j Jail) RunJexec(user string, jcmd []string) error {
 	args = append(args, j.String())
 	args = append(args, jcmd...)
 
-	cmd := exec.Command("jexec", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return RunCommand("jexec", args...)
 }
 
 func (j Jail) WriteConfigTo(w io.Writer) error {
