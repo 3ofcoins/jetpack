@@ -1,4 +1,4 @@
-package zettajail
+package cli
 
 import "errors"
 import "flag"
@@ -84,8 +84,8 @@ func NewCli(name string) *Cli {
 	return rv
 }
 
-func (cli *Cli) AddCommand(cmd *Command) {
-	cli.Commands[cmd.Name] = cmd
+func (cli *Cli) AddCommand(name, synopsis string, runner CommandRunner) {
+	cli.Commands[name] = NewCommand(name, synopsis, runner)
 }
 
 func (cli *Cli) MustGetCommand(name string) *Command {

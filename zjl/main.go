@@ -5,7 +5,8 @@ import "log"
 import zj "github.com/3ofcoins/zettajail"
 
 func main() {
-	if err := zj.RunZettajail(); err != nil {
+	zj.Cli.Parse(nil)
+	if err := zj.Cli.Run(); err != nil {
 		log.Fatalln(err)
 	}
 }
