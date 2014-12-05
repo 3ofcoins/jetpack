@@ -8,6 +8,7 @@ import "net/url"
 import "os"
 import "path"
 import "path/filepath"
+import "strconv"
 import "strings"
 import "time"
 
@@ -168,6 +169,20 @@ func cmdStatus(_ string, args []string) error {
 	})
 }
 
+func cmdPs(_ string, args []string) error {
+	jail, err := GetJail(args[0])
+	if err != nil {
+		return err
+	}
+	jid := jail.Jid()
+	if jid == 0 {
+		return fmt.Errorf("%s is not running", jail)
+	}
+	psArgs := []string{"-J", strconv.Itoa(jid)}
+	psArgs = append(psArgs, args[1:]...)
+	return RunCommand("ps", psArgs...)
+}
+
 func cmdConsole(_ string, args []string) error {
 	if len(args) == 0 {
 		return cli.ErrUsage
@@ -308,6 +323,7 @@ func init() {
 	Cli.AddCommand("info", "[JAIL...] -- show global info or jail details", cmdInfo)
 	Cli.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", cmdInit)
 	Cli.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", cmdCtlJail)
+	Cli.AddCommand("ps", "JAIL [ps options...] -- show list of jail's processes", cmdPs)
 	Cli.AddCommand("restart", "[JAIL...] -- restart some or all jails", cmdCtlJail)
 	Cli.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", cmdSet)
 	Cli.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot some or all jails", cmdSnapshot)
