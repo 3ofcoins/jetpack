@@ -16,14 +16,37 @@ import "github.com/augustoroman/multierror"
 
 import "github.com/3ofcoins/zettajail/cli"
 
+type RuntimeData struct {
+	// Global switches
+	ZFSRoot string
+
+	// Commands' switches
+	User               string
+	Snapshot           string
+	Install            string
+	ModForce, ModStart bool
+
+	// Global state
+	host *Host
+}
+
+func (rt *RuntimeData) Host() *Host {
+	if rt.host == nil {
+		rt.host = NewHost(rt.ZFSRoot)
+	}
+	return rt.host
+}
+
+var fl = RuntimeData{}
+
 func ParseJails(args []string) ([]Jail, error) {
 	if len(args) == 0 {
-		return Host.Jails(), nil // FIXME: Jails() should return an error
+		return fl.Host().Jails(), nil // FIXME: Jails() should return an error
 	}
 	jails := make([]Jail, 0, len(args))
 	var errs multierror.Accumulator
 	for _, jailName := range args {
-		if jail, err := GetJail(jailName); err != nil {
+		if jail, err := fl.Host().GetJail(jailName); err != nil {
 			errs.Push(err)
 		} else {
 			jails = append(jails, jail)
@@ -52,13 +75,6 @@ cron_enable="NO"
 devd_enable="NO"
 syslogd_enable="NO"
 `
-
-var fl struct {
-	User               string
-	Snapshot           string
-	Install            string
-	ModForce, ModStart bool
-}
 
 func cmdCtlJail(command string, args []string) error {
 	var op string
@@ -89,13 +105,13 @@ func cmdCtlJail(command string, args []string) error {
 
 func cmdInfo(_ string, args []string) error {
 	if len(args) == 0 {
-		log.Println("Root ZFS dataset:", ZFSRoot)
-		if !Host.Exists() {
+		log.Println("Root ZFS dataset:", fl.Host().Name)
+		if !fl.Host().Exists() {
 			log.Println("Root ZFS dataset does not exist. Please run `zjail init`.")
 			return nil
 		}
-		log.Println("File system root:", Host.Mountpoint)
-		iface, err := net.InterfaceByName(Host.Properties["zettajail:jail:interface"])
+		log.Println("File system root:", fl.Host().Mountpoint)
+		iface, err := net.InterfaceByName(fl.Host().Properties["zettajail:jail:interface"])
 		if err != nil {
 			return err
 		}
@@ -112,8 +128,8 @@ func cmdInfo(_ string, args []string) error {
 		}
 		if jail.Origin != "" {
 			origin := jail.Origin
-			if strings.HasPrefix(origin, Host.Name+"/") {
-				origin = origin[len(Host.Name)+1:]
+			if strings.HasPrefix(origin, fl.Host().Name+"/") {
+				origin = origin[len(fl.Host().Name)+1:]
 			}
 			log.Println("Origin:", origin)
 		}
@@ -159,7 +175,7 @@ func printTree(allJails []Jail, snap Dataset, indent string) {
 }
 
 func cmdTree(_ string, _ []string) error {
-	printTree(Host.Jails(), ZeroDataset, "")
+	printTree(fl.Host().Jails(), ZeroDataset, "")
 	return nil
 }
 
@@ -170,7 +186,7 @@ func cmdStatus(_ string, args []string) error {
 }
 
 func cmdPs(_ string, args []string) error {
-	jail, err := GetJail(args[0])
+	jail, err := fl.Host().GetJail(args[0])
 	if err != nil {
 		return err
 	}
@@ -187,7 +203,7 @@ func cmdConsole(_ string, args []string) error {
 	if len(args) == 0 {
 		return cli.ErrUsage
 	}
-	jail, err := GetJail(args[0])
+	jail, err := fl.Host().GetJail(args[0])
 	if err != nil {
 		return err
 	}
@@ -211,7 +227,7 @@ func cmdSet(_ string, args []string) error {
 	if len(args) < 2 {
 		return cli.ErrUsage
 	}
-	jail, err := GetJail(args[0])
+	jail, err := fl.Host().GetJail(args[0])
 	if err != nil {
 		return err
 	}
@@ -219,7 +235,7 @@ func cmdSet(_ string, args []string) error {
 }
 
 func cmdInit(_ string, args []string) error {
-	return Host.Init(ParseProperties(args))
+	return fl.Host().Init(ParseProperties(args))
 }
 
 func cmdSnapshot(_ string, args []string) error {
@@ -231,7 +247,7 @@ func cmdSnapshot(_ string, args []string) error {
 }
 
 func cmdCreate(_ string, args []string) error {
-	jail, err := CreateJail(args[0], ParseProperties(args[1:]))
+	jail, err := fl.Host().CreateJail(args[0], ParseProperties(args[1:]))
 	if err != nil {
 		return err
 	}
@@ -306,7 +322,7 @@ func cmdCreate(_ string, args []string) error {
 }
 
 func cmdClone(_ string, args []string) error {
-	_, err := CloneJail(args[0], args[1], ParseProperties(args[2:]))
+	_, err := fl.Host().CloneJail(args[0], args[1], ParseProperties(args[2:]))
 	return err
 }
 
@@ -314,7 +330,7 @@ func MakeCli(name string) *cli.Cli {
 	cli := cli.NewCli(name)
 
 	// Global flags
-	cli.StringVar(&ZFSRoot, "root", ZFSRoot, "Root ZFS filesystem")
+	cli.StringVar(&fl.ZFSRoot, "root", os.Getenv("ZETTAJAIL_ROOT"), "Root ZFS filesystem")
 
 	// Commands
 	cli.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", cmdClone)
