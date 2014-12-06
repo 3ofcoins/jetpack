@@ -2,7 +2,9 @@ package zettajail
 
 import "io"
 import "log"
+import "os"
 import "os/exec"
+import "path/filepath"
 import "strconv"
 import "strings"
 import "text/template"
@@ -68,8 +70,19 @@ func (j *Jail) Status() error {
 	return nil
 }
 
+func (j *Jail) Basedir() string {
+	return filepath.Dir(j.Mountpoint)
+}
+
+func (j *Jail) Path(elem ...string) string {
+	return filepath.Join(append([]string{j.Basedir()}, elem...)...)
+}
+
 func (j *Jail) RunJail(op string) error {
-	return RunCommand("jail", "-v", op, j.String())
+	if err := j.WriteConfig(); err != nil {
+		return err
+	}
+	return RunCommand("jail", "-f", j.Path("jail.conf"), "-v", op, j.String())
 }
 
 func (j *Jail) RunJexec(user string, jcmd []string) error {
@@ -91,9 +104,15 @@ func (j *Jail) WriteConfigTo(w io.Writer) error {
 	return jailConfTmpl.Execute(w, j)
 }
 
-func (j *Jail) SetProperties(properties map[string]string) error {
-	if err := j.Dataset.SetProperties(properties); err != nil {
+func (j *Jail) WriteConfig() error {
+	jc, err := os.OpenFile(j.Path("jail.conf"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
 		return err
 	}
-	return j.Host.WriteJailConf()
+	defer jc.Close()
+	return j.WriteConfigTo(jc)
+}
+
+func (j *Jail) SetProperties(properties map[string]string) error {
+	return j.Dataset.SetProperties(properties)
 }

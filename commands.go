@@ -182,7 +182,12 @@ func (rt *Runtime) CmdSet() error {
 }
 
 func (rt *Runtime) CmdInit() error {
-	return rt.Host().Init(rt.Properties())
+	host, err := CreateHost(rt.ZFSRoot, rt.Properties())
+	if err != nil {
+		return err
+	}
+	rt.host = host
+	return rt.CmdInfo()
 }
 
 func (rt *Runtime) CmdSnapshot() error {
@@ -221,7 +226,7 @@ func (rt *Runtime) CmdCreate() error {
 				// Directory URL
 				url.Path = path.Join(url.Path, "base.txz")
 			}
-			distdir := jail.Mountpoint + ".dist"
+			distdir := jail.Path("dist")
 			if err := os.MkdirAll(distdir, 0755); err != nil {
 				return err
 			}

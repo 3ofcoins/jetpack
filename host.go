@@ -1,9 +1,7 @@
 package zettajail
 
 import "fmt"
-import "io"
 import "log"
-import "os"
 import "path"
 import "sort"
 
@@ -13,12 +11,12 @@ type Host struct {
 	Dataset
 }
 
-var RootProperties = map[string]string{
+var DefaultRootProperties = map[string]string{
 	"atime":                        "off",
 	"compress":                     "lz4",
 	"dedup":                        "on",
+	"mountpoint":                   "/srv/zettajail",
 	"zettajail:jail":               "no",
-	"zettajail:interface":          "lo1",
 	"zettajail:jail:devfs_ruleset": "4",
 	"zettajail:jail:exec.clean":    "true",
 	"zettajail:jail:exec.start":    "/bin/sh /etc/rc",
@@ -54,26 +52,30 @@ func NewHost(zfsRootDS string) *Host {
 		log.Println("ERROR:", err)
 		return nil
 	} else {
-		return &Host{Dataset: ds}
+		return &Host{ds}
 	}
 	return nil
 }
 
-func (h *Host) Init(properties map[string]string) error {
-	if h.Exists() {
-		if err := h.SetProperties(RootProperties); err != nil {
-			return err
-		}
-		if len(properties) > 0 {
-			if err := h.SetProperties(properties); err != nil {
-				return err
-			}
-		}
-		return h.WriteJailConf()
-	} else {
-		log.Fatalln("NFY: creating root dataset")
+func CreateHost(name string, userProperties map[string]string) (*Host, error) {
+	properties := make(map[string]string)
+	for prop, val := range DefaultRootProperties {
+		properties[prop] = val
 	}
-	return nil
+	for prop, val := range userProperties {
+		if prop[0] == '-' {
+			delete(properties, prop[1:])
+		} else {
+			properties[prop] = val
+		}
+	}
+
+	ds, err := zfs.CreateFilesystem(name, properties)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Host{Dataset{ds}}, nil
 }
 
 type jailsByName []*Jail
@@ -117,9 +119,8 @@ func (h *Host) newJailProperties(name string, properties map[string]string) map[
 		properties = make(map[string]string)
 	}
 
-	// Set mountpoint to have a reference path later on
 	if _, hasMountpoint := properties["mountpoint"]; !hasMountpoint {
-		properties["mountpoint"] = path.Join(h.Mountpoint, name)
+		properties["mountpoint"] = path.Join(h.Mountpoint, name, "rootfs")
 	}
 
 	if _, hasHostname := properties["zettajail:jail:host.hostname"]; !hasHostname {
@@ -145,7 +146,7 @@ func (h *Host) CreateJail(name string, properties map[string]string) (*Jail, err
 	if err != nil {
 		return nil, err
 	}
-	return NewJail(h, Dataset{ds}), h.WriteJailConf()
+	return NewJail(h, Dataset{ds}), nil
 }
 
 func (h *Host) CloneJail(snapshot, name string, properties map[string]string) (*Jail, error) {
@@ -159,52 +160,11 @@ func (h *Host) CloneJail(snapshot, name string, properties map[string]string) (*
 	if err != nil {
 		return nil, err
 	}
-	return NewJail(h, Dataset{ds}), h.WriteJailConf()
+	return NewJail(h, Dataset{ds}), nil
 }
 
 func (h *Host) Status() {
 	for _, child := range h.Jails() {
 		child.Status()
 	}
-}
-
-func (h *Host) WriteConfigTo(w io.Writer) error {
-	for _, child := range h.Jails() {
-		if err := child.WriteConfigTo(w); err != nil {
-			return err
-		}
-	}
-
-	if f, err := os.Open("/etc/jail.conf.local"); err != nil {
-		if !os.IsNotExist(err) {
-			log.Println("WARNING:", err)
-		}
-	} else {
-		if _, err := io.Copy(w, f); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (h *Host) WriteJailConf() error {
-	jailconf, err := os.OpenFile("/etc/.jail.conf.new", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer jailconf.Close()
-
-	err = h.WriteConfigTo(jailconf)
-	if err != nil {
-		return err
-	}
-	jailconf.Close()
-
-	err = os.Rename("/etc/jail.conf", "/etc/jail.conf~")
-	if err != nil {
-		return err
-	}
-
-	return os.Rename("/etc/.jail.conf.new", "/etc/jail.conf")
 }
