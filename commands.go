@@ -10,63 +10,8 @@ import "path"
 import "path/filepath"
 import "strconv"
 import "strings"
-import "time"
-
-import "github.com/augustoroman/multierror"
 
 import "github.com/3ofcoins/zettajail/cli"
-
-type RuntimeData struct {
-	// Global switches
-	ZFSRoot string
-
-	// Commands' switches
-	User               string
-	Snapshot           string
-	Install            string
-	ModForce, ModStart bool
-
-	// Global state
-	host *Host
-}
-
-func (rt *RuntimeData) Host() *Host {
-	if rt.host == nil {
-		rt.host = NewHost(rt.ZFSRoot)
-	}
-	return rt.host
-}
-
-var fl = RuntimeData{}
-
-func ParseJails(args []string) ([]Jail, error) {
-	if len(args) == 0 {
-		return fl.Host().Jails(), nil // FIXME: Jails() should return an error
-	}
-	jails := make([]Jail, 0, len(args))
-	var errs multierror.Accumulator
-	for _, jailName := range args {
-		if jail, err := fl.Host().GetJail(jailName); err != nil {
-			errs.Push(err)
-		} else {
-			jails = append(jails, jail)
-		}
-	}
-	return jails, errs.Error()
-}
-
-func ForEachJail(jailNames []string, fn func(Jail) error) error {
-	jails, err := ParseJails(jailNames)
-	if err != nil {
-		return err
-	}
-	var errs multierror.Accumulator
-	for _, jail := range jails {
-		errs.Push(fn(jail))
-	}
-	return errs.Error()
-
-}
 
 const jailRcConf = `sendmail_submit_enable="NO"
 sendmail_outbound_enable="NO"
@@ -76,9 +21,9 @@ devd_enable="NO"
 syslogd_enable="NO"
 `
 
-func cmdCtlJail(command string, args []string) error {
+func (rt *Runtime) CmdCtlJail() error {
 	var op string
-	switch command {
+	switch rt.Command {
 	case "start":
 		op = "-c"
 	case "stop":
@@ -87,31 +32,31 @@ func cmdCtlJail(command string, args []string) error {
 		op = "-rc"
 	case "modify":
 		switch {
-		case fl.ModForce && fl.ModStart:
+		case rt.ModForce && rt.ModStart:
 			op = "-cmr"
-		case fl.ModForce:
+		case rt.ModForce:
 			op = "-rm"
-		case fl.ModStart:
+		case rt.ModStart:
 			op = "-cm"
 		default:
 			op = "-m"
 		}
 	}
-	return ForEachJail(args, func(jail Jail) error {
+	return rt.ForEachJail(func(jail Jail) error {
 		// FIXME: feedback
 		return jail.RunJail(op)
 	})
 }
 
-func cmdInfo(_ string, args []string) error {
-	if len(args) == 0 {
-		log.Println("Root ZFS dataset:", fl.Host().Name)
-		if !fl.Host().Exists() {
+func (rt *Runtime) CmdInfo() error {
+	if len(rt.Args) == 0 {
+		log.Println("Root ZFS dataset:", rt.Host().Name)
+		if !rt.Host().Exists() {
 			log.Println("Root ZFS dataset does not exist. Please run `zjail init`.")
 			return nil
 		}
-		log.Println("File system root:", fl.Host().Mountpoint)
-		iface, err := net.InterfaceByName(fl.Host().Properties["zettajail:jail:interface"])
+		log.Println("File system root:", rt.Host().Mountpoint)
+		iface, err := net.InterfaceByName(rt.Host().Properties["zettajail:jail:interface"])
 		if err != nil {
 			return err
 		}
@@ -122,14 +67,14 @@ func cmdInfo(_ string, args []string) error {
 		log.Printf("Interface: %v (%v)\n", iface.Name, addrs[0])
 		return nil
 	}
-	return ForEachJail(args, func(jail Jail) error {
+	return rt.ForEachJail(func(jail Jail) error {
 		if err := jail.Status(); err != nil {
 			return err
 		}
 		if jail.Origin != "" {
 			origin := jail.Origin
-			if strings.HasPrefix(origin, fl.Host().Name+"/") {
-				origin = origin[len(fl.Host().Name)+1:]
+			if strings.HasPrefix(origin, rt.Host().Name+"/") {
+				origin = origin[len(rt.Host().Name)+1:]
 			}
 			log.Println("Origin:", origin)
 		}
@@ -174,19 +119,19 @@ func printTree(allJails []Jail, snap Dataset, indent string) {
 	}
 }
 
-func cmdTree(_ string, _ []string) error {
-	printTree(fl.Host().Jails(), ZeroDataset, "")
+func (rt *Runtime) CmdTree() error {
+	printTree(rt.Host().Jails(), ZeroDataset, "")
 	return nil
 }
 
-func cmdStatus(_ string, args []string) error {
-	return ForEachJail(args, func(jail Jail) error {
+func (rt *Runtime) CmdStatus() error {
+	return rt.ForEachJail(func(jail Jail) error {
 		return jail.Status()
 	})
 }
 
-func cmdPs(_ string, args []string) error {
-	jail, err := fl.Host().GetJail(args[0])
+func (rt *Runtime) CmdPs() error {
+	jail, err := rt.Host().GetJail(rt.Shift())
 	if err != nil {
 		return err
 	}
@@ -195,77 +140,77 @@ func cmdPs(_ string, args []string) error {
 		return fmt.Errorf("%s is not running", jail)
 	}
 	psArgs := []string{"-J", strconv.Itoa(jid)}
-	psArgs = append(psArgs, args[1:]...)
+	psArgs = append(psArgs, rt.Args...)
 	return RunCommand("ps", psArgs...)
 }
 
-func cmdConsole(_ string, args []string) error {
-	if len(args) == 0 {
+func (rt *Runtime) CmdConsole() error {
+	if len(rt.Args) == 0 {
 		return cli.ErrUsage
 	}
-	jail, err := fl.Host().GetJail(args[0])
+	jail, err := rt.Host().GetJail(rt.Shift())
 	if err != nil {
 		return err
 	}
 	if !jail.IsActive() {
-		return fmt.Errorf("%s is not started", args[0])
+		return fmt.Errorf("%s is not started", jail)
 	}
-	args = args[1:]
 
-	if len(args) == 0 {
-		args = []string{"login", "-f", fl.User}
-		fl.User = ""
+	if len(rt.Args) == 0 {
+		rt.Args = []string{"login", "-f", jail.String()}
+		rt.User = ""
 	}
-	if fl.User == "root" {
-		fl.User = ""
+	if rt.User == "root" {
+		rt.User = ""
 	}
-	return jail.RunJexec(fl.User, args)
+	return jail.RunJexec(rt.User, rt.Args)
 }
 
-func cmdSet(_ string, args []string) error {
+func (rt *Runtime) CmdSet() error {
 	// FIXME: modify if running, -f for force-modify
-	if len(args) < 2 {
+	if len(rt.Args) < 2 {
 		return cli.ErrUsage
 	}
-	jail, err := fl.Host().GetJail(args[0])
+	jail, err := rt.Host().GetJail(rt.Shift())
 	if err != nil {
 		return err
 	}
-	return jail.SetProperties(ParseProperties(args[1:]))
+	return jail.SetProperties(rt.Properties())
 }
 
-func cmdInit(_ string, args []string) error {
-	return fl.Host().Init(ParseProperties(args))
+func (rt *Runtime) CmdInit() error {
+	return rt.Host().Init(rt.Properties())
 }
 
-func cmdSnapshot(_ string, args []string) error {
-	return ForEachJail(args, func(jail Jail) error {
+func (rt *Runtime) CmdSnapshot() error {
+	return rt.ForEachJail(func(jail Jail) error {
 		// FIXME: feedback
-		_, err := jail.Snapshot(fl.Snapshot, false)
+		_, err := jail.Snapshot(rt.Snapshot, false)
 		return err
 	})
 }
 
-func cmdCreate(_ string, args []string) error {
-	jail, err := fl.Host().CreateJail(args[0], ParseProperties(args[1:]))
+func (rt *Runtime) CmdCreate() error {
+	jailName := rt.Shift()
+	jail, err := rt.Host().CreateJail(jailName, rt.Properties())
 	if err != nil {
 		return err
 	}
-	if fl.Install == "" {
+	if rt.Install == "" {
 		return nil
 	}
 
 	// Maybe just use fetch(1)'s copy/link behaviour here?
-	switch fi, err := os.Stat(fl.Install); {
+	switch fi, err := os.Stat(rt.Install); {
 	case err == nil && fi.IsDir():
-		fl.Install = filepath.Join(fl.Install, "base.txz")
-		if _, err = os.Stat(fl.Install); err != nil {
+		rt.Install = filepath.Join(rt.Install, "base.txz")
+		if _, err = os.Stat(rt.Install); err != nil {
 			return err
 		}
 	case err == nil:
 		// Pass. It is a file, so we assume it's base.txz
 	case os.IsNotExist(err):
-		if url, err := url.Parse(fl.Install); err != nil {
+		if url, err := url.Parse(rt.Install); err != nil {
 			return err
 		} else {
 			// FIXME: fetch MANIFEST, check checksum
@@ -283,7 +228,7 @@ func cmdCreate(_ string, args []string) error {
 			if err := RunCommand("fetch", "-o", distfile, "-m", "-l", url.String()); err != nil {
 				return err
 			}
-			fl.Install = distfile
+			rt.Install = distfile
 		}
 		// Check if it's an URL, fetch if yes, bomb if not
 	default:
@@ -291,8 +236,8 @@ func cmdCreate(_ string, args []string) error {
 		return err
 	}
 
-	log.Println("Unpacking", fl.Install)
-	if err := RunCommand("tar", "-C", jail.Mountpoint, "-xpf", fl.Install); err != nil {
+	log.Println("Unpacking", rt.Install)
+	if err := RunCommand("tar", "-C", jail.Mountpoint, "-xpf", rt.Install); err != nil {
 		return err
 	}
 
@@ -321,44 +266,9 @@ func cmdCreate(_ string, args []string) error {
 	return ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/entropy"), entropy, 0600)
 }
 
-func cmdClone(_ string, args []string) error {
-	_, err := fl.Host().CloneJail(args[0], args[1], ParseProperties(args[2:]))
+func (rt *Runtime) CmdClone() error {
+	snapName := rt.Shift()
+	jailName := rt.Shift()
+	_, err := rt.Host().CloneJail(snapName, jailName, rt.Properties())
 	return err
-}
-
-func MakeCli(name string) *cli.Cli {
-	cli := cli.NewCli(name)
-
-	// Global flags
-	cli.StringVar(&fl.ZFSRoot, "root", os.Getenv("ZETTAJAIL_ROOT"), "Root ZFS filesystem")
-
-	// Commands
-	cli.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", cmdClone)
-	cli.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", cmdConsole)
-	cli.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", cmdCreate)
-	cli.AddCommand("info", "[JAIL...] -- show global info or jail details", cmdInfo)
-	cli.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", cmdInit)
-	cli.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", cmdCtlJail)
-	cli.AddCommand("ps", "JAIL [ps options...] -- show list of jail's processes", cmdPs)
-	cli.AddCommand("restart", "[JAIL...] -- restart some or all jails", cmdCtlJail)
-	cli.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", cmdSet)
-	cli.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot some or all jails", cmdSnapshot)
-	cli.AddCommand("start", "[JAIL...] -- start (create) some or all jails", cmdCtlJail)
-	cli.AddCommand("status", "[JAIL...] -- show jail status", cmdStatus)
-	cli.AddCommand("stop", "[JAIL...] -- stop (remove) some or all jails", cmdCtlJail)
-	cli.AddCommand("tree", "-- show family tree of jails", cmdTree)
-
-	cli.Commands["console"].StringVar(&fl.User, "u", "root", "User to run command as")
-	cli.Commands["create"].StringVar(&fl.Install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
-	cli.Commands["modify"].BoolVar(&fl.ModForce, "r", false, "Restart jail if necessary")
-	cli.Commands["modify"].BoolVar(&fl.ModStart, "c", false, "Start (create) jail if not started")
-	cli.Commands["snapshot"].StringVar(&fl.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
-
-	return cli
-}
-
-func RunCli(name string, args []string) error {
-	cli := MakeCli(name)
-	cli.Parse(args)
-	return cli.Run()
 }
