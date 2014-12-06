@@ -27,13 +27,15 @@ type Jail struct {
 	Host *Host
 }
 
-var ZeroJail = Jail{}
+func NewJail(host *Host, ds Dataset) *Jail {
+	return &Jail{ds, host}
+}
 
-func (j Jail) String() string {
+func (j *Jail) String() string {
 	return j.Name[len(j.Host.Name)+1:]
 }
 
-func (j Jail) Jid() int {
+func (j *Jail) Jid() int {
 	cmd := exec.Command("jls", "-j", j.String(), "jid")
 	out, err := cmd.Output()
 	switch err.(type) {
@@ -53,11 +55,11 @@ func (j Jail) Jid() int {
 	}
 }
 
-func (j Jail) IsActive() bool {
+func (j *Jail) IsActive() bool {
 	return j.Jid() > 0
 }
 
-func (j Jail) Status() error {
+func (j *Jail) Status() error {
 	if j.IsActive() {
 		log.Printf("%v is active (%d).\n", j, j.Jid())
 	} else {
@@ -66,11 +68,11 @@ func (j Jail) Status() error {
 	return nil
 }
 
-func (j Jail) RunJail(op string) error {
+func (j *Jail) RunJail(op string) error {
 	return RunCommand("jail", "-v", op, j.String())
 }
 
-func (j Jail) RunJexec(user string, jcmd []string) error {
+func (j *Jail) RunJexec(user string, jcmd []string) error {
 	if len(jcmd) == 0 {
 		jcmd = []string{"login", "-f", "root"}
 	}
@@ -85,11 +87,11 @@ func (j Jail) RunJexec(user string, jcmd []string) error {
 	return RunCommand("jexec", args...)
 }
 
-func (j Jail) WriteConfigTo(w io.Writer) error {
+func (j *Jail) WriteConfigTo(w io.Writer) error {
 	return jailConfTmpl.Execute(w, j)
 }
 
-func (j Jail) SetProperties(properties map[string]string) error {
+func (j *Jail) SetProperties(properties map[string]string) error {
 	if err := j.Dataset.SetProperties(properties); err != nil {
 		return err
 	}

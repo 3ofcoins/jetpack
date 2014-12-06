@@ -42,7 +42,7 @@ func (rt *Runtime) CmdCtlJail() error {
 			op = "-m"
 		}
 	}
-	return rt.ForEachJail(func(jail Jail) error {
+	return rt.ForEachJail(func(jail *Jail) error {
 		// FIXME: feedback
 		return jail.RunJail(op)
 	})
@@ -67,7 +67,7 @@ func (rt *Runtime) CmdInfo() error {
 		log.Printf("Interface: %v (%v)\n", iface.Name, addrs[0])
 		return nil
 	}
-	return rt.ForEachJail(func(jail Jail) error {
+	return rt.ForEachJail(func(jail *Jail) error {
 		if err := jail.Status(); err != nil {
 			return err
 		}
@@ -83,13 +83,13 @@ func (rt *Runtime) CmdInfo() error {
 	})
 }
 
-func printTree(allJails []Jail, snap Dataset, indent string) {
+func printTree(allJails []*Jail, snap Dataset, indent string) {
 	origin := ""
 	if snap != ZeroDataset {
 		origin = snap.Name
 	}
 
-	jails := []Jail{}
+	jails := []*Jail{}
 	for _, jail := range allJails {
 		if jail.Origin == origin {
 			jails = append(jails, jail)
@@ -125,7 +125,7 @@ func (rt *Runtime) CmdTree() error {
 }
 
 func (rt *Runtime) CmdStatus() error {
-	return rt.ForEachJail(func(jail Jail) error {
+	return rt.ForEachJail(func(jail *Jail) error {
 		return jail.Status()
 	})
 }
@@ -183,7 +183,7 @@ func (rt *Runtime) CmdInit() error {
 }
 
 func (rt *Runtime) CmdSnapshot() error {
-	return rt.ForEachJail(func(jail Jail) error {
+	return rt.ForEachJail(func(jail *Jail) error {
 		// FIXME: feedback
 		_, err := jail.Snapshot(rt.Snapshot, false)
 		return err

@@ -66,22 +66,22 @@ func (h *Host) Init(properties map[string]string) error {
 	return nil
 }
 
-type jailsByName []Jail
+type jailsByName []*Jail
 
 func (jj jailsByName) Len() int           { return len(jj) }
 func (jj jailsByName) Swap(i, j int)      { jj[i], jj[j] = jj[j], jj[i] }
 func (jj jailsByName) Less(i, j int) bool { return jj[i].Name < jj[j].Name }
 
-func (h *Host) Jails() []Jail {
+func (h *Host) Jails() []*Jail {
 	children, err := h.Dataset.Children(0)
 	if err != nil {
 		log.Fatalln("ERROR:", err)
 	}
 
-	rv := make([]Jail, 0, len(children))
+	rv := make([]*Jail, 0, len(children))
 	for _, child := range children {
 		if child.Type == "filesystem" && child.Properties["zettajail:jail"] == "on" {
-			jail := Jail{Dataset{child}, h}
+			jail := NewJail(h, Dataset{child})
 			rv = append(rv, jail)
 		}
 	}
@@ -90,15 +90,15 @@ func (h *Host) Jails() []Jail {
 	return rv
 }
 
-func (h *Host) GetJail(name string) (Jail, error) {
+func (h *Host) GetJail(name string) (*Jail, error) {
 	ds, err := GetDataset(path.Join(h.Name, name))
 	if err != nil {
-		return ZeroJail, err
+		return nil, err
 	}
 	if ds.Type == "filesystem" && ds.Properties["zettajail:jail"] == "on" {
-		return Jail{ds, h}, nil
+		return NewJail(h, ds), nil
 	} else {
-		return ZeroJail, fmt.Errorf("Not a jail: %v", ds.Name)
+		return nil, fmt.Errorf("Not a jail: %v", ds.Name)
 	}
 }
 
@@ -128,28 +128,28 @@ func (h *Host) newJailProperties(name string, properties map[string]string) map[
 	return properties
 }
 
-func (h *Host) CreateJail(name string, properties map[string]string) (Jail, error) {
+func (h *Host) CreateJail(name string, properties map[string]string) (*Jail, error) {
 	properties = h.newJailProperties(name, properties)
 
 	ds, err := zfs.CreateFilesystem(path.Join(h.Name, name), properties)
 	if err != nil {
-		return ZeroJail, err
+		return nil, err
 	}
-	return Jail{Dataset{ds}, h}, h.WriteJailConf()
+	return NewJail(h, Dataset{ds}), h.WriteJailConf()
 }
 
-func (h *Host) CloneJail(snapshot, name string, properties map[string]string) (Jail, error) {
+func (h *Host) CloneJail(snapshot, name string, properties map[string]string) (*Jail, error) {
 	// FIXME: base properties off snapshot's properties, at least for zettajail:*
 	properties = h.newJailProperties(name, properties)
 	snap, err := zfs.GetDataset(path.Join(h.Name, snapshot))
 	if err != nil {
-		return ZeroJail, err
+		return nil, err
 	}
 	ds, err := snap.Clone(path.Join(h.Name, name), properties)
 	if err != nil {
-		return ZeroJail, err
+		return nil, err
 	}
-	return Jail{Dataset{ds}, h}, h.WriteJailConf()
+	return NewJail(h, Dataset{ds}), h.WriteJailConf()
 }
 
 func (h *Host) Status() {

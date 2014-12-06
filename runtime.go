@@ -55,11 +55,11 @@ func (rt *Runtime) Host() *Host {
 	return rt.host
 }
 
-func (rt *Runtime) ParseJails(args []string) ([]Jail, error) {
+func (rt *Runtime) Jails(args []string) ([]*Jail, error) {
 	if len(args) == 0 {
 		return rt.Host().Jails(), nil // FIXME: Jails() should return an error
 	}
-	jails := make([]Jail, 0, len(args))
+	jails := make([]*Jail, 0, len(args))
 	var errs multierror.Accumulator
 	for _, jailName := range args {
 		if jail, err := rt.Host().GetJail(jailName); err != nil {
@@ -71,8 +71,8 @@ func (rt *Runtime) ParseJails(args []string) ([]Jail, error) {
 	return jails, errs.Error()
 }
 
-func (rt *Runtime) ForEachJail(fn func(Jail) error) error {
-	jails, err := rt.ParseJails(rt.Args)
+func (rt *Runtime) ForEachJail(fn func(*Jail) error) error {
+	jails, err := rt.Jails(rt.Args)
 	if err != nil {
 		return err
 	}
