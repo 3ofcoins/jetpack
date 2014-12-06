@@ -162,9 +162,3 @@ func (h *Host) CloneJail(snapshot, name string, properties map[string]string) (*
 	}
 	return NewJail(h, Dataset{ds}), nil
 }
-
-func (h *Host) Status() {
-	for _, child := range h.Jails() {
-		child.Status()
-	}
-}
