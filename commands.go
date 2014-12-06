@@ -156,14 +156,17 @@ func (rt *Runtime) CmdConsole() error {
 		return fmt.Errorf("%s is not started", jail)
 	}
 
-	if len(rt.Args) == 0 {
-		rt.Args = []string{"login", "-f", jail.String()}
-		rt.User = ""
+	args := rt.Args
+	user := rt.User
+	if len(args) == 0 {
+		args = []string{"login", "-f", user}
+		user = ""
 	}
-	if rt.User == "root" {
-		rt.User = ""
+	if user == "root" {
+		user = ""
 	}
-	return jail.RunJexec(rt.User, rt.Args)
+	log.Println(user, args)
+	return jail.RunJexec(user, args)
 }
 
 func (rt *Runtime) CmdSet() error {
