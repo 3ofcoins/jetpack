@@ -109,7 +109,7 @@ func NewRuntime(name string) *Runtime {
 	// Commands
 	rt.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", rt.CmdClone)
 	rt.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", rt.CmdConsole)
-	rt.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", rt.CmdCreate)
+	rt.AddCommand("create", "[-i=DIST] JAIL [PROPERTY...] -- create new jail", rt.CmdCreate)
 	rt.AddCommand("info", "[-p=FOLDER] [JAIL...] -- show global info or jail details", rt.CmdInfo)
 	rt.AddCommand("init", "[-p=FOLDER] [PROPERTY...] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", rt.CmdCtlJail)
@@ -123,7 +123,7 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("tree", "-- show family tree of jails", rt.CmdTree)
 
 	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
-	rt.Commands["create"].StringVar(&rt.Install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
+	rt.Commands["create"].StringVar(&rt.Install, "i", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
 	rt.Commands["info"].StringVar(&rt.Folder, "p", "", "Limit to subfolder")
 	rt.Commands["init"].StringVar(&rt.Folder, "p", "", "Initialize subfolder")
 	rt.Commands["modify"].BoolVar(&rt.ModForce, "r", false, "Restart jail if necessary")
