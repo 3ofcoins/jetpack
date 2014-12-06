@@ -181,8 +181,18 @@ func (rt *Runtime) CmdSet() error {
 	return jail.SetProperties(rt.Properties())
 }
 
+func (rt *Runtime) cmdInitDwim() (*Host, error) {
+	if rt.Folder == "" {
+		return CreateHost(rt.ZFSRoot, rt.Properties())
+	} else {
+		folder := rt.Folder
+		rt.Folder = ""
+		return rt.Host().CreateFolder(folder, rt.Properties())
+	}
+}
+
 func (rt *Runtime) CmdInit() error {
-	host, err := CreateHost(rt.ZFSRoot, rt.Properties())
+	host, err := rt.cmdInitDwim()
 	if err != nil {
 		return err
 	}

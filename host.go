@@ -78,6 +78,22 @@ func CreateHost(name string, userProperties map[string]string) (*Host, error) {
 	return &Host{Dataset{ds}}, nil
 }
 
+func (h *Host) CreateFolder(name string, properties map[string]string) (*Host, error) {
+	ds, err := zfs.CreateFilesystem(path.Join(h.Name, name), properties)
+	if err != nil {
+		return nil, err
+	}
+	return &Host{Dataset{ds}}, nil
+}
+
+func (h *Host) GetFolder(name string) (*Host, error) {
+	ds, err := GetDataset(path.Join(h.Name, name))
+	if err != nil {
+		return nil, err
+	}
+	return &Host{ds}, nil
+}
+
 type jailsByName []*Jail
 
 func (jj jailsByName) Len() int           { return len(jj) }

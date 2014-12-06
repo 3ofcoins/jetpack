@@ -2,6 +2,7 @@ package zettajail
 
 import "log"
 import "os"
+import "path"
 import "time"
 
 import "github.com/augustoroman/multierror"
@@ -13,6 +14,7 @@ type Runtime struct {
 	ZFSRoot string
 
 	// Commands' switches
+	Folder             string
 	User               string
 	Snapshot           string
 	Install            string
@@ -51,7 +53,11 @@ func (rt *Runtime) Properties() map[string]string {
 
 func (rt *Runtime) Host() *Host {
 	if rt.host == nil {
-		rt.host = NewHost(rt.ZFSRoot)
+		dsName := rt.ZFSRoot
+		if rt.Folder != "" {
+			dsName = path.Join(dsName, rt.Folder)
+		}
+		rt.host = NewHost(dsName)
 		if rt.host == nil {
 			log.Printf("Root ZFS dataset %v does not exist\n", rt.ZFSRoot)
 			log.Printf("Run `%v init' to create data set\n", rt.Name)
@@ -104,8 +110,8 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", rt.CmdClone)
 	rt.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", rt.CmdConsole)
 	rt.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", rt.CmdCreate)
-	rt.AddCommand("info", "[JAIL...] -- show global info or jail details", rt.CmdInfo)
-	rt.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", rt.CmdInit)
+	rt.AddCommand("info", "[-p=FOLDER] [JAIL...] -- show global info or jail details", rt.CmdInfo)
+	rt.AddCommand("init", "[-p=FOLDER] [PROPERTY...] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", rt.CmdCtlJail)
 	rt.AddCommand("ps", "JAIL [ps options...] -- show list of jail's processes", rt.CmdPs)
 	rt.AddCommand("restart", "[JAIL...] -- restart some or all jails", rt.CmdCtlJail)
@@ -118,6 +124,8 @@ func NewRuntime(name string) *Runtime {
 
 	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
 	rt.Commands["create"].StringVar(&rt.Install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
+	rt.Commands["info"].StringVar(&rt.Folder, "p", "", "Limit to subfolder")
+	rt.Commands["init"].StringVar(&rt.Folder, "p", "", "Initialize subfolder")
 	rt.Commands["modify"].BoolVar(&rt.ModForce, "r", false, "Restart jail if necessary")
 	rt.Commands["modify"].BoolVar(&rt.ModStart, "c", false, "Start (create) jail if not started")
 	rt.Commands["snapshot"].StringVar(&rt.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
