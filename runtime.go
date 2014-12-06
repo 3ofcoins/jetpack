@@ -1,5 +1,6 @@
 package zettajail
 
+import "log"
 import "os"
 import "time"
 
@@ -51,6 +52,11 @@ func (rt *Runtime) Properties() map[string]string {
 func (rt *Runtime) Host() *Host {
 	if rt.host == nil {
 		rt.host = NewHost(rt.ZFSRoot)
+		if rt.host == nil {
+			log.Printf("Root ZFS dataset %v does not exist\n", rt.ZFSRoot)
+			log.Printf("Run `%v init' to create data set\n", rt.Name)
+			os.Exit(1)
+		}
 	}
 	return rt.host
 }
@@ -86,8 +92,13 @@ func (rt *Runtime) ForEachJail(fn func(*Jail) error) error {
 func NewRuntime(name string) *Runtime {
 	rt := &Runtime{Cli: cli.NewCli(name)}
 
+	rt.ZFSRoot = os.Getenv("ZETTAJAIL_ROOT")
+	if rt.ZFSRoot == "" {
+		rt.ZFSRoot = ElucidateDefaultRootDataset()
+	}
+
 	// Global flags
-	rt.StringVar(&rt.ZFSRoot, "root", os.Getenv("ZETTAJAIL_ROOT"), "Root ZFS filesystem")
+	rt.StringVar(&rt.ZFSRoot, "root", rt.ZFSRoot, "Root ZFS filesystem")
 
 	// Commands
 	rt.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", rt.CmdClone)

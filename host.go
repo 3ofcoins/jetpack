@@ -18,6 +18,7 @@ var RootProperties = map[string]string{
 	"compress":                     "lz4",
 	"dedup":                        "on",
 	"zettajail:jail":               "no",
+	"zettajail:interface":          "lo1",
 	"zettajail:jail:devfs_ruleset": "4",
 	"zettajail:jail:exec.clean":    "true",
 	"zettajail:jail:exec.start":    "/bin/sh /etc/rc",
@@ -26,23 +27,32 @@ var RootProperties = map[string]string{
 	"zettajail:jail:mount.devfs":   "true",
 }
 
+func ElucidateDefaultRootDataset() string {
+	pools, err := zfs.ListZpools()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	if len(pools) == 0 {
+		log.Fatalln("No ZFS pools found")
+	}
+	if len(pools) > 1 {
+		log.Fatalln("Multiple pools found, please set ZETTAJAIL_ROOT environment variable or use -root flag")
+	}
+	return path.Join(pools[0].Name, "zettajail")
+}
+
 func NewHost(zfsRootDS string) *Host {
 	if zfsRootDS == "" {
-		pools, err := zfs.ListZpools()
-		if err != nil {
-			log.Fatalln(err)
-		}
-		if len(pools) == 0 {
-			log.Fatalln("No ZFS pools found")
-		}
-		if len(pools) > 1 {
-			log.Fatalln("Multiple pools found, please set ZETTAJAIL_ROOT environment variable or use -root flag")
-		}
-		zfsRootDS = path.Join(pools[0].Name, "zettajail")
+		zfsRootDS = ElucidateDefaultRootDataset()
 	}
 
 	if ds, err := GetDataset(zfsRootDS); err != nil {
-		log.Fatalln(err)
+		// go-zfs doesn't let us distinguish between "dataset does not
+		// exist" and "there was a horrible error as we tried to get
+		// dataset", all we can do here is assume that this is a
+		// nonexistent dataset.
+		log.Println("ERROR:", err)
+		return nil
 	} else {
 		return &Host{Dataset: ds}
 	}
