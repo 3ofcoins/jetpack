@@ -310,31 +310,39 @@ func cmdClone(_ string, args []string) error {
 	return err
 }
 
-var Cli = cli.NewCli("")
+func MakeCli(name string) *cli.Cli {
+	cli := cli.NewCli(name)
 
-func init() {
 	// Global flags
-	Cli.StringVar(&ZFSRoot, "root", ZFSRoot, "Root ZFS filesystem")
+	cli.StringVar(&ZFSRoot, "root", ZFSRoot, "Root ZFS filesystem")
 
 	// Commands
-	Cli.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", cmdClone)
-	Cli.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", cmdConsole)
-	Cli.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", cmdCreate)
-	Cli.AddCommand("info", "[JAIL...] -- show global info or jail details", cmdInfo)
-	Cli.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", cmdInit)
-	Cli.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", cmdCtlJail)
-	Cli.AddCommand("ps", "JAIL [ps options...] -- show list of jail's processes", cmdPs)
-	Cli.AddCommand("restart", "[JAIL...] -- restart some or all jails", cmdCtlJail)
-	Cli.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", cmdSet)
-	Cli.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot some or all jails", cmdSnapshot)
-	Cli.AddCommand("start", "[JAIL...] -- start (create) some or all jails", cmdCtlJail)
-	Cli.AddCommand("status", "[JAIL...] -- show jail status", cmdStatus)
-	Cli.AddCommand("stop", "[JAIL...] -- stop (remove) some or all jails", cmdCtlJail)
-	Cli.AddCommand("tree", "-- show family tree of jails", cmdTree)
+	cli.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", cmdClone)
+	cli.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", cmdConsole)
+	cli.AddCommand("create", "[-install=DIST] JAIL [PROPERTY...] -- create new jail", cmdCreate)
+	cli.AddCommand("info", "[JAIL...] -- show global info or jail details", cmdInfo)
+	cli.AddCommand("init", "[PROPERTY...] -- initialize or modify host (NFY)", cmdInit)
+	cli.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", cmdCtlJail)
+	cli.AddCommand("ps", "JAIL [ps options...] -- show list of jail's processes", cmdPs)
+	cli.AddCommand("restart", "[JAIL...] -- restart some or all jails", cmdCtlJail)
+	cli.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", cmdSet)
+	cli.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot some or all jails", cmdSnapshot)
+	cli.AddCommand("start", "[JAIL...] -- start (create) some or all jails", cmdCtlJail)
+	cli.AddCommand("status", "[JAIL...] -- show jail status", cmdStatus)
+	cli.AddCommand("stop", "[JAIL...] -- stop (remove) some or all jails", cmdCtlJail)
+	cli.AddCommand("tree", "-- show family tree of jails", cmdTree)
 
-	Cli.Commands["console"].StringVar(&fl.User, "u", "root", "User to run command as")
-	Cli.Commands["create"].StringVar(&fl.Install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
-	Cli.Commands["modify"].BoolVar(&fl.ModForce, "r", false, "Restart jail if necessary")
-	Cli.Commands["modify"].BoolVar(&fl.ModStart, "c", false, "Start (create) jail if not started")
-	Cli.Commands["snapshot"].StringVar(&fl.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
+	cli.Commands["console"].StringVar(&fl.User, "u", "root", "User to run command as")
+	cli.Commands["create"].StringVar(&fl.Install, "install", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
+	cli.Commands["modify"].BoolVar(&fl.ModForce, "r", false, "Restart jail if necessary")
+	cli.Commands["modify"].BoolVar(&fl.ModStart, "c", false, "Start (create) jail if not started")
+	cli.Commands["snapshot"].StringVar(&fl.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
+
+	return cli
+}
+
+func RunCli(name string, args []string) error {
+	cli := MakeCli(name)
+	cli.Parse(args)
+	return cli.Run()
 }
