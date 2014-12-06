@@ -11,7 +11,6 @@ import "github.com/3ofcoins/go-zfs"
 
 type Host struct {
 	Dataset
-	JidCache map[string]int
 }
 
 var RootProperties = map[string]string{
@@ -65,13 +64,6 @@ func (h *Host) Init(properties map[string]string) error {
 		log.Fatalln("NFY: creating root dataset")
 	}
 	return nil
-}
-
-func (h *Host) Jid(name string) int {
-	if h.JidCache == nil {
-		h.JidCache = Jls()
-	}
-	return h.JidCache[name]
 }
 
 type jailsByName []Jail

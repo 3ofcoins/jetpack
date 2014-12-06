@@ -2,6 +2,9 @@ package zettajail
 
 import "io"
 import "log"
+import "os/exec"
+import "strconv"
+import "strings"
 import "text/template"
 
 var jailConfTmpl *template.Template
@@ -31,7 +34,23 @@ func (j Jail) String() string {
 }
 
 func (j Jail) Jid() int {
-	return j.Host.Jid(j.String())
+	cmd := exec.Command("jls", "-j", j.String(), "jid")
+	out, err := cmd.Output()
+	switch err.(type) {
+	case nil:
+		// Jail found
+		jid, err := strconv.Atoi(strings.TrimSpace(string(out)))
+		if err != nil {
+			panic(err)
+		}
+		return jid
+	case *exec.ExitError:
+		// Jail not found (or so we assume)
+		return 0
+	default:
+		// Other error
+		panic(err)
+	}
 }
 
 func (j Jail) IsActive() bool {

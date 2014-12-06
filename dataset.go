@@ -81,5 +81,4 @@ func (ds Dataset) Snapshots() []Dataset {
 
 func (ds Dataset) String() string {
 	return ds.Name
-	// return ds.Name[len(Host.Name)+1:]
 }
