@@ -5,7 +5,7 @@ import "io/ioutil"
 import "os"
 import "path/filepath"
 
-import "github.com/coreos/rocket/app-container/schema"
+import "github.com/3ofcoins/rocket/app-container/schema"
 
 func (rt *Runtime) CmdExport() error {
 	jail, err := rt.Host().GetJail(rt.Args[0])

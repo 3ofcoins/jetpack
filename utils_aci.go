@@ -12,8 +12,8 @@ import "io/ioutil"
 import "os"
 import "strings"
 
-import "github.com/coreos/rocket/app-container/aci"
-import "github.com/coreos/rocket/app-container/schema"
+import "github.com/3ofcoins/rocket/app-container/aci"
+import "github.com/3ofcoins/rocket/app-container/schema"
 
 // FIXME: copy/paste from github.com/coreos/rocket/app-container/acutil/validate.go
 func DecompressingReader(rs io.ReadSeeker) (io.Reader, error) {
