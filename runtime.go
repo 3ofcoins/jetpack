@@ -110,6 +110,8 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", rt.CmdClone)
 	rt.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", rt.CmdConsole)
 	rt.AddCommand("create", "[-i=DIST] JAIL [PROPERTY...] -- create new jail", rt.CmdCreate)
+	rt.AddCommand("export", "JAIL NAME PATH.aci", rt.CmdExport)
+	rt.AddCommand("import", "PATH.aci", rt.CmdImport)
 	rt.AddCommand("info", "[-p=FOLDER] [JAIL...] -- show global info or jail details", rt.CmdInfo)
 	rt.AddCommand("init", "[-p=FOLDER] [PROPERTY...] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", rt.CmdCtlJail)
