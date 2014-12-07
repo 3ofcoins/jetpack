@@ -113,7 +113,7 @@ func printTree(allJails []*Jail, snap Dataset, indent string) {
 				halfdent2 = " "
 				item = "└"
 			}
-			fmt.Printf("%s%s%s%s\n", indent, halfdent, item, snap)
+			fmt.Printf("%s%s%s%s\n", indent, halfdent, item, snap.Name[strings.Index(snap.Name, "@"):])
 			printTree(allJails, snap, indent+halfdent+halfdent2)
 		}
 	}
