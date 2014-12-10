@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "log"
 import "os"
@@ -7,7 +7,7 @@ import "time"
 
 import "github.com/augustoroman/multierror"
 
-import "github.com/3ofcoins/zettajail/cli"
+import "github.com/3ofcoins/jetpack/cli"
 
 type Runtime struct {
 	// Global switches

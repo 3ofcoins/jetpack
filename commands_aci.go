@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "fmt"
 import "io/ioutil"
@@ -73,8 +73,8 @@ func (rt *Runtime) CmdImport() error {
 	// 128 bits is good enough for UUID, so it's good enough for us as well
 	jail, err := images.CreateJail(aci.FSHash(),
 		map[string]string{
-			"zettajail:aci:checksum": aci.Checksum(),
-			"zettajail:aci:name":     aci.Name.String(),
+			"jetpack:aci:checksum": aci.Checksum(),
+			"jetpack:aci:name":     aci.Name.String(),
 		})
 	if err != nil {
 		return err

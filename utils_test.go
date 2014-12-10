@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "reflect"
 import "testing"
@@ -12,29 +12,29 @@ var parsePropertiesCases = []struct {
 	{
 		[]string{"interface=lo1", "persist", "mount.devfs", "exec.start=/bin/sh /etc/rc"},
 		map[string]string{
-			"zettajail:jail:interface":   "\"lo1\"",
-			"zettajail:jail:persist":     "true",
-			"zettajail:jail:mount.devfs": "true",
-			"zettajail:jail:exec.start":  "\"/bin/sh /etc/rc\"",
+			"jetpack:jail:interface":   "\"lo1\"",
+			"jetpack:jail:persist":     "true",
+			"jetpack:jail:mount.devfs": "true",
+			"jetpack:jail:exec.start":  "\"/bin/sh /etc/rc\"",
 		},
 	},
 	{
 		[]string{"foo=1", "@bar=2", "+baz=3"},
 		map[string]string{
-			"zettajail:jail:foo": "\"1\"",
-			"zettajail:bar":      "2",
+			"jetpack:jail:foo": "\"1\"",
+			"jetpack:bar":      "2",
 			"baz":                "3",
 		},
 	},
 	{
 		[]string{"foo", "nobar", "baz.quux", "baz.noxyzzy", "@fred", "@nobarney", "+barney", "+nofred"},
 		map[string]string{
-			"zettajail:jail:foo":       "true",
-			"zettajail:jail:bar":       "false",
-			"zettajail:jail:baz.quux":  "true",
-			"zettajail:jail:baz.xyzzy": "false",
-			"zettajail:fred":           "on",
-			"zettajail:barney":         "off",
+			"jetpack:jail:foo":       "true",
+			"jetpack:jail:bar":       "false",
+			"jetpack:jail:baz.quux":  "true",
+			"jetpack:jail:baz.xyzzy": "false",
+			"jetpack:fred":           "on",
+			"jetpack:barney":         "off",
 			"barney":                   "on",
 			"fred":                     "off",
 		},

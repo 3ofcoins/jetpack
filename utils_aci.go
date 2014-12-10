@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "archive/tar"
 import "compress/bzip2"

@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "os"
 import "os/exec"
@@ -25,11 +25,11 @@ func ParseProperties(properties []string) map[string]string {
 		switch property[0] {
 		case '+': // "+property" is raw ZFS property
 			property = property[1:]
-		case '@': // "@property" is zettajail: property
+		case '@': // "@property" is jetpack: property
 			property = property[1:]
-			prefix = "zettajail:"
-		default: // "property" is zettajail:jail: (jail property)
-			prefix = "zettajail:jail:"
+			prefix = "jetpack:"
+		default: // "property" is jetpack:jail: (jail property)
+			prefix = "jetpack:jail:"
 			isJailProperty = true
 		}
 

@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "fmt"
 import "io/ioutil"
@@ -11,7 +11,7 @@ import "path/filepath"
 import "strconv"
 import "strings"
 
-import "github.com/3ofcoins/zettajail/cli"
+import "github.com/3ofcoins/jetpack/cli"
 
 const jailRcConf = `sendmail_submit_enable="NO"
 sendmail_outbound_enable="NO"
@@ -56,7 +56,7 @@ func (rt *Runtime) CmdInfo() error {
 			return nil
 		}
 		log.Println("File system root:", rt.Host().Mountpoint)
-		iface, err := net.InterfaceByName(rt.Host().Properties["zettajail:jail:interface"])
+		iface, err := net.InterfaceByName(rt.Host().Properties["jetpack:jail:interface"])
 		if err != nil {
 			return err
 		}

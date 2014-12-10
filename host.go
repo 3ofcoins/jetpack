@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "fmt"
 import "log"
@@ -15,14 +15,14 @@ var DefaultRootProperties = map[string]string{
 	"atime":                        "off",
 	"compress":                     "lz4",
 	"dedup":                        "on",
-	"mountpoint":                   "/srv/zettajail",
-	"zettajail:jail":               "no",
-	"zettajail:jail:devfs_ruleset": "4",
-	"zettajail:jail:exec.clean":    "true",
-	"zettajail:jail:exec.start":    "/bin/sh /etc/rc",
-	"zettajail:jail:exec.stop":     "/bin/sh /etc/rc.shutdown",
-	"zettajail:jail:interface":     "lo1",
-	"zettajail:jail:mount.devfs":   "true",
+	"mountpoint":                   "/srv/jetpack",
+	"jetpack:jail":               "no",
+	"jetpack:jail:devfs_ruleset": "4",
+	"jetpack:jail:exec.clean":    "true",
+	"jetpack:jail:exec.start":    "/bin/sh /etc/rc",
+	"jetpack:jail:exec.stop":     "/bin/sh /etc/rc.shutdown",
+	"jetpack:jail:interface":     "lo1",
+	"jetpack:jail:mount.devfs":   "true",
 }
 
 func ElucidateDefaultRootDataset() string {
@@ -36,7 +36,7 @@ func ElucidateDefaultRootDataset() string {
 	if len(pools) > 1 {
 		log.Fatalln("Multiple pools found, please set ZETTAJAIL_ROOT environment variable or use -root flag")
 	}
-	return path.Join(pools[0].Name, "zettajail")
+	return path.Join(pools[0].Name, "jetpack")
 }
 
 func NewHost(zfsRootDS string) *Host {
@@ -108,7 +108,7 @@ func (h *Host) Jails() []*Jail {
 
 	rv := make([]*Jail, 0, len(children))
 	for _, child := range children {
-		if child.Type == "filesystem" && child.Properties["zettajail:jail"] == "on" {
+		if child.Type == "filesystem" && child.Properties["jetpack:jail"] == "on" {
 			jail := NewJail(h, Dataset{child})
 			rv = append(rv, jail)
 		}
@@ -123,7 +123,7 @@ func (h *Host) GetJail(name string) (*Jail, error) {
 	if err != nil {
 		return nil, err
 	}
-	if ds.Type == "filesystem" && ds.Properties["zettajail:jail"] == "on" {
+	if ds.Type == "filesystem" && ds.Properties["jetpack:jail"] == "on" {
 		return NewJail(h, ds), nil
 	} else {
 		return nil, fmt.Errorf("Not a jail: %v", ds.Name)
@@ -139,19 +139,19 @@ func (h *Host) newJailProperties(name string, properties map[string]string) map[
 		properties["mountpoint"] = path.Join(h.Mountpoint, name, "rootfs")
 	}
 
-	if _, hasHostname := properties["zettajail:jail:host.hostname"]; !hasHostname {
-		properties["zettajail:jail:host.hostname"] = path.Base(name)
+	if _, hasHostname := properties["jetpack:jail:host.hostname"]; !hasHostname {
+		properties["jetpack:jail:host.hostname"] = path.Base(name)
 	}
 
 	// Expand default console log
-	switch properties["zettajail:jail:exec.consolelog"] {
+	switch properties["jetpack:jail:exec.consolelog"] {
 	case "true":
-		properties["zettajail:jail:exec.consolelog"] = properties["mountpoint"] + ".log"
+		properties["jetpack:jail:exec.consolelog"] = properties["mountpoint"] + ".log"
 	case "false":
-		delete(properties, "zettajail:jail:exec.consolelog")
+		delete(properties, "jetpack:jail:exec.consolelog")
 	}
 
-	properties["zettajail:jail"] = "on"
+	properties["jetpack:jail"] = "on"
 	return properties
 }
 
@@ -166,7 +166,7 @@ func (h *Host) CreateJail(name string, properties map[string]string) (*Jail, err
 }
 
 func (h *Host) CloneJail(snapshot, name string, properties map[string]string) (*Jail, error) {
-	// FIXME: base properties off snapshot's properties, at least for zettajail:*
+	// FIXME: base properties off snapshot's properties, at least for jetpack:*
 	properties = h.newJailProperties(name, properties)
 	snap, err := zfs.GetDataset(path.Join(h.Name, snapshot))
 	if err != nil {

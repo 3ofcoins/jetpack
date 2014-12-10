@@ -1,4 +1,4 @@
-package zettajail
+package jetpack
 
 import "fmt"
 import "log"
@@ -38,7 +38,7 @@ func (jp JailParameter) String() string {
 func (ds Dataset) JailParameters() []JailParameter {
 	keys := make([]string, 0, len(ds.Properties))
 	for k := range ds.Properties {
-		if strings.HasPrefix(k, "zettajail:jail:") {
+		if strings.HasPrefix(k, "jetpack:jail:") {
 			keys = append(keys, k)
 		}
 	}
@@ -53,7 +53,7 @@ func (ds Dataset) JailParameters() []JailParameter {
 				v = uv
 			}
 		}
-		rv[i] = JailParameter{k[len("zettajail:jail:"):], v}
+		rv[i] = JailParameter{k[len("jetpack:jail:"):], v}
 	}
 	return rv
 }
