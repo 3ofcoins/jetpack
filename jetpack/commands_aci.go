@@ -5,18 +5,13 @@ import "io/ioutil"
 import "os"
 import "path/filepath"
 
-import "github.com/3ofcoins/rocket/app-container/schema"
-
 func (rt *Runtime) CmdExport() error {
 	jail, err := rt.Host().GetJail(rt.Args[0])
 	if err != nil {
 		return err
 	}
 
-	manifest, err := schema.NewFilesetManifest(rt.Args[1])
-	if err != nil {
-		return err
-	}
+	manifest := NewImageManifest(rt.Args[1])
 
 	filelist, err := ioutil.TempFile(jail.Basedir(), "aci.files.")
 	if err != nil {
@@ -31,7 +26,7 @@ func (rt *Runtime) CmdExport() error {
 			}
 			if path != jail.Mountpoint {
 				relPath := path[len(jail.Mountpoint):]
-				manifest.Files = append(manifest.Files, relPath)
+				manifest.PathWhitelist = append(manifest.PathWhitelist, relPath)
 				fmt.Fprintln(filelist, "rootfs"+relPath)
 			}
 			return nil

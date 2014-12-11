@@ -10,10 +10,12 @@ import "fmt"
 import "io"
 import "io/ioutil"
 import "os"
+import "runtime"
 import "strings"
 
-import "github.com/3ofcoins/rocket/app-container/aci"
-import "github.com/3ofcoins/rocket/app-container/schema"
+import "github.com/3ofcoins/appc-spec/aci"
+import "github.com/3ofcoins/appc-spec/schema"
+import "github.com/3ofcoins/appc-spec/schema/types"
 
 // FIXME: copy/paste from github.com/coreos/rocket/app-container/acutil/validate.go
 func DecompressingReader(rs io.ReadSeeker) (io.Reader, error) {
@@ -49,7 +51,7 @@ func DecompressingReader(rs io.ReadSeeker) (io.Reader, error) {
 
 type ACI struct {
 	Sha256 []byte
-	schema.FilesetManifest
+	schema.ImageManifest
 }
 
 func (aci *ACI) Checksum() string {
@@ -83,7 +85,7 @@ TarLoop:
 	for {
 		switch hdr, err := tr.Next(); err {
 		case nil:
-			if hdr.Name == "fileset" {
+			if hdr.Name == "manifest" {
 				fsmJSON, err = ioutil.ReadAll(tr)
 				if err != nil {
 					return nil, err
@@ -105,11 +107,24 @@ TarLoop:
 	aci.Sha256 = hash.Sum(nil)
 
 	if fsmJSON != nil {
-		err = aci.FilesetManifest.UnmarshalJSON(fsmJSON)
+		err = aci.ImageManifest.UnmarshalJSON(fsmJSON)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return &aci, nil
+}
+
+func NewImageManifest(name string) *schema.ImageManifest {
+	// Cannot validate, assertValid is not exported, so we return as is.
+	return &schema.ImageManifest{
+		ACKind:    types.ACKind("ImageManifest"),
+		ACVersion: types.SemVer{Major: 0, Minor: 1, Patch: 0},
+		Name:      types.ACName(name),
+		Labels: types.Labels{
+			types.Label{"os", runtime.GOOS},
+			types.Label{"arch", runtime.GOARCH},
+		},
+	}
 }
