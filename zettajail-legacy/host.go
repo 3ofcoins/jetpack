@@ -12,10 +12,10 @@ type Host struct {
 }
 
 var DefaultRootProperties = map[string]string{
-	"atime":                        "off",
-	"compress":                     "lz4",
-	"dedup":                        "on",
-	"mountpoint":                   "/srv/jetpack",
+	"atime":                      "off",
+	"compress":                   "lz4",
+	"dedup":                      "on",
+	"mountpoint":                 "/srv/jetpack",
 	"jetpack:jail":               "no",
 	"jetpack:jail:devfs_ruleset": "4",
 	"jetpack:jail:exec.clean":    "true",
@@ -34,7 +34,7 @@ func ElucidateDefaultRootDataset() string {
 		log.Fatalln("No ZFS pools found")
 	}
 	if len(pools) > 1 {
-		log.Fatalln("Multiple pools found, please set ZETTAJAIL_ROOT environment variable or use -root flag")
+		log.Fatalln("Multiple pools found, please set IL_ROOT environment variable or use -root flag")
 	}
 	return path.Join(pools[0].Name, "jetpack")
 }
