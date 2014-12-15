@@ -91,7 +91,7 @@ cat > manifest <<EOF
     { "name": "arch", "val": "$arch" }
   ],
   "annotations": {
-    "created:" "$(date -u '+%FT%TZ')"
+    "created": "$(date -u '+%FT%TZ')"
   }
 }
 EOF
