@@ -3,7 +3,6 @@ package jetpack
 import "fmt"
 import "log"
 import "path"
-import "path/filepath"
 
 import "github.com/3ofcoins/go-zfs"
 import "github.com/juju/errors"
@@ -57,14 +56,14 @@ func CreateHost(rootDataset, rootMountpoint string) (h *Host, err error) {
 	}
 
 	log.Println("Creating images dataset")
-	if ds, err := h.createFilesystem(storageZFSProperties, "images"); err != nil {
+	if ds, err := h.CreateFilesystem(storageZFSProperties, "images"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.imagesFS = ds
 	}
 
 	log.Println("Creating containers dataset")
-	if ds, err := h.createFilesystem(nil, "containers"); err != nil {
+	if ds, err := h.CreateFilesystem(nil, "containers"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.containersFS = ds
@@ -81,62 +80,10 @@ func (h *Host) getDataset(name ...string) (*zfs.Dataset, error) {
 	return zfs.GetDataset(h.dsName(name...))
 }
 
-func (h *Host) createFilesystem(properties map[string]string, name ...string) (*zfs.Dataset, error) {
+func (h *Host) CreateFilesystem(properties map[string]string, name ...string) (*zfs.Dataset, error) {
 	return zfs.CreateFilesystem(h.dsName(name...), properties)
 }
 
 func (h *Host) String() string {
 	return fmt.Sprintf("Jetpack[%v]", h.Name)
-}
-
-func (h *Host) ImportACI(aci *ACI) error {
-	ds, err := h.createFilesystem(
-		map[string]string{
-			"mountpoint": filepath.Join(
-				h.imagesFS.Mountpoint,
-				aci.Checksum64(),
-				"rootfs",
-			),
-		},
-		"images", aci.Checksum64())
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	props := map[string]string{
-		"jetpack:image":          aci.String(),
-		"jetpack:image:checksum": aci.Checksum(),
-		"jetpack:image:name":     string(aci.Name),
-		"jetpack:image:app":      bool2zfs(aci.IsApp()),
-	}
-	for _, label := range aci.Labels {
-		props[fmt.Sprintf("jetpack:image:label:%v", label.Name)] = label.Value
-	}
-	for annName, annValue := range aci.Annotations {
-		props[fmt.Sprintf("jetpack:image:annotation:%v", annName)] = annValue
-	}
-
-	for propName, propValue := range props {
-		if err := ds.SetProperty(propName, propValue); err != nil {
-			return errors.Trace(err)
-		}
-	}
-
-	err = runCommand("tar", "-C", filepath.Dir(ds.Mountpoint), "-xf", aci.Path)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	_, err = ds.Snapshot("image", false)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	for propName, propValue := range map[string]string{"canmount": "off", "readonly": "on"} {
-		if err := ds.SetProperty(propName, propValue); err != nil {
-			return errors.Trace(err)
-		}
-	}
-
-	return nil
 }

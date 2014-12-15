@@ -37,12 +37,13 @@ func (rt *Runtime) CmdImport() error {
 	aciAddr := rt.Args[0]
 
 	if aciAddr[0] == '.' || aciAddr[0] == '/' {
-		log.Println("Importing ACI from", aciAddr)
-		aci, err := ReadACI(aciAddr)
+		log.Println("Importing image from", aciAddr)
+		img, err := ImportImageFromFile(rt.Host(), aciAddr)
 		if err != nil {
 			return errors.Trace(err)
+		} else {
+			log.Println("Imported:", img)
 		}
-		return errors.Trace(rt.Host().ImportACI(aci))
 	} else {
 		return errors.New("DYOD") // Do Your Own Discovery
 	}
