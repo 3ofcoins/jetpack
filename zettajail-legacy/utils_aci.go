@@ -19,34 +19,36 @@ import "github.com/3ofcoins/appc-spec/schema/types"
 
 // FIXME: copy/paste from github.com/coreos/rocket/app-container/acutil/validate.go
 func DecompressingReader(rs io.ReadSeeker) (io.Reader, error) {
-	// TODO(jonboulle): this is a bit redundant with detectValType
-	typ, err := aci.DetectFileType(rs)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := rs.Seek(0, 0); err != nil {
-		return nil, err
-	}
-	var r io.Reader
-	switch typ {
-	case aci.TypeGzip:
-		r, err = gzip.NewReader(rs)
-		if err != nil {
-			return nil, fmt.Errorf("error reading gzip: %v", err)
-		}
-	case aci.TypeBzip2:
-		r = bzip2.NewReader(rs)
-	case aci.TypeXz:
-		r = aci.XzReader(rs)
-	case aci.TypeTar:
-		r = rs
-	case aci.TypeUnknown:
-		return nil, errors.New("unknown filetype")
-	default:
-		// should never happen
-		panic(fmt.Sprintf("bad type returned from DetectFileType: %v", typ))
-	}
-	return r, nil
+	//DONE 	// TODO(jonboulle): this is a bit redundant with detectValType
+	//DONE 	typ, err := aci.DetectFileType(rs)
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	if _, err := rs.Seek(0, 0); err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	var r io.Reader
+	//DONE 	switch typ {
+	//DONE 	case aci.TypeGzip:
+	//DONE 		r, err = gzip.NewReader(rs)
+	//DONE 		if err != nil {
+	//DONE 			return nil, fmt.Errorf("error reading gzip: %v", err)
+	//DONE 		}
+	//DONE 	case aci.TypeBzip2:
+	//DONE 		r = bzip2.NewReader(rs)
+	//DONE 	case aci.TypeXz:
+	//DONE 		r = aci.XzReader(rs)
+	//DONE 	case aci.TypeTar:
+	//DONE 		r = rs
+	//DONE 	case aci.TypeUnknown:
+	//DONE 		return nil, errors.New("unknown filetype")
+	//DONE 	default:
+	//DONE 		// should never happen
+	//DONE 		panic(fmt.Sprintf("bad type returned from DetectFileType: %v", typ))
+	//DONE 	}
+	//DONE 	return r, nil
+	//DONE
+	return nil, nil
 }
 
 type ACI struct {
@@ -55,65 +57,69 @@ type ACI struct {
 }
 
 func (aci *ACI) Checksum() string {
-	return fmt.Sprintf("sha256-%x", aci.Sha256)
+	//DONE return fmt.Sprintf("sha256-%x", aci.Sha256)
+	return ""
 }
 
 func (aci *ACI) FSHash() string {
-	return strings.TrimRight(base64.URLEncoding.EncodeToString(aci.Sha256), "=")
+	//DONE return strings.TrimRight(base64.URLEncoding.EncodeToString(aci.Sha256), "=")
+	return ""
 }
 
 func ReadACI(path string) (*ACI, error) {
-	aci := ACI{}
-
-	zf, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer zf.Close()
-	f, err := DecompressingReader(zf)
-	if err != nil {
-		return nil, err
-	}
-	hash := sha256.New()
-
-	r := io.TeeReader(f, hash)
-	tr := tar.NewReader(r)
-
-	var fsmJSON []byte
-
-TarLoop:
-	for {
-		switch hdr, err := tr.Next(); err {
-		case nil:
-			if hdr.Name == "manifest" {
-				fsmJSON, err = ioutil.ReadAll(tr)
-				if err != nil {
-					return nil, err
-				}
-				break TarLoop
-			}
-		case io.EOF:
-			break TarLoop
-		default:
-			return nil, err
-		}
-	}
-
-	// Finish reading file, Tar may have read through last entry
-	if _, err := io.Copy(ioutil.Discard, r); err != nil {
-		return nil, err
-	}
-
-	aci.Sha256 = hash.Sum(nil)
-
-	if fsmJSON != nil {
-		err = aci.ImageManifest.UnmarshalJSON(fsmJSON)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &aci, nil
+	//DONE 	aci := ACI{}
+	//DONE
+	//DONE 	zf, err := os.Open(path)
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	defer zf.Close()
+	//DONE 	f, err := DecompressingReader(zf)
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	hash := sha256.New()
+	//DONE
+	//DONE 	r := io.TeeReader(f, hash)
+	//DONE 	tr := tar.NewReader(r)
+	//DONE
+	//DONE 	var fsmJSON []byte
+	//DONE
+	//DONE TarLoop:
+	//DONE 	for {
+	//DONE 		switch hdr, err := tr.Next(); err {
+	//DONE 		case nil:
+	//DONE 			if hdr.Name == "manifest" {
+	//DONE 				fsmJSON, err = ioutil.ReadAll(tr)
+	//DONE 				if err != nil {
+	//DONE 					return nil, err
+	//DONE 				}
+	//DONE 				break TarLoop
+	//DONE 			}
+	//DONE 		case io.EOF:
+	//DONE 			break TarLoop
+	//DONE 		default:
+	//DONE 			return nil, err
+	//DONE 		}
+	//DONE 	}
+	//DONE
+	//DONE 	// Finish reading file, Tar may have read through last entry
+	//DONE 	if _, err := io.Copy(ioutil.Discard, r); err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE
+	//DONE 	aci.Sha256 = hash.Sum(nil)
+	//DONE
+	//DONE 	if fsmJSON != nil {
+	//DONE 		err = aci.ImageManifest.UnmarshalJSON(fsmJSON)
+	//DONE 		if err != nil {
+	//DONE 			return nil, err
+	//DONE 		}
+	//DONE 	}
+	//DONE
+	//DONE 	return &aci, nil
+	//DONE
+	return nil, nil
 }
 
 func NewImageManifest(name string) *schema.ImageManifest {

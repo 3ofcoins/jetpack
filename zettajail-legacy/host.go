@@ -26,35 +26,36 @@ var DefaultRootProperties = map[string]string{
 }
 
 func ElucidateDefaultRootDataset() string {
-	pools, err := zfs.ListZpools()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	if len(pools) == 0 {
-		log.Fatalln("No ZFS pools found")
-	}
-	if len(pools) > 1 {
-		log.Fatalln("Multiple pools found, please set IL_ROOT environment variable or use -root flag")
-	}
-	return path.Join(pools[0].Name, "jetpack")
+	//DONE	pools, err := zfs.ListZpools()
+	//DONE	if err != nil {
+	//DONE		log.Fatalln(err)
+	//DONE	}
+	//DONE	if len(pools) == 0 {
+	//DONE		log.Fatalln("No ZFS pools found")
+	//DONE	}
+	//DONE	if len(pools) > 1 {
+	//DONE		log.Fatalln("Multiple pools found, please set IL_ROOT environment variable or use -root flag")
+	//DONE	}
+	//DONE	return path.Join(pools[0].Name, "jetpack")
+	return ""
 }
 
 func NewHost(zfsRootDS string) *Host {
-	if zfsRootDS == "" {
-		zfsRootDS = ElucidateDefaultRootDataset()
-	}
-
-	if ds, err := GetDataset(zfsRootDS); err != nil {
-		// go-zfs doesn't let us distinguish between "dataset does not
-		// exist" and "there was a horrible error as we tried to get
-		// dataset", all we can do here is assume that this is a
-		// nonexistent dataset.
-		log.Println("ERROR:", err)
-		return nil
-	} else {
-		return &Host{ds}
-	}
-	return nil
+	//DONE	if zfsRootDS == "" {
+	//DONE		zfsRootDS = ElucidateDefaultRootDataset()
+	//DONE	}
+	//DONE
+	//DONE	if ds, err := GetDataset(zfsRootDS); err != nil {
+	//DONE		// go-zfs doesn't let us distinguish between "dataset does not
+	//DONE		// exist" and "there was a horrible error as we tried to get
+	//DONE		// dataset", all we can do here is assume that this is a
+	//DONE		// nonexistent dataset.
+	//DONE		log.Println("ERROR:", err)
+	//DONE		return nil
+	//DONE	} else {
+	//DONE		return &Host{ds}
+	//DONE	}
+	//DONE	return nil
 }
 
 func CreateHost(name string, userProperties map[string]string) (*Host, error) {

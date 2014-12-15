@@ -30,21 +30,22 @@ type Runtime struct {
 }
 
 func (rt *Runtime) AddCommand(name, synopsis string, runner func() error) {
-	rt.Cli.AddCommand(name, synopsis,
-		func(command string, args []string) error {
-			rt.Command = command
-			rt.Args = args
-			return runner()
-		})
+	//DONE	rt.Cli.AddCommand(name, synopsis,
+	//DONE		func(command string, args []string) error {
+	//DONE			rt.Command = command
+	//DONE			rt.Args = args
+	//DONE			return runner()
+	//DONE		})
 }
 
 func (rt *Runtime) Shift() string {
-	if len(rt.Args) == 0 {
-		return ""
-	}
-	rv := rt.Args[0]
-	rt.Args = rt.Args[1:]
-	return rv
+	//DONE	if len(rt.Args) == 0 {
+	//DONE		return ""
+	//DONE	}
+	//DONE	rv := rt.Args[0]
+	//DONE	rt.Args = rt.Args[1:]
+	//DONE	return rv
+	return ""
 }
 
 func (rt *Runtime) Properties() map[string]string {
@@ -52,18 +53,18 @@ func (rt *Runtime) Properties() map[string]string {
 }
 
 func (rt *Runtime) Host() *Host {
-	if rt.host == nil {
-		dsName := rt.ZFSRoot
-		if rt.Folder != "" {
-			dsName = path.Join(dsName, rt.Folder)
-		}
-		rt.host = NewHost(dsName)
-		if rt.host == nil {
-			log.Printf("Root ZFS dataset %v does not exist\n", rt.ZFSRoot)
-			log.Printf("Run `%v init' to create data set\n", rt.Name)
-			os.Exit(1)
-		}
-	}
+	//DONE	if rt.host == nil {
+	//DONE		dsName := rt.ZFSRoot
+	//DONE		if rt.Folder != "" {
+	//DONE			dsName = path.Join(dsName, rt.Folder)
+	//DONE		}
+	//DONE		rt.host = NewHost(dsName)
+	//DONE		if rt.host == nil {
+	//DONE			log.Printf("Root ZFS dataset %v does not exist\n", rt.ZFSRoot)
+	//DONE			log.Printf("Run `%v init' to create data set\n", rt.Name)
+	//DONE			os.Exit(1)
+	//DONE		}
+	//DONE	}
 	return rt.host
 }
 
@@ -98,31 +99,31 @@ func (rt *Runtime) ForEachJail(fn func(*Jail) error) error {
 func NewRuntime(name string) *Runtime {
 	rt := &Runtime{Cli: cli.NewCli(name)}
 
-	rt.ZFSRoot = os.Getenv("ZETTAJAIL_ROOT")
-	if rt.ZFSRoot == "" {
-		rt.ZFSRoot = ElucidateDefaultRootDataset()
-	}
-
-	// Global flags
-	rt.StringVar(&rt.ZFSRoot, "root", rt.ZFSRoot, "Root ZFS filesystem")
-
-	// Commands
-	rt.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", rt.CmdClone)
-	rt.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", rt.CmdConsole)
-	rt.AddCommand("create", "[-i=DIST] JAIL [PROPERTY...] -- create new jail", rt.CmdCreate)
-	rt.AddCommand("export", "JAIL NAME PATH.aci", rt.CmdExport)
-	rt.AddCommand("import", "PATH.aci", rt.CmdImport)
-	rt.AddCommand("info", "[-p=FOLDER] [JAIL...] -- show global info or jail details", rt.CmdInfo)
-	rt.AddCommand("init", "[-p=FOLDER] [PROPERTY...] -- initialize or modify host (NFY)", rt.CmdInit)
-	rt.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", rt.CmdCtlJail)
-	rt.AddCommand("ps", "JAIL [ps options...] -- show list of jail's processes", rt.CmdPs)
-	rt.AddCommand("restart", "[JAIL...] -- restart some or all jails", rt.CmdCtlJail)
-	rt.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", rt.CmdSet)
-	rt.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot some or all jails", rt.CmdSnapshot)
-	rt.AddCommand("start", "[JAIL...] -- start (create) some or all jails", rt.CmdCtlJail)
-	rt.AddCommand("status", "[JAIL...] -- show jail status", rt.CmdStatus)
-	rt.AddCommand("stop", "[JAIL...] -- stop (remove) some or all jails", rt.CmdCtlJail)
-	rt.AddCommand("tree", "-- show family tree of jails", rt.CmdTree)
+	//DONE	rt.ZFSRoot = os.Getenv("ZETTAJAIL_ROOT")
+	//DONE	if rt.ZFSRoot == "" {
+	//DONE		rt.ZFSRoot = ElucidateDefaultRootDataset()
+	//DONE	}
+	//DONE
+	//DONE	// Global flags
+	//DONE	rt.StringVar(&rt.ZFSRoot, "root", rt.ZFSRoot, "Root ZFS filesystem")
+	//DONE
+	//DONE	// Commands
+	//DONE	rt.AddCommand("clone", "SNAPSHOT JAIL [PROPERTY...] -- create new jail from existing snapshot", rt.CmdClone)
+	//DONE	rt.AddCommand("console", "[-u=USER] JAIL [COMMAND...] -- execute COMMAND or login shell in JAIL", rt.CmdConsole)
+	//DONE	rt.AddCommand("create", "[-i=DIST] JAIL [PROPERTY...] -- create new jail", rt.CmdCreate)
+	//DONE	rt.AddCommand("export", "JAIL NAME PATH.aci", rt.CmdExport)
+	//DONE	rt.AddCommand("import", "PATH.aci", rt.CmdImport)
+	//DONE	rt.AddCommand("info", "[-p=FOLDER] [JAIL...] -- show global info or jail details", rt.CmdInfo)
+	//DONE	rt.AddCommand("init", "[-p=FOLDER] [PROPERTY...] -- initialize or modify host (NFY)", rt.CmdInit)
+	//DONE	rt.AddCommand("modify", "[-rc] [JAIL...] -- modify some or all jails", rt.CmdCtlJail)
+	//DONE	rt.AddCommand("ps", "JAIL [ps options...] -- show list of jail's processes", rt.CmdPs)
+	//DONE	rt.AddCommand("restart", "[JAIL...] -- restart some or all jails", rt.CmdCtlJail)
+	//DONE	rt.AddCommand("set", "JAIL PROPERTY... -- set or modify jail properties", rt.CmdSet)
+	//DONE	rt.AddCommand("snapshot", "[-s=SNAP] [JAIL...] -- snapshot some or all jails", rt.CmdSnapshot)
+	//DONE	rt.AddCommand("start", "[JAIL...] -- start (create) some or all jails", rt.CmdCtlJail)
+	//DONE	rt.AddCommand("status", "[JAIL...] -- show jail status", rt.CmdStatus)
+	//DONE	rt.AddCommand("stop", "[JAIL...] -- stop (remove) some or all jails", rt.CmdCtlJail)
+	//DONE	rt.AddCommand("tree", "-- show family tree of jails", rt.CmdTree)
 
 	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
 	rt.Commands["create"].StringVar(&rt.Install, "i", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
@@ -136,7 +137,8 @@ func NewRuntime(name string) *Runtime {
 }
 
 func Run(name string, args []string) error {
-	rt := NewRuntime(name)
-	rt.Parse(args)
-	return rt.Run()
+	//DONE	rt := NewRuntime(name)
+	//DONE	rt.Parse(args)
+	//DONE	return rt.Run()
+	return nil
 }

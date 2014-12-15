@@ -50,22 +50,22 @@ func (rt *Runtime) CmdCtlJail() error {
 
 func (rt *Runtime) CmdInfo() error {
 	if len(rt.Args) == 0 {
-		log.Println("Root ZFS dataset:", rt.Host().Name)
-		if !rt.Host().Exists() {
-			log.Println("Root ZFS dataset does not exist. Please run `zjail init`.")
-			return nil
-		}
-		log.Println("File system root:", rt.Host().Mountpoint)
-		iface, err := net.InterfaceByName(rt.Host().Properties["jetpack:jail:interface"])
-		if err != nil {
-			return err
-		}
-		addrs, err := iface.Addrs()
-		if err != nil {
-			return err
-		}
-		log.Printf("Interface: %v (%v)\n", iface.Name, addrs[0])
-		return nil
+		//DONE		log.Println("Root ZFS dataset:", rt.Host().Name)
+		//DONE		if !rt.Host().Exists() {
+		//DONE			log.Println("Root ZFS dataset does not exist. Please run `zjail init`.")
+		//DONE			return nil
+		//DONE		}
+		//DONE		log.Println("File system root:", rt.Host().Mountpoint)
+		//DONE		iface, err := net.InterfaceByName(rt.Host().Properties["jetpack:jail:interface"])
+		//DONE		if err != nil {
+		//DONE			return err
+		//DONE		}
+		//DONE		addrs, err := iface.Addrs()
+		//DONE		if err != nil {
+		//DONE			return err
+		//DONE		}
+		//DONE		log.Printf("Interface: %v (%v)\n", iface.Name, addrs[0])
+		//DONE		return nil
 	}
 	return rt.ForEachJail(func(jail *Jail) error {
 		if err := jail.Status(); err != nil {
@@ -181,22 +181,22 @@ func (rt *Runtime) CmdSet() error {
 	return jail.SetProperties(rt.Properties())
 }
 
-func (rt *Runtime) cmdInitDwim() (*Host, error) {
-	if rt.Folder == "" {
-		return CreateHost(rt.ZFSRoot, rt.Properties())
-	} else {
-		folder := rt.Folder
-		rt.Folder = ""
-		return rt.Host().CreateFolder(folder, rt.Properties())
-	}
-}
+//DONEfunc (rt *Runtime) cmdInitDwim() (*Host, error) {
+//DONE	if rt.Folder == "" {
+//DONE		return CreateHost(rt.ZFSRoot, rt.Properties())
+//DONE	} else {
+//DONE		folder := rt.Folder
+//DONE		rt.Folder = ""
+//DONE		return rt.Host().CreateFolder(folder, rt.Properties())
+//DONE	}
+//DONE}
 
 func (rt *Runtime) CmdInit() error {
-	host, err := rt.cmdInitDwim()
-	if err != nil {
-		return err
-	}
-	rt.host = host
+	//DONE	host, err := rt.cmdInitDwim()
+	//DONE	if err != nil {
+	//DONE		return err
+	//DONE	}
+	//DONE	rt.host = host
 	return rt.CmdInfo()
 }
 
