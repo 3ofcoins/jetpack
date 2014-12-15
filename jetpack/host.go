@@ -87,3 +87,19 @@ func (h *Host) CreateFilesystem(properties map[string]string, name ...string) (*
 func (h *Host) String() string {
 	return fmt.Sprintf("Jetpack[%v]", h.Name)
 }
+
+func (h *Host) Images() (Images, error) {
+	if dss, err := h.imagesFS.Children(1); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		rv := make([]*Image, len(dss))
+		for i, ds := range dss {
+			if img, err := GetImage(ds); err != nil {
+				return nil, errors.Trace(err)
+			} else {
+				rv[i] = img
+			}
+		}
+		return rv, nil
+	}
+}

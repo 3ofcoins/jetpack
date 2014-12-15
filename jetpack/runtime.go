@@ -78,7 +78,8 @@ func NewRuntime(name string) *Runtime {
 	// Commands
 	rt.AddCommand("info", "-- show global info or jail details", rt.CmdInfo)
 	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
-	rt.AddCommand("import", "./path/to/image.aci -- import an image", rt.CmdImport)
+	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
+	rt.AddCommand("images", "-- list images", rt.CmdImages)
 
 	return rt
 }

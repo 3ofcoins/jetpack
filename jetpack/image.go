@@ -7,6 +7,7 @@ import "fmt"
 import "io"
 import "io/ioutil"
 import "os"
+import "path"
 import "path/filepath"
 import "reflect"
 import "strings"
@@ -23,7 +24,54 @@ type Image struct {
 	Sha256 []byte
 }
 
-func ImportImage(h *Host, rs io.ReadSeeker) (*Image, error) {
+func GetImage(ds *zfs.Dataset) (*Image, error) {
+	img := &Image{DS: ds}
+
+	b64str := path.Base(ds.Name)
+	if n := len(b64str) % 4; n != 0 {
+		b64str += strings.Repeat("=", 4-n)
+	}
+
+	sha256, err := base64.URLEncoding.DecodeString(b64str)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	img.Sha256 = sha256
+
+	manifestJSON, err := ioutil.ReadFile(filepath.Join(img.Basedir(), "manifest"))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	err = img.ImageManifest.UnmarshalJSON(manifestJSON)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return img, nil
+}
+
+func ImportImage(h *Host, uri string) (*Image, error) {
+	ff, err := ioutil.TempFile(h.imagesFS.Mountpoint, ".image.fetch.")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	ff.Close()
+	fetchPath := ff.Name() + ".data"
+	defer os.Remove(ff.Name())
+	defer os.Remove(fetchPath)
+
+	err = runCommand("fetch", "-l", "-o", fetchPath, uri)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	f, err := os.Open(fetchPath)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	defer f.Close()
+
 	img := &Image{}
 
 	// Save uncompressed tar file to unpack later on
@@ -33,7 +81,7 @@ func ImportImage(h *Host, rs io.ReadSeeker) (*Image, error) {
 	}
 	defer os.Remove(cf.Name())
 
-	dr, err := DecompressingReader(rs)
+	dr, err := DecompressingReader(f)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -96,10 +144,10 @@ TarLoop:
 	img.DS = ds
 
 	props := map[string]string{
-		"jetpack:image":    img.String(),
-		"jetpack:checksum": img.Checksum(),
-		"jetpack:name":     string(img.Name),
-		"jetpack:app":      bool2zfs(img.IsApp()),
+		"jetpack:checksum":      img.Checksum(),
+		"jetpack:image":         string(img.Name),
+		"jetpack:app":           bool2zfs(img.IsApp()),
+		"jetpack:imported_from": uri,
 	}
 	for _, label := range img.Labels {
 		props[fmt.Sprintf("jetpack:label:%v", label.Name)] = label.Value
@@ -114,7 +162,7 @@ TarLoop:
 		}
 	}
 
-	err = runCommand("tar", "-C", filepath.Dir(ds.Mountpoint), "-xf", cf.Name())
+	err = runCommand("tar", "-C", img.Basedir(), "-xf", cf.Name())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -133,15 +181,6 @@ TarLoop:
 	return img, nil
 }
 
-func ImportImageFromFile(h *Host, path string) (*Image, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	defer f.Close()
-	return ImportImage(h, f)
-}
-
 func (img *Image) Checksum() string {
 	return fmt.Sprintf("sha256-%x", img.Sha256)
 }
@@ -150,15 +189,29 @@ func (img *Image) Checksum64() string {
 	return strings.TrimRight(base64.URLEncoding.EncodeToString(img.Sha256), "=")
 }
 
+func (img *Image) Basedir() string {
+	return filepath.Dir(img.DS.Mountpoint)
+}
+
 func (img *Image) String() string {
-	version, _ := img.Get("version")
-	os, _ := img.Get("os")
-	arch, _ := img.Get("arch")
-	return fmt.Sprintf("%v-%v-%v-%v.aci[%v]",
-		img.Name, version, os, arch,
-		img.Checksum())
+	return fmt.Sprintf("ACI:%v(%v)", img.Checksum(), img.Name)
+}
+
+func (img *Image) PrettyLabels() string {
+	labels := make([]string, len(img.Labels))
+	for i, l := range img.Labels {
+		labels[i] = fmt.Sprintf("%v=%#v", l.Name, l.Value)
+	}
+	return strings.Join(labels, " ")
 }
 
 func (img *Image) IsApp() bool {
 	return !reflect.DeepEqual(img.App, types.App{})
 }
+
+// For sorting
+type Images []*Image
+
+func (ii Images) Len() int           { return len(ii) }
+func (ii Images) Less(i, j int) bool { return ii[i].Name < ii[j].Name }
+func (ii Images) Swap(i, j int)      { ii[i], ii[j] = ii[j], ii[i] }

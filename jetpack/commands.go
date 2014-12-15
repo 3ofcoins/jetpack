@@ -1,6 +1,7 @@
 package jetpack
 
 import "log"
+import "sort"
 
 import "github.com/juju/errors"
 
@@ -36,17 +37,28 @@ func (rt *Runtime) CmdImport() error {
 
 	aciAddr := rt.Args[0]
 
-	if aciAddr[0] == '.' || aciAddr[0] == '/' {
-		log.Println("Importing image from", aciAddr)
-		img, err := ImportImageFromFile(rt.Host(), aciAddr)
-		if err != nil {
-			return errors.Trace(err)
-		} else {
-			log.Println("Imported:", img)
-		}
+	log.Println("Importing image from", aciAddr)
+	img, err := ImportImage(rt.Host(), aciAddr)
+	if err != nil {
+		return errors.Trace(err)
 	} else {
-		return errors.New("DYOD") // Do Your Own Discovery
+		log.Println("Imported:", img)
 	}
 
+	return nil
+}
+
+func (rt *Runtime) CmdImages() error {
+	if len(rt.Args) != 0 {
+		return cli.ErrUsage
+	}
+	ii, err := rt.Host().Images()
+	if err != nil {
+		return errors.Trace(err)
+	}
+	sort.Sort(ii)
+	for _, img := range ii {
+		log.Println(img.Name, img.PrettyLabels())
+	}
 	return nil
 }
