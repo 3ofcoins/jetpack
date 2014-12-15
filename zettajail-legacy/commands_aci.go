@@ -51,42 +51,43 @@ func (rt *Runtime) CmdExport() error {
 }
 
 func (rt *Runtime) CmdImport() error {
-	aci, err := ReadACI(rt.Args[0])
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(aci.Name, aci.Checksum(), aci.FSHash())
-
-	images, err := rt.Host().GetFolder("images")
-	if err != nil {
-		return err
-	}
-
-	// We need to shorten the actual dataset name because of a stupid FreeBSD limit
-	// https://lists.freebsd.org/pipermail/freebsd-hackers/2013-November/043798.html
-	// 128 bits is good enough for UUID, so it's good enough for us as well
-	jail, err := images.CreateJail(aci.FSHash(),
-		map[string]string{
-			"jetpack:aci:checksum": aci.Checksum(),
-			"jetpack:aci:name":     aci.Name.String(),
-		})
-	if err != nil {
-		return err
-	}
-
-	err = RunCommand("tar", "-C", jail.Basedir(), "-xf", rt.Args[0])
-	if err != nil {
-		return err
-	}
-
-	_, err = jail.Snapshot("aci", false)
-	if err != nil {
-		return err
-	}
-
-	return jail.SetProperties(map[string]string{
-		"canmount": "off",
-		"readonly": "on",
-	})
+	//DONE 	aci, err := ReadACI(rt.Args[0])
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	fmt.Println(aci.Name, aci.Checksum(), aci.FSHash())
+	//DONE
+	//DONE 	images, err := rt.Host().GetFolder("images")
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	// We need to shorten the actual dataset name because of a stupid FreeBSD limit
+	//DONE 	// https://lists.freebsd.org/pipermail/freebsd-hackers/2013-November/043798.html
+	//DONE 	// 128 bits is good enough for UUID, so it's good enough for us as well
+	//DONE 	jail, err := images.CreateJail(aci.FSHash(),
+	//DONE 		map[string]string{
+	//DONE 			"jetpack:aci:checksum": aci.Checksum(),
+	//DONE 			"jetpack:aci:name":     aci.Name.String(),
+	//DONE 		})
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	err = RunCommand("tar", "-C", jail.Basedir(), "-xf", rt.Args[0])
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	_, err = jail.Snapshot("aci", false)
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	return jail.SetProperties(map[string]string{
+	//DONE 		"canmount": "off",
+	//DONE 		"readonly": "on",
+	//DONE 	})
+	return nil
 }

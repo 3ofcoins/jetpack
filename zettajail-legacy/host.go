@@ -59,41 +59,42 @@ func NewHost(zfsRootDS string) *Host {
 }
 
 func CreateHost(name string, userProperties map[string]string) (*Host, error) {
-	properties := make(map[string]string)
-	for prop, val := range DefaultRootProperties {
-		properties[prop] = val
-	}
-	for prop, val := range userProperties {
-		if prop[0] == '-' {
-			delete(properties, prop[1:])
-		} else {
-			properties[prop] = val
-		}
-	}
-
-	ds, err := zfs.CreateFilesystem(name, properties)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Host{Dataset{ds}}, nil
+	//DONE 	properties := make(map[string]string)
+	//DONE 	for prop, val := range DefaultRootProperties {
+	//DONE 		properties[prop] = val
+	//DONE 	}
+	//DONE 	for prop, val := range userProperties {
+	//DONE 		if prop[0] == '-' {
+	//DONE 			delete(properties, prop[1:])
+	//DONE 		} else {
+	//DONE 			properties[prop] = val
+	//DONE 		}
+	//DONE 	}
+	//DONE
+	//DONE 	ds, err := zfs.CreateFilesystem(name, properties)
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE
+	//DONE 	return &Host{Dataset{ds}}, nil
+	return nil, nil
 }
 
-func (h *Host) CreateFolder(name string, properties map[string]string) (*Host, error) {
-	ds, err := zfs.CreateFilesystem(path.Join(h.Name, name), properties)
-	if err != nil {
-		return nil, err
-	}
-	return &Host{Dataset{ds}}, nil
-}
-
-func (h *Host) GetFolder(name string) (*Host, error) {
-	ds, err := GetDataset(path.Join(h.Name, name))
-	if err != nil {
-		return nil, err
-	}
-	return &Host{ds}, nil
-}
+//IRRELEVANT func (h *Host) CreateFolder(name string, properties map[string]string) (*Host, error) {
+//IRRELEVANT 	ds, err := zfs.CreateFilesystem(path.Join(h.Name, name), properties)
+//IRRELEVANT 	if err != nil {
+//IRRELEVANT 		return nil, err
+//IRRELEVANT 	}
+//IRRELEVANT 	return &Host{Dataset{ds}}, nil
+//IRRELEVANT }
+//IRRELEVANT
+//IRRELEVANT func (h *Host) GetFolder(name string) (*Host, error) {
+//IRRELEVANT 	ds, err := GetDataset(path.Join(h.Name, name))
+//IRRELEVANT 	if err != nil {
+//IRRELEVANT 		return nil, err
+//IRRELEVANT 	}
+//IRRELEVANT 	return &Host{ds}, nil
+//IRRELEVANT }
 
 type jailsByName []*Jail
 

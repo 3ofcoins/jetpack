@@ -68,18 +68,19 @@ func (rt *Runtime) CmdInfo() error {
 		//DONE		return nil
 	}
 	return rt.ForEachJail(func(jail *Jail) error {
-		if err := jail.Status(); err != nil {
-			return err
-		}
-		if jail.Origin != "" {
-			origin := jail.Origin
-			if strings.HasPrefix(origin, rt.Host().Name+"/") {
-				origin = origin[len(rt.Host().Name)+1:]
-			}
-			log.Println("Origin:", origin)
-		}
-		log.Println("Snapshots:", jail.Snapshots())
-		return jail.WriteConfigTo(os.Stdout)
+		//IRRELEVANT 		if err := jail.Status(); err != nil {
+		//IRRELEVANT 			return err
+		//IRRELEVANT 		}
+		//IRRELEVANT 		if jail.Origin != "" {
+		//IRRELEVANT 			origin := jail.Origin
+		//IRRELEVANT 			if strings.HasPrefix(origin, rt.Host().Name+"/") {
+		//IRRELEVANT 				origin = origin[len(rt.Host().Name)+1:]
+		//IRRELEVANT 			}
+		//IRRELEVANT 			log.Println("Origin:", origin)
+		//IRRELEVANT 		}
+		//IRRELEVANT 		log.Println("Snapshots:", jail.Snapshots())
+		//IRRELEVANT 		return jail.WriteConfigTo(os.Stdout)
+		//IRRELEVANT
 	})
 }
 
@@ -209,79 +210,80 @@ func (rt *Runtime) CmdSnapshot() error {
 }
 
 func (rt *Runtime) CmdCreate() error {
-	jailName := rt.Shift()
-	jail, err := rt.Host().CreateJail(jailName, rt.Properties())
-	if err != nil {
-		return err
-	}
-	if rt.Install == "" {
-		return nil
-	}
-
-	// Maybe just use fetch(1)'s copy/link behaviour here?
-	switch fi, err := os.Stat(rt.Install); {
-	case err == nil && fi.IsDir():
-		rt.Install = filepath.Join(rt.Install, "base.txz")
-		if _, err = os.Stat(rt.Install); err != nil {
-			return err
-		}
-	case err == nil:
-		// Pass. It is a file, so we assume it's base.txz
-	case os.IsNotExist(err):
-		if url, err := url.Parse(rt.Install); err != nil {
-			return err
-		} else {
-			// FIXME: fetch MANIFEST, check checksum
-			if path.Ext(url.Path) != "txz" {
-				// Directory URL
-				url.Path = path.Join(url.Path, "base.txz")
-			}
-			distdir := jail.Path("dist")
-			if err := os.MkdirAll(distdir, 0755); err != nil {
-				return err
-			}
-			distfile := filepath.Join(distdir, path.Base(url.Path))
-
-			log.Println("Downloading", url)
-			if err := RunCommand("fetch", "-o", distfile, "-m", "-l", url.String()); err != nil {
-				return err
-			}
-			rt.Install = distfile
-		}
-		// Check if it's an URL, fetch if yes, bomb if not
-	default:
-		// Weird error we can't handle
-		return err
-	}
-
-	log.Println("Unpacking", rt.Install)
-	if err := RunCommand("tar", "-C", jail.Mountpoint, "-xpf", rt.Install); err != nil {
-		return err
-	}
-
-	log.Println("Configuring", jail.Mountpoint)
-	if err := ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/etc/rc.conf"), []byte(jailRcConf), 0644); err != nil {
-		return err
-	}
-
-	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
-		return err
-	} else {
-		if err := ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/etc/resolv.conf"), bb, 0644); err != nil {
-			return err
-		}
-	}
-
-	rf, err := os.Open("/dev/random")
-	if err != nil {
-		return err
-	}
-	defer rf.Close()
-	entropy := make([]byte, 4096)
-	if _, err := rf.Read(entropy); err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/entropy"), entropy, 0600)
+	//DONE 	jailName := rt.Shift()
+	//DONE 	jail, err := rt.Host().CreateJail(jailName, rt.Properties())
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE 	if rt.Install == "" {
+	//DONE 		return nil
+	//DONE 	}
+	//DONE
+	//DONE 	// Maybe just use fetch(1)'s copy/link behaviour here?
+	//DONE 	switch fi, err := os.Stat(rt.Install); {
+	//DONE 	case err == nil && fi.IsDir():
+	//DONE 		rt.Install = filepath.Join(rt.Install, "base.txz")
+	//DONE 		if _, err = os.Stat(rt.Install); err != nil {
+	//DONE 			return err
+	//DONE 		}
+	//DONE 	case err == nil:
+	//DONE 		// Pass. It is a file, so we assume it's base.txz
+	//DONE 	case os.IsNotExist(err):
+	//DONE 		if url, err := url.Parse(rt.Install); err != nil {
+	//DONE 			return err
+	//DONE 		} else {
+	//DONE 			// FIXME: fetch MANIFEST, check checksum
+	//DONE 			if path.Ext(url.Path) != "txz" {
+	//DONE 				// Directory URL
+	//DONE 				url.Path = path.Join(url.Path, "base.txz")
+	//DONE 			}
+	//DONE 			distdir := jail.Path("dist")
+	//DONE 			if err := os.MkdirAll(distdir, 0755); err != nil {
+	//DONE 				return err
+	//DONE 			}
+	//DONE 			distfile := filepath.Join(distdir, path.Base(url.Path))
+	//DONE
+	//DONE 			log.Println("Downloading", url)
+	//DONE 			if err := RunCommand("fetch", "-o", distfile, "-m", "-l", url.String()); err != nil {
+	//DONE 				return err
+	//DONE 			}
+	//DONE 			rt.Install = distfile
+	//DONE 		}
+	//DONE 		// Check if it's an URL, fetch if yes, bomb if not
+	//DONE 	default:
+	//DONE 		// Weird error we can't handle
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	log.Println("Unpacking", rt.Install)
+	//DONE 	if err := RunCommand("tar", "-C", jail.Mountpoint, "-xpf", rt.Install); err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	log.Println("Configuring", jail.Mountpoint)
+	//DONE 	if err := ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/etc/rc.conf"), []byte(jailRcConf), 0644); err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE
+	//DONE 	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+	//DONE 		return err
+	//DONE 	} else {
+	//DONE 		if err := ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/etc/resolv.conf"), bb, 0644); err != nil {
+	//DONE 			return err
+	//DONE 		}
+	//DONE 	}
+	//DONE
+	//DONE 	rf, err := os.Open("/dev/random")
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE 	defer rf.Close()
+	//DONE 	entropy := make([]byte, 4096)
+	//DONE 	if _, err := rf.Read(entropy); err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE 	return ioutil.WriteFile(filepath.Join(jail.Mountpoint, "/entropy"), entropy, 0600)
+	return nil
 }
 
 func (rt *Runtime) CmdClone() error {

@@ -12,7 +12,7 @@ type Dataset struct {
 	*zfs.Dataset
 }
 
-var ZeroDataset = Dataset{nil}
+//DONE var ZeroDataset = Dataset{nil}
 
 func GetDataset(name string) (Dataset, error) {
 	ds, err := zfs.GetDataset(name)
