@@ -81,6 +81,9 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
 	rt.AddCommand("images", "-- list images", rt.CmdImages)
 
+	// Internal commands
+	rt.AddCommand(".poke", "IMAGE [COMMAND] -- poke around in an image", rt.CmdPoke)
+
 	return rt
 }
 

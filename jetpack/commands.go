@@ -3,6 +3,7 @@ package jetpack
 import "log"
 import "sort"
 
+import "github.com/appc/spec/schema"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
@@ -60,5 +61,30 @@ func (rt *Runtime) CmdImages() error {
 	for _, img := range ii {
 		log.Println(img.Name, img.PrettyLabels())
 	}
+	return nil
+}
+
+func (rt *Runtime) CmdPoke() error {
+	if len(rt.Args) != 1 {
+		return cli.ErrUsage
+	}
+	img, err := rt.Host().Image(rt.Args[0])
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if img == nil {
+		return errors.Errorf("Image not found: %v", rt.Args[0])
+	}
+
+	// TODO: type Container
+	manifest := NewContainerRuntimeManifest()
+	manifest.Annotations["ip-address"] = "172.23.0.2"
+	manifest.Apps = append(manifest.Apps, schema.RuntimeApp{
+		Name:    img.Name,
+		ImageID: img.Hash,
+	})
+
+	log.Println(manifest)
+
 	return nil
 }
