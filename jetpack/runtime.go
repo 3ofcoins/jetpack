@@ -17,6 +17,10 @@ type Runtime struct {
 	// Global switches
 	ZFSRoot string
 
+	// Per-command switches
+	ImageName string
+	Verbose   bool
+
 	// Global runtime state
 	host *Host
 }
@@ -76,13 +80,17 @@ func NewRuntime(name string) *Runtime {
 	rt.StringVar(&rt.ZFSRoot, "root", rt.ZFSRoot, "Root ZFS filesystem")
 
 	// Commands
-	rt.AddCommand("info", "-- show global info or jail details", rt.CmdInfo)
+	rt.AddCommand("info", "[-i IMAGE] -- show global info or image details", rt.CmdInfo)
 	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
-	rt.AddCommand("images", "-- list images", rt.CmdImages)
+	rt.AddCommand("images", "[-v] -- list images", rt.CmdImages)
 
 	// Internal commands
 	rt.AddCommand(".poke", "IMAGE [COMMAND] -- poke around in an image", rt.CmdPoke)
+
+	// Switches
+	rt.Commands["info"].StringVar(&rt.ImageName, "i", "", "Show info about an image")
+	rt.Commands["images"].BoolVar(&rt.Verbose, "v", false, "Show detailed info")
 
 	return rt
 }

@@ -16,17 +16,12 @@ const DefaultMountpoint = "/srv/jetpack"
 type Host struct {
 	*zfs.Dataset `json:"-"`
 
-	Images       ImageManager
-	containersFS *zfs.Dataset `json:"-"`
-
-	// Configuration
-	Interface   string
-	AddressPool string
+	Images     ImageManager
+	Containers ContainerManager
 }
 
 var hostDefaults = Host{
-	Interface:   "lo1",
-	AddressPool: "172.23.0.1/16",
+	Containers: defaultContainerManager,
 }
 
 func GetHost(rootDataset string) (*Host, error) {
@@ -37,19 +32,7 @@ func GetHost(rootDataset string) (*Host, error) {
 	h := hostDefaults
 	h.Dataset = ds
 
-	if ds, err := h.getDataset("images"); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		h.Images.Dataset = ds
-	}
-
-	h.containersFS, err = h.getDataset("containers")
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	config, err := ioutil.ReadFile(h.configPath())
-	if err != nil {
+	if config, err := ioutil.ReadFile(h.configPath()); err != nil {
 		if os.IsNotExist(err) {
 			log.Println("WARN: config not found, saving now")
 			if err = h.SaveConfig(); err != nil {
@@ -59,11 +42,23 @@ func GetHost(rootDataset string) (*Host, error) {
 		} else {
 			return nil, errors.Trace(err)
 		}
+	} else {
+		err = json.Unmarshal(config, &h)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	err = json.Unmarshal(config, &h)
-	if err != nil {
-		return nil, err
+	if ds, err := h.getDataset("images"); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		h.Images.Dataset = ds
+	}
+
+	if ds, err := h.getDataset("containers"); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		h.Containers.Dataset = ds
 	}
 
 	return &h, nil
@@ -102,7 +97,7 @@ func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 	if ds, err := h.CreateFilesystem(nil, "containers"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.containersFS = ds
+		h.Containers.Dataset = ds
 	}
 
 	// TODO: accept configuration

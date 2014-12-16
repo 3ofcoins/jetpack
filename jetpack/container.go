@@ -8,7 +8,7 @@ type Container struct {
 	DS *zfs.Dataset
 }
 
-func CreateContainer(h *Host, img *Image) (*Container, error) {
-	c := &Container{*NewContainerRuntimeManifest(), nil}
+func CreateContainer(ds *zfs.Dataset, img *Image) (*Container, error) {
+	c := &Container{*NewContainerRuntimeManifest(), ds}
 	return c, nil
 }

@@ -9,7 +9,19 @@ import "github.com/juju/errors"
 import "github.com/3ofcoins/jetpack/cli"
 
 func (rt *Runtime) CmdInfo() error {
-	log.Println("Host:", rt.Host())
+	h := rt.Host()
+	if rt.ImageName == "" {
+		log.Println("Host:", h)
+		PP(h)
+	} else {
+		img, err := h.Images.Get(rt.ImageName)
+		if err != nil {
+			return err
+		}
+		log.Println("Image:", img)
+		PP(img)
+	}
+
 	return nil
 }
 
@@ -60,6 +72,9 @@ func (rt *Runtime) CmdImages() error {
 	sort.Sort(ii)
 	for _, img := range ii {
 		log.Println(img.Name, img.PrettyLabels())
+		if rt.Verbose {
+			PP(img)
+		}
 	}
 	return nil
 }
@@ -86,7 +101,7 @@ func (rt *Runtime) CmdPoke() error {
 		ImageID: img.Hash,
 	})
 
-	ds, err := img.Clone(h.containersFS.Name + "/" + manifest.UUID.String())
+	ds, err := img.Clone(h.Containers.Name + "/" + manifest.UUID.String())
 	if err != nil {
 		return errors.Trace(err)
 	}

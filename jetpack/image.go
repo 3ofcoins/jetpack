@@ -23,10 +23,25 @@ type ImageMetadata struct {
 }
 
 type Image struct {
-	schema.ImageManifest
 	ImageMetadata
+	schema.ImageManifest
 	UUID uuid.UUID
-	DS   *zfs.Dataset
+	DS   *zfs.Dataset `json:"-"`
+}
+
+func (img *Image) PPPrepare() interface{} {
+	return struct {
+		Manifest         schema.ImageManifest
+		Meta             ImageMetadata
+		UUID             uuid.UUID
+		ZFSDataset, Path string
+	}{
+		img.ImageManifest,
+		img.ImageMetadata,
+		img.UUID,
+		img.DS.Name,
+		img.DS.Mountpoint,
+	}
 }
 
 func newImage(ds *zfs.Dataset) (*Image, error) {
