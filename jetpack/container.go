@@ -3,11 +3,11 @@ package jetpack
 import "github.com/appc/spec/schema"
 
 type Container struct {
-	schema.ContainerRuntimeManifest
-	DS Dataset `json:"-"`
+	DS       Dataset                         `json:"-"`
+	Manifest schema.ContainerRuntimeManifest `json:"-"`
 }
 
 func CreateContainer(ds *Dataset, img *Image) (*Container, error) {
-	c := &Container{*NewContainerRuntimeManifest(), *ds}
+	c := &Container{*ds, *NewContainerRuntimeManifest()}
 	return c, nil
 }

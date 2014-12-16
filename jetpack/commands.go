@@ -3,7 +3,6 @@ package jetpack
 import "log"
 import "sort"
 
-import "github.com/appc/spec/schema"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
@@ -96,10 +95,7 @@ func (rt *Runtime) CmdPoke() error {
 	// TODO: type Container
 	manifest := NewContainerRuntimeManifest()
 	manifest.Annotations["ip-address"] = "172.23.0.2"
-	manifest.Apps = append(manifest.Apps, schema.RuntimeApp{
-		Name:    img.Name,
-		ImageID: img.Hash,
-	})
+	manifest.Apps = append(manifest.Apps, img.RuntimeApp())
 
 	ds, err := img.Clone(h.Containers.Name + "/" + manifest.UUID.String())
 	if err != nil {
