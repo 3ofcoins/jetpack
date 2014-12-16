@@ -5,16 +5,13 @@ import "fmt"
 import "io/ioutil"
 import "os"
 import "log"
-import "path"
-import "path/filepath"
 
-import "github.com/3ofcoins/go-zfs"
 import "github.com/juju/errors"
 
 const DefaultMountpoint = "/srv/jetpack"
 
 type Host struct {
-	*zfs.Dataset `json:"-"`
+	Dataset `json:"-"`
 
 	Images     ImageManager
 	Containers ContainerManager
@@ -25,14 +22,14 @@ var hostDefaults = Host{
 }
 
 func GetHost(rootDataset string) (*Host, error) {
-	ds, err := zfs.GetDataset(rootDataset)
+	ds, err := GetDataset(rootDataset)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	h := hostDefaults
-	h.Dataset = ds
+	h.Dataset = *ds
 
-	if config, err := ioutil.ReadFile(h.configPath()); err != nil {
+	if config, err := ioutil.ReadFile(h.Path("config")); err != nil {
 		if os.IsNotExist(err) {
 			log.Println("WARN: config not found, saving now")
 			if err = h.SaveConfig(); err != nil {
@@ -49,16 +46,16 @@ func GetHost(rootDataset string) (*Host, error) {
 		}
 	}
 
-	if ds, err := h.getDataset("images"); err != nil {
+	if ds, err := h.GetDataset("images"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Images.Dataset = ds
+		h.Images.Dataset = *ds
 	}
 
-	if ds, err := h.getDataset("containers"); err != nil {
+	if ds, err := h.GetDataset("containers"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Containers.Dataset = ds
+		h.Containers.Dataset = *ds
 	}
 
 	return &h, nil
@@ -79,25 +76,25 @@ func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 	}
 
 	log.Printf("Creating root ZFS dataset %#v at %v\n", rootDataset, rootMountpoint)
-	if ds, err := zfs.CreateFilesystem(
+	if ds, err := CreateFilesystem(
 		rootDataset,
 		map[string]string{"mountpoint": rootMountpoint},
 	); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Dataset = ds
+		h.Dataset = *ds
 	}
 
-	if ds, err := h.CreateFilesystem(storageZFSProperties, "images"); err != nil {
+	if ds, err := h.CreateFilesystem("images", storageZFSProperties); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Images.Dataset = ds
+		h.Images.Dataset = *ds
 	}
 
-	if ds, err := h.CreateFilesystem(nil, "containers"); err != nil {
+	if ds, err := h.CreateFilesystem("containers", nil); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Containers.Dataset = ds
+		h.Containers.Dataset = *ds
 	}
 
 	// TODO: accept configuration
@@ -108,28 +105,12 @@ func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 	return &h, nil
 }
 
-func (h *Host) configPath() string {
-	return filepath.Join(h.Mountpoint, "config")
-}
-
 func (h *Host) SaveConfig() error {
 	config, err := json.Marshal(h)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(h.configPath(), config, 0600)
-}
-
-func (h *Host) dsName(name ...string) string {
-	return path.Join(append([]string{h.Name}, name...)...)
-}
-
-func (h *Host) getDataset(name ...string) (*zfs.Dataset, error) {
-	return zfs.GetDataset(h.dsName(name...))
-}
-
-func (h *Host) CreateFilesystem(properties map[string]string, name ...string) (*zfs.Dataset, error) {
-	return zfs.CreateFilesystem(h.dsName(name...), properties)
+	return ioutil.WriteFile(h.Path("config"), config, 0600)
 }
 
 func (h *Host) String() string {

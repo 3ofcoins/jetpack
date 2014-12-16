@@ -1,14 +1,10 @@
 package jetpack
 
-import "path"
-
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/go-zfs"
-
 type ImageManager struct {
-	*zfs.Dataset `json:"-"`
+	Dataset `json:"-"`
 }
 
 func (imgr *ImageManager) All() (ImageSlice, error) {
@@ -43,10 +39,7 @@ func (imgr *ImageManager) Get(spec string) (*Image, error) {
 }
 
 func (imgr *ImageManager) Import(uri string) (*Image, error) {
-	if ds, err := zfs.CreateFilesystem(
-		path.Join(imgr.Name, uuid.NewRandom().String()),
-		nil,
-	); err != nil {
+	if ds, err := imgr.CreateFilesystem(uuid.NewRandom().String(), nil); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		return ImportImage(ds, uri)

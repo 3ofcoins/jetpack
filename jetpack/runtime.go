@@ -4,8 +4,6 @@ import "log"
 import "os"
 import "path"
 
-import "github.com/3ofcoins/go-zfs"
-
 import "github.com/3ofcoins/jetpack/cli"
 
 type Runtime struct {
@@ -62,18 +60,14 @@ func NewRuntime(name string) *Runtime {
 	rt := &Runtime{Cli: cli.NewCli(name)}
 
 	rt.ZFSRoot = os.Getenv("JETPACK_ROOT")
+
 	if rt.ZFSRoot == "" {
-		pools, err := zfs.ListZpools()
-		if err != nil {
-			log.Fatalln(err)
+		if pool, err := getZpool(); err != nil {
+			log.Printf("Can't guess default ZFS filesystem: %v.", err)
+			log.Fatalln("please set JETPACK_ROOT environment variable or use -root flag")
+		} else {
+			rt.ZFSRoot = path.Join(pool.Name, "jetpack")
 		}
-		if len(pools) == 0 {
-			log.Fatalln("No ZFS pools found")
-		}
-		if len(pools) > 1 {
-			log.Fatalln("Multiple ZFS pools found, please set JETPACK_ROOT environment variable or use -root flag")
-		}
-		rt.ZFSRoot = path.Join(pools[0].Name, "jetpack")
 	}
 
 	// Global flags

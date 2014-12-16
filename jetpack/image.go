@@ -14,8 +14,6 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/go-zfs"
-
 type ImageMetadata struct {
 	Hash      types.Hash
 	Origin    string
@@ -26,7 +24,7 @@ type Image struct {
 	ImageMetadata
 	schema.ImageManifest
 	UUID uuid.UUID
-	DS   *zfs.Dataset `json:"-"`
+	DS   Dataset `json:"-"`
 }
 
 func (img *Image) PPPrepare() interface{} {
@@ -44,9 +42,9 @@ func (img *Image) PPPrepare() interface{} {
 	}
 }
 
-func newImage(ds *zfs.Dataset) (*Image, error) {
+func newImage(ds *Dataset) (*Image, error) {
 	img := &Image{
-		DS:   ds,
+		DS:   *ds,
 		UUID: uuid.Parse(path.Base(ds.Name)),
 	}
 	if img.UUID == nil {
@@ -55,7 +53,7 @@ func newImage(ds *zfs.Dataset) (*Image, error) {
 	return img, nil
 }
 
-func GetImage(ds *zfs.Dataset) (*Image, error) {
+func GetImage(ds *Dataset) (*Image, error) {
 	img, err := newImage(ds)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -80,7 +78,7 @@ func GetImage(ds *zfs.Dataset) (*Image, error) {
 	return img, nil
 }
 
-func ImportImage(ds *zfs.Dataset, uri string) (*Image, error) {
+func ImportImage(ds *Dataset, uri string) (*Image, error) {
 	img, err := newImage(ds)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -154,28 +152,24 @@ func (img *Image) PrettyLabels() string {
 	return strings.Join(labels, " ")
 }
 
-func (img *Image) Clone(dest string) (*zfs.Dataset, error) {
-	if snaps, err := img.DS.Snapshots(); err != nil {
+func (img *Image) Clone(dest string) (*Dataset, error) {
+	snap, err := img.DS.Snapshot("aci", false)
+	if err != nil {
 		return nil, errors.Trace(err)
-	} else {
-		for _, snap := range snaps {
-			pieces := strings.Split(snap.Name, "@")
-			if pieces[len(pieces)-1] == "aci" {
-				if ds, err := snap.Clone(dest, nil); err != nil {
-					return nil, errors.Trace(err)
-				} else {
-					// FIXME: maybe not? (hint: multi-app containers)
-					for _, filename := range []string{"manifest", "metadata"} {
-						if err := os.Remove(filepath.Join(ds.Mountpoint, filename)); err != nil {
-							return nil, errors.Trace(err)
-						}
-					}
-					return ds, nil
-				}
-			}
-		}
-		return nil, errors.New("CAN'T HAPPEN: no @aci snapshot")
 	}
+
+	ds, err := snap.Clone(dest, nil)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	// FIXME: maybe not? (hint: multi-app containers)
+	for _, filename := range []string{"manifest", "metadata"} {
+		if err := os.Remove(ds.Path(filename)); err != nil && !os.IsNotExist(err) {
+			return nil, errors.Trace(err)
+		}
+	}
+	return ds, nil
 }
 
 // For sorting

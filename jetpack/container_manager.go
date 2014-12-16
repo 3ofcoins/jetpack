@@ -1,9 +1,7 @@
 package jetpack
 
-import "github.com/3ofcoins/go-zfs"
-
 type ContainerManager struct {
-	*zfs.Dataset `json:"-"`
+	Dataset `json:"-"`
 
 	Interface   string
 	AddressPool string
