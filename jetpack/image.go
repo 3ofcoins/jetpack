@@ -3,9 +3,9 @@ package jetpack
 import "encoding/json"
 import "fmt"
 import "io/ioutil"
+import "os"
 import "path"
 import "path/filepath"
-import "reflect"
 import "strings"
 import "time"
 
@@ -138,13 +138,33 @@ func (img *Image) PrettyLabels() string {
 	return strings.Join(labels, " ")
 }
 
-func (img *Image) IsApp() bool {
-	return !reflect.DeepEqual(img.App, types.App{})
+func (img *Image) Clone(dest string) (*zfs.Dataset, error) {
+	if snaps, err := img.DS.Snapshots(); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		for _, snap := range snaps {
+			pieces := strings.Split(snap.Name, "@")
+			if pieces[len(pieces)-1] == "aci" {
+				if ds, err := snap.Clone(dest, nil); err != nil {
+					return nil, errors.Trace(err)
+				} else {
+					// FIXME: maybe not? (hint: multi-app containers)
+					for _, filename := range []string{"manifest", "metadata"} {
+						if err := os.Remove(filepath.Join(ds.Mountpoint, filename)); err != nil {
+							return nil, errors.Trace(err)
+						}
+					}
+					return ds, nil
+				}
+			}
+		}
+		return nil, errors.New("CAN'T HAPPEN: no @aci snapshot")
+	}
 }
 
 // For sorting
-type Images []*Image
+type ImageSlice []*Image
 
-func (ii Images) Len() int           { return len(ii) }
-func (ii Images) Less(i, j int) bool { return ii[i].Name < ii[j].Name }
-func (ii Images) Swap(i, j int)      { ii[i], ii[j] = ii[j], ii[i] }
+func (ii ImageSlice) Len() int           { return len(ii) }
+func (ii ImageSlice) Less(i, j int) bool { return ii[i].Name < ii[j].Name }
+func (ii ImageSlice) Swap(i, j int)      { ii[i], ii[j] = ii[j], ii[i] }

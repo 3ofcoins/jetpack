@@ -68,7 +68,9 @@ func (rt *Runtime) CmdPoke() error {
 	if len(rt.Args) != 1 {
 		return cli.ErrUsage
 	}
-	img, err := rt.Host().Image(rt.Args[0])
+	h := rt.Host()
+
+	img, err := h.Image(rt.Args[0])
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -84,7 +86,12 @@ func (rt *Runtime) CmdPoke() error {
 		ImageID: img.Hash,
 	})
 
+	ds, err := img.Clone(h.containersFS.Name + "/" + manifest.UUID.String())
+	if err != nil {
+		return errors.Trace(err)
+	}
 	log.Println(manifest)
+	log.Println(ds)
 
 	return nil
 }

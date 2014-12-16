@@ -138,7 +138,7 @@ func (h *Host) String() string {
 	return fmt.Sprintf("Jetpack[%v]", h.Name)
 }
 
-func (h *Host) Images() (Images, error) {
+func (h *Host) Images() (ImageSlice, error) {
 	if dss, err := h.imagesFS.Children(1); err != nil {
 		return nil, errors.Trace(err)
 	} else {
