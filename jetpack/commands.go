@@ -39,7 +39,7 @@ func (rt *Runtime) CmdImport() error {
 	aciAddr := rt.Args[0]
 
 	log.Println("Importing image from", aciAddr)
-	img, err := ImportImage(rt.Host(), aciAddr)
+	img, err := rt.Host().Images.Import(aciAddr)
 	if err != nil {
 		return errors.Trace(err)
 	} else {
@@ -53,7 +53,7 @@ func (rt *Runtime) CmdImages() error {
 	if len(rt.Args) != 0 {
 		return cli.ErrUsage
 	}
-	ii, err := rt.Host().Images()
+	ii, err := rt.Host().Images.All()
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -70,7 +70,7 @@ func (rt *Runtime) CmdPoke() error {
 	}
 	h := rt.Host()
 
-	img, err := h.Image(rt.Args[0])
+	img, err := h.Images.Get(rt.Args[0])
 	if err != nil {
 		return errors.Trace(err)
 	}

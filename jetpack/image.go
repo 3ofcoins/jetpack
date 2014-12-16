@@ -29,14 +29,21 @@ type Image struct {
 	DS   *zfs.Dataset
 }
 
-func GetImage(ds *zfs.Dataset) (*Image, error) {
+func newImage(ds *zfs.Dataset) (*Image, error) {
 	img := &Image{
 		DS:   ds,
 		UUID: uuid.Parse(path.Base(ds.Name)),
 	}
-
 	if img.UUID == nil {
 		return nil, errors.New("Invalid UUID")
+	}
+	return img, nil
+}
+
+func GetImage(ds *zfs.Dataset) (*Image, error) {
+	img, err := newImage(ds)
+	if err != nil {
+		return nil, errors.Trace(err)
 	}
 
 	metadataJSON, err := ioutil.ReadFile(img.Path("metadata"))
@@ -58,20 +65,14 @@ func GetImage(ds *zfs.Dataset) (*Image, error) {
 	return img, nil
 }
 
-func ImportImage(h *Host, uri string) (*Image, error) {
-	img := &Image{
-		UUID: uuid.NewRandom(),
-		ImageMetadata: ImageMetadata{
-			Origin:    uri,
-			Timestamp: time.Now(),
-		},
+func ImportImage(ds *zfs.Dataset, uri string) (*Image, error) {
+	img, err := newImage(ds)
+	if err != nil {
+		return nil, errors.Trace(err)
 	}
 
-	if ds, err := h.CreateFilesystem(nil, "images", img.UUID.String()); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		img.DS = ds
-	}
+	img.Origin = uri
+	img.Timestamp = time.Now()
 
 	if hash, err := UnpackImage(uri, img.Path()); err != nil {
 		// TODO: cleanup

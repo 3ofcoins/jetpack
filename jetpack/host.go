@@ -14,8 +14,10 @@ import "github.com/juju/errors"
 const DefaultMountpoint = "/srv/jetpack"
 
 type Host struct {
-	*zfs.Dataset           `json:"-"`
-	imagesFS, containersFS *zfs.Dataset `json:"-"`
+	*zfs.Dataset `json:"-"`
+
+	Images       ImageManager
+	containersFS *zfs.Dataset `json:"-"`
 
 	// Configuration
 	Interface   string
@@ -35,9 +37,10 @@ func GetHost(rootDataset string) (*Host, error) {
 	h := hostDefaults
 	h.Dataset = ds
 
-	h.imagesFS, err = h.getDataset("images")
-	if err != nil {
+	if ds, err := h.getDataset("images"); err != nil {
 		return nil, errors.Trace(err)
+	} else {
+		h.Images.Dataset = ds
 	}
 
 	h.containersFS, err = h.getDataset("containers")
@@ -93,7 +96,7 @@ func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 	if ds, err := h.CreateFilesystem(storageZFSProperties, "images"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.imagesFS = ds
+		h.Images.Dataset = ds
 	}
 
 	if ds, err := h.CreateFilesystem(nil, "containers"); err != nil {
@@ -136,35 +139,4 @@ func (h *Host) CreateFilesystem(properties map[string]string, name ...string) (*
 
 func (h *Host) String() string {
 	return fmt.Sprintf("Jetpack[%v]", h.Name)
-}
-
-func (h *Host) Images() (ImageSlice, error) {
-	if dss, err := h.imagesFS.Children(1); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		rv := make([]*Image, len(dss))
-		for i, ds := range dss {
-			if img, err := GetImage(ds); err != nil {
-				return nil, errors.Trace(err)
-			} else {
-				rv[i] = img
-			}
-		}
-		return rv, nil
-	}
-}
-
-func (h *Host) Image(spec string) (*Image, error) {
-	// TODO: cache image list
-	imgs, err := h.Images()
-	if err != nil {
-		return nil, err
-	}
-	for _, img := range imgs {
-		// TODO: more sophisticated spec (as in ACI/discovery, maybe)
-		if string(img.Name) == spec {
-			return img, nil
-		}
-	}
-	return nil, nil
 }
