@@ -41,8 +41,8 @@ fi
 
 set -x
 
-mkdir -p tmp
-workdir="$(mktemp -d tmp/freebsd-baseimage.XXXXXX)"
+calldir="$(pwd)"
+workdir="$(mktemp -d -t jetpack-freebsd-baseimage)"
 cd $workdir
 
 fetch -m -l -o base.txz "$baseurl"
@@ -67,7 +67,7 @@ chmod 0600 rootfs/entropy
 
 if [ $update == 1 ]; then
     cp /etc/resolv.conf rootfs/etc/
-    chroot rootfs freebsd-update fetch install
+    chroot rootfs env PAGER=cat freebsd-update fetch install
     rm -rf rootfs/var/db/freebsd-update/* rootfs/etc/resolv.conf
 fi
 
@@ -97,10 +97,10 @@ cat > manifest <<EOF
 EOF
 
 filename="$(basename "$name")-$version-freebsd-$arch"
-echo "sha256-$(tar -cf - manifest rootfs | tee image.tar | sha256 -q)" > ../$filename.id
-xz -c image.tar > ../$filename.aci
+tar -cJf "${filename}.aci" manifest rootfs
+ln -sv $filename.aci "$(basename "$name")-current.aci"
+mv -v *.aci "$calldir"
 
-wd="$(pwd)"
-cd ..
-chflags -R noschg "$wd"
-rm -rf "$wd"
+cd /
+chflags -R noschg "$workdir"
+rm -rf "$workdir"
