@@ -1,6 +1,5 @@
 package jetpack
 
-import "log"
 import "net"
 import "path"
 
@@ -14,13 +13,15 @@ import "github.com/juju/errors"
 type ContainerManager struct {
 	Dataset `json:"-"`
 
-	Interface   string
-	AddressPool string
+	Interface      string
+	AddressPool    string
+	JailNamePrefix string
 }
 
 var defaultContainerManager = ContainerManager{
-	Interface:   "lo1",
-	AddressPool: "172.23.0.1/16",
+	Interface:      "lo1",
+	AddressPool:    "172.23.0.1/16",
+	JailNamePrefix: "jetpack:",
 }
 
 func (cmgr *ContainerManager) All() ([]*Container, error) {

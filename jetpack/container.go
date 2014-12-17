@@ -14,7 +14,7 @@ var jailConfTmpl *template.Template
 
 func init() {
 	tmpl, err := template.New("jail.conf").Parse(
-		`"jetpack:{{.Manifest.UUID}}" {
+		`"{{.JailName}}" {
   path = "{{.Mountpoint}}/rootfs";
   devfs_ruleset="4";
   exec.clean="true";
@@ -39,7 +39,7 @@ var ErrContainerIsEmpty = errors.New("Container is empty")
 type Container struct {
 	Dataset  `json:"-"`
 	Manifest schema.ContainerRuntimeManifest `json:"-"`
-	Manager  *ContainerManager               `json:"-"""`
+	Manager  *ContainerManager               `json:"-"`
 }
 
 func NewContainer(ds *Dataset, mgr *ContainerManager) *Container {
@@ -118,6 +118,10 @@ func (c *Container) GetAnnotation(key, defval string) string {
 	} else {
 		return defval
 	}
+}
+
+func (c *Container) JailName() string {
+	return c.Manager.JailNamePrefix + c.Manifest.UUID.String()
 }
 
 func (c *Container) String() string {

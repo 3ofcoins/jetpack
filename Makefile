@@ -15,7 +15,6 @@ sys.destroy:
 
 sys.init: bin/jetpack
 	sudo ./bin/jetpack init
-	sudo ./bin/jetpack import \
-	    https://s3.eu-central-1.amazonaws.com/3ofcoins-aci/freebsd-base-10.1-p1-freebsd-amd64.aci
+	sudo ./bin/jetpack import ./tmp/freebsd-base-10.1.2-freebsd-amd64.aci
 
 sys.recycle: sys.destroy sys.init
