@@ -78,13 +78,13 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
 	rt.AddCommand("images", "[-v] -- list images", rt.CmdImages)
-
-	// Internal commands
-	rt.AddCommand(".poke", "IMAGE [COMMAND] -- poke around in an image", rt.CmdPoke)
+	rt.AddCommand("clone", "IMAGE -- clone a container from an image", rt.CmdClone)
+	rt.AddCommand("containers", "[-v] -- list containers", rt.CmdContainers)
 
 	// Switches
 	rt.Commands["info"].StringVar(&rt.ImageName, "i", "", "Show info about an image")
 	rt.Commands["images"].BoolVar(&rt.Verbose, "v", false, "Show detailed info")
+	rt.Commands["containers"].BoolVar(&rt.Verbose, "v", false, "Show detailed info")
 
 	return rt
 }

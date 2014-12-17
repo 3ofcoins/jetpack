@@ -70,7 +70,7 @@ func (rt *Runtime) CmdImages() error {
 	}
 	sort.Sort(ii)
 	for _, img := range ii {
-		log.Println(img.Name, img.PrettyLabels())
+		log.Println(img)
 		if rt.Verbose {
 			PP(img)
 		}
@@ -78,7 +78,25 @@ func (rt *Runtime) CmdImages() error {
 	return nil
 }
 
-func (rt *Runtime) CmdPoke() error {
+func (rt *Runtime) CmdContainers() error {
+	if len(rt.Args) != 0 {
+		return cli.ErrUsage
+	}
+	cc, err := rt.Host().Containers.All()
+	if err != nil {
+		return errors.Trace(err)
+	}
+	// sort.Sort(ii)
+	for _, c := range cc {
+		log.Println(c)
+		if rt.Verbose {
+			PP(c)
+		}
+	}
+	return nil
+}
+
+func (rt *Runtime) CmdClone() error {
 	if len(rt.Args) != 1 {
 		return cli.ErrUsage
 	}
@@ -92,17 +110,9 @@ func (rt *Runtime) CmdPoke() error {
 		return errors.Errorf("Image not found: %v", rt.Args[0])
 	}
 
-	// TODO: type Container
-	manifest := NewContainerRuntimeManifest()
-	manifest.Annotations["ip-address"] = "172.23.0.2"
-	manifest.Apps = append(manifest.Apps, img.RuntimeApp())
-
-	ds, err := img.Clone(h.Containers.Name + "/" + manifest.UUID.String())
-	if err != nil {
-		return errors.Trace(err)
-	}
-	log.Println(manifest)
-	log.Println(ds)
+	c, err := h.Containers.Clone(img)
+	log.Println(c, err)
+	PP(c)
 
 	return nil
 }

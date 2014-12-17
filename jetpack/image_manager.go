@@ -31,7 +31,7 @@ func (imgr *ImageManager) Get(spec string) (*Image, error) {
 	}
 	for _, img := range imgs {
 		// TODO: more sophisticated spec (as in ACI/discovery, maybe)
-		if string(img.Name) == spec {
+		if string(img.Manifest.Name) == spec {
 			return img, nil
 		}
 	}

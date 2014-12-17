@@ -12,9 +12,7 @@ import "os"
 import "os/exec"
 import "sort"
 
-import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/aci"
-import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
@@ -66,24 +64,6 @@ func DecompressingReader(rd io.Reader) (io.Reader, error) {
 		panic(fmt.Sprintf("bad type returned from DetectFileType: %v", typ))
 	}
 	return r, nil
-}
-
-func NewContainerRuntimeManifest() *schema.ContainerRuntimeManifest {
-	manifest := &schema.ContainerRuntimeManifest{
-		ACVersion:   schema.AppContainerVersion,
-		ACKind:      types.ACKind("ContainerRuntimeManifest"),
-		Annotations: make(map[types.ACName]string),
-	}
-
-	// FIXME: wacky roundabout conversion via string
-	if uuid, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
-		// WAT
-		panic(err)
-	} else {
-		manifest.UUID = *uuid
-	}
-
-	return manifest
 }
 
 func UnpackImage(uri, path string) (types.Hash, error) {
