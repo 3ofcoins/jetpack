@@ -24,6 +24,10 @@ func (imgr *ImageManager) All() (ImageSlice, error) {
 }
 
 func (imgr *ImageManager) Get(spec string) (*Image, error) {
+	if ds, err := imgr.GetDataset(spec); err == nil {
+		return GetImage(ds)
+	}
+
 	// TODO: cache image list?
 	imgs, err := imgr.All()
 	if err != nil {
@@ -31,7 +35,7 @@ func (imgr *ImageManager) Get(spec string) (*Image, error) {
 	}
 	for _, img := range imgs {
 		// TODO: more sophisticated spec (as in ACI/discovery, maybe)
-		if string(img.Manifest.Name) == spec {
+		if string(img.Manifest.Name) == spec || img.Hash.String() == spec {
 			return img, nil
 		}
 	}

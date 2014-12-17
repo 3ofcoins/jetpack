@@ -153,7 +153,7 @@ func (img *Image) readManifest() error {
 }
 
 func (img *Image) String() string {
-	return fmt.Sprintf("#<Image %v %v %v>", img.Manifest.Name, img.PrettyLabels(), img.Hash)
+	return fmt.Sprintf("#<Image %v %v %v %v>", img.UUID, img.Manifest.Name, img.PrettyLabels(), img.Hash)
 }
 
 func (img *Image) PrettyLabels() string {

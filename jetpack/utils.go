@@ -8,6 +8,7 @@ import "crypto/sha512"
 import "encoding/json"
 import "fmt"
 import "io"
+import "net"
 import "os"
 import "os/exec"
 import "sort"
@@ -179,4 +180,14 @@ func PP(obj interface{}) {
 		obj = obj.(PPPrepper).PPPrepare()
 	}
 	ppInner(ReJSON(obj), "")
+}
+
+func nextIP(ip net.IP) net.IP {
+	for i := len(ip) - 1; i >= 0; i-- {
+		ip[i] += 1
+		if ip[i] > 0 {
+			return ip
+		}
+	}
+	panic("RAN OUT OF IPS")
 }
