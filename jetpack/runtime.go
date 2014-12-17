@@ -19,6 +19,7 @@ type Runtime struct {
 	// Per-command switches
 	ImageName string
 	Verbose   bool
+	User      string
 
 	// Global runtime state
 	host *Host
@@ -85,11 +86,16 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("images", "[-v] -- list images", rt.CmdImages)
 	rt.AddCommand("clone", "IMAGE -- clone a container from an image", rt.CmdClone)
 	rt.AddCommand("containers", "[-v] -- list containers", rt.CmdContainers)
+	rt.AddCommand("start", "CONTAINER -- start a container", rt.CmdRunJail)
+	rt.AddCommand("stop", "CONTAINER -- stop a container", rt.CmdRunJail)
+	rt.AddCommand("console", "[-u=USER] CONTAINER [COMMAND...] -- execute COMMAND or login shell in CONTAINER", rt.CmdConsole)
+	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
 
 	// Switches
 	rt.Commands["info"].StringVar(&rt.ImageName, "i", "", "Show info about an image")
 	rt.Commands["images"].BoolVar(&rt.Verbose, "v", false, "Show detailed info")
 	rt.Commands["containers"].BoolVar(&rt.Verbose, "v", false, "Show detailed info")
+	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
 
 	return rt
 }

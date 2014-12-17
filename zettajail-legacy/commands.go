@@ -22,30 +22,31 @@ syslogd_enable="NO"
 `
 
 func (rt *Runtime) CmdCtlJail() error {
-	var op string
-	switch rt.Command {
-	case "start":
-		op = "-c"
-	case "stop":
-		op = "-r"
-	case "restart":
-		op = "-rc"
-	case "modify":
-		switch {
-		case rt.ModForce && rt.ModStart:
-			op = "-cmr"
-		case rt.ModForce:
-			op = "-rm"
-		case rt.ModStart:
-			op = "-cm"
-		default:
-			op = "-m"
-		}
-	}
-	return rt.ForEachJail(func(jail *Jail) error {
-		// FIXME: feedback
-		return jail.RunJail(op)
-	})
+	//DONE 	var op string
+	//DONE 	switch rt.Command {
+	//DONE 	case "start":
+	//DONE 		op = "-c"
+	//DONE 	case "stop":
+	//DONE 		op = "-r"
+	//DONE 	case "restart":
+	//DONE 		op = "-rc"
+	//DONE 	case "modify":
+	//DONE 		switch {
+	//DONE 		case rt.ModForce && rt.ModStart:
+	//DONE 			op = "-cmr"
+	//DONE 		case rt.ModForce:
+	//DONE 			op = "-rm"
+	//DONE 		case rt.ModStart:
+	//DONE 			op = "-cm"
+	//DONE 		default:
+	//DONE 			op = "-m"
+	//DONE 		}
+	//DONE 	}
+	//DONE 	return rt.ForEachJail(func(jail *Jail) error {
+	//DONE 		// FIXME: feedback
+	//DONE 		return jail.RunJail(op)
+	//DONE 	})
+	return nil
 }
 
 func (rt *Runtime) CmdInfo() error {
@@ -126,48 +127,51 @@ func (rt *Runtime) CmdTree() error {
 }
 
 func (rt *Runtime) CmdStatus() error {
-	return rt.ForEachJail(func(jail *Jail) error {
-		return jail.Status()
-	})
+	//DONE 	return rt.ForEachJail(func(jail *Jail) error {
+	//DONE 		return jail.Status()
+	//DONE 	})
+	return nil
 }
 
 func (rt *Runtime) CmdPs() error {
-	jail, err := rt.Host().GetJail(rt.Shift())
-	if err != nil {
-		return err
-	}
-	jid := jail.Jid()
-	if jid == 0 {
-		return fmt.Errorf("%s is not running", jail)
-	}
-	psArgs := []string{"-J", strconv.Itoa(jid)}
-	psArgs = append(psArgs, rt.Args...)
-	return RunCommand("ps", psArgs...)
+	//DONE 	jail, err := rt.Host().GetJail(rt.Shift())
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE 	jid := jail.Jid()
+	//DONE 	if jid == 0 {
+	//DONE 		return fmt.Errorf("%s is not running", jail)
+	//DONE 	}
+	//DONE 	psArgs := []string{"-J", strconv.Itoa(jid)}
+	//DONE 	psArgs = append(psArgs, rt.Args...)
+	//DONE 	return RunCommand("ps", psArgs...)
+	return nil
 }
 
 func (rt *Runtime) CmdConsole() error {
-	if len(rt.Args) == 0 {
-		return cli.ErrUsage
-	}
-	jail, err := rt.Host().GetJail(rt.Shift())
-	if err != nil {
-		return err
-	}
-	if !jail.IsActive() {
-		return fmt.Errorf("%s is not started", jail)
-	}
-
-	args := rt.Args
-	user := rt.User
-	if len(args) == 0 {
-		args = []string{"login", "-f", user}
-		user = ""
-	}
-	if user == "root" {
-		user = ""
-	}
-	log.Println(user, args)
-	return jail.RunJexec(user, args)
+	//DONE 	if len(rt.Args) == 0 {
+	//DONE 		return cli.ErrUsage
+	//DONE 	}
+	//DONE 	jail, err := rt.Host().GetJail(rt.Shift())
+	//DONE 	if err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE 	if !jail.IsActive() {
+	//DONE 		return fmt.Errorf("%s is not started", jail)
+	//DONE 	}
+	//DONE
+	//DONE 	args := rt.Args
+	//DONE 	user := rt.User
+	//DONE 	if len(args) == 0 {
+	//DONE 		args = []string{"login", "-f", user}
+	//DONE 		user = ""
+	//DONE 	}
+	//DONE 	if user == "root" {
+	//DONE 		user = ""
+	//DONE 	}
+	//DONE 	log.Println(user, args)
+	//DONE 	return jail.RunJexec(user, args)
+	return nil
 }
 
 func (rt *Runtime) CmdSet() error {

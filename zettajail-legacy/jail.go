@@ -30,74 +30,82 @@ type Jail struct {
 }
 
 func NewJail(host *Host, ds Dataset) *Jail {
-	return &Jail{ds, host}
+	//DONE 	return &Jail{ds, host}
+	return nil
 }
 
 func (j *Jail) String() string {
-	return j.Name[len(j.Host.Name)+1:]
+	//DONE 	return j.Name[len(j.Host.Name)+1:]
+	return nil
 }
 
 func (j *Jail) Jid() int {
-	cmd := exec.Command("jls", "-j", j.String(), "jid")
-	out, err := cmd.Output()
-	switch err.(type) {
-	case nil:
-		// Jail found
-		jid, err := strconv.Atoi(strings.TrimSpace(string(out)))
-		if err != nil {
-			panic(err)
-		}
-		return jid
-	case *exec.ExitError:
-		// Jail not found (or so we assume)
-		return 0
-	default:
-		// Other error
-		panic(err)
-	}
+	//DONE 	cmd := exec.Command("jls", "-j", j.String(), "jid")
+	//DONE 	out, err := cmd.Output()
+	//DONE 	switch err.(type) {
+	//DONE 	case nil:
+	//DONE 		// Jail found
+	//DONE 		jid, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	//DONE 		if err != nil {
+	//DONE 			panic(err)
+	//DONE 		}
+	//DONE 		return jid
+	//DONE 	case *exec.ExitError:
+	//DONE 		// Jail not found (or so we assume)
+	//DONE 		return 0
+	//DONE 	default:
+	//DONE 		// Other error
+	//DONE 		panic(err)
+	//DONE 	}
+	return -1
 }
 
 func (j *Jail) IsActive() bool {
-	return j.Jid() > 0
+	//DONE return j.Jid() > 0
+	return nil
 }
 
 func (j *Jail) Status() error {
-	if j.IsActive() {
-		log.Printf("%v is active (%d).\n", j, j.Jid())
-	} else {
-		log.Printf("%v is not active.\n", j)
-	}
+	//IRRELEVANT 	if j.IsActive() {
+	//IRRELEVANT 		log.Printf("%v is active (%d).\n", j, j.Jid())
+	//IRRELEVANT 	} else {
+	//IRRELEVANT 		log.Printf("%v is not active.\n", j)
+	//IRRELEVANT 	}
 	return nil
 }
 
 func (j *Jail) Basedir() string {
-	return filepath.Dir(j.Mountpoint)
+	//DONE 	return filepath.Dir(j.Mountpoint)
+	return ""
 }
 
 func (j *Jail) Path(elem ...string) string {
-	return filepath.Join(append([]string{j.Basedir()}, elem...)...)
+	//DONE 	return filepath.Join(append([]string{j.Basedir()}, elem...)...)
+	return ""
 }
 
 func (j *Jail) RunJail(op string) error {
-	if err := j.WriteConfig(); err != nil {
-		return err
-	}
-	return RunCommand("jail", "-f", j.Path("jail.conf"), "-v", op, j.String())
+	//DONE 	if err := j.WriteConfig(); err != nil {
+	//DONE 		return err
+	//DONE 	}
+	//DONE 	return RunCommand("jail", "-f", j.Path("jail.conf"), "-v", op, j.String())
+	return nil
 }
 
 func (j *Jail) RunJexec(user string, jcmd []string) error {
-	if len(jcmd) == 0 {
-		jcmd = []string{"login", "-f", "root"}
-	}
-
-	args := []string{}
-	if user != "" {
-		args = append(args, "-U", user)
-	}
-	args = append(args, j.String())
-	args = append(args, jcmd...)
-
-	return RunCommand("jexec", args...)
+	//DONE 	if len(jcmd) == 0 {
+	//DONE 		jcmd = []string{"login", "-f", "root"}
+	//DONE 	}
+	//DONE
+	//DONE 	args := []string{}
+	//DONE 	if user != "" {
+	//DONE 		args = append(args, "-U", user)
+	//DONE 	}
+	//DONE 	args = append(args, j.String())
+	//DONE 	args = append(args, jcmd...)
+	//DONE
+	//DONE 	return RunCommand("jexec", args...)
+	return nil
 }
 
 func (j *Jail) WriteConfigTo(w io.Writer) error {
@@ -116,5 +124,6 @@ func (j *Jail) WriteConfig() error {
 }
 
 func (j *Jail) SetProperties(properties map[string]string) error {
-	return j.Dataset.SetProperties(properties)
+	//IRRELEVANT 	return j.Dataset.SetProperties(properties)
+	return nil
 }

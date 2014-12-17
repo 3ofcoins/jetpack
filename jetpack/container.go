@@ -3,19 +3,25 @@ package jetpack
 import "encoding/json"
 import "fmt"
 import "io/ioutil"
+import "path/filepath"
 import "os"
+import "os/exec"
+import "strconv"
+import "strings"
 import "text/template"
 
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/jetpack/ui"
+
 var jailConfTmpl *template.Template
 
 func init() {
 	tmpl, err := template.New("jail.conf").Parse(
 		`"{{.JailName}}" {
-  path = "{{.Mountpoint}}/rootfs";
+  path = "{{.Dataset.Mountpoint}}/rootfs";
   devfs_ruleset="4";
   exec.clean="true";
   # exec.start="/bin/sh /etc/rc";
@@ -39,11 +45,11 @@ var ErrContainerIsEmpty = errors.New("Container is empty")
 type Container struct {
 	Dataset  *Dataset                        `json:"-"`
 	Manifest schema.ContainerRuntimeManifest `json:"-"`
-	manager  *ContainerManager               `json:"-"`
+	Manager  *ContainerManager               `json:"-"`
 }
 
 func NewContainer(ds *Dataset, mgr *ContainerManager) *Container {
-	return &Container{Dataset: ds, manager: mgr}
+	return &Container{Dataset: ds, Manager: mgr}
 }
 
 func GetContainer(ds *Dataset, mgr *ContainerManager) (*Container, error) {
@@ -99,17 +105,27 @@ func (c *Container) Save() error {
 		return errors.Trace(err)
 	}
 
-	err = ioutil.WriteFile(c.Dataset.Path("manifest"), manifestJSON, 0400)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	return errors.Trace(ioutil.WriteFile(c.Dataset.Path("manifest"), manifestJSON, 0400))
+}
 
+func (c *Container) Prep() error {
 	jc, err := os.OpenFile(c.Dataset.Path("jail.conf"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	defer jc.Close()
-	return errors.Trace(jailConfTmpl.Execute(jc, c))
+
+	err = jailConfTmpl.Execute(jc, c)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+		return errors.Trace(err)
+	} else {
+		return errors.Trace(
+			ioutil.WriteFile(filepath.Join(c.Dataset.Mountpoint, "rootfs/etc/resolv.conf"), bb, 0644))
+	}
 }
 
 func (c *Container) GetAnnotation(key, defval string) string {
@@ -121,9 +137,60 @@ func (c *Container) GetAnnotation(key, defval string) string {
 }
 
 func (c *Container) JailName() string {
-	return c.manager.JailNamePrefix + c.Manifest.UUID.String()
+	return c.Manager.JailNamePrefix + c.Manifest.UUID.String()
 }
 
 func (c *Container) Summary() string {
-	return fmt.Sprintf("%v %v", c.Manifest.UUID, c.Manifest.Apps[0].Name)
+	started := " "
+	if c.Jid() > 0 {
+		started = "*"
+	}
+	return fmt.Sprintf("%v%v %v", started, c.Manifest.UUID, c.Manifest.Apps[0].Name)
+}
+
+func (c *Container) Show(ui *ui.UI) {
+	ui.RawShow(c)
+	ui.Sayf(".JID: %d", c.Jid())
+}
+
+func (c *Container) Jid() int {
+	cmd := exec.Command("jls", "-j", c.JailName(), "jid")
+	out, err := cmd.Output()
+	switch err.(type) {
+	case nil:
+		// Jail found
+		jid, err := strconv.Atoi(strings.TrimSpace(string(out)))
+		if err != nil {
+			panic(err)
+		}
+		return jid
+	case *exec.ExitError:
+		// Jail not found (or so we assume)
+		return 0
+	default:
+		// Other error
+		panic(err)
+	}
+}
+
+func (c *Container) RunJail(op string) error {
+	if err := c.Prep(); err != nil {
+		return err
+	}
+	return runCommand("jail", "-f", c.Dataset.Path("jail.conf"), "-v", op, c.JailName())
+}
+
+func (c *Container) RunJexec(user string, jcmd []string) error {
+	if c.Jid() == 0 {
+		return errors.New("Not started")
+	}
+
+	args := []string{}
+	if user != "" {
+		args = append(args, "-U", user)
+	}
+	args = append(args, c.JailName())
+	args = append(args, jcmd...)
+
+	return runCommand("jexec", args...)
 }

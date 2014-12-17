@@ -1,6 +1,7 @@
 package jetpack
 
 import "sort"
+import "strconv"
 
 import "github.com/juju/errors"
 
@@ -109,4 +110,65 @@ func (rt *Runtime) CmdClone() error {
 	rt.UI.Show(c)
 
 	return nil
+}
+
+func (rt *Runtime) CmdRunJail() error {
+	if len(rt.Args) != 1 {
+		return cli.ErrUsage
+	}
+	h := rt.Host()
+	c, err := h.Containers.Get(rt.Args[0])
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	var op string
+	switch rt.Command {
+	case "start":
+		op = "-c"
+	case "stop":
+		op = "-r"
+	default:
+		return errors.Errorf("Unrecognized command %#v", rt.Command)
+	}
+
+	return errors.Trace(c.RunJail(op))
+}
+
+func (rt *Runtime) CmdConsole() error {
+	if len(rt.Args) == 0 {
+		return cli.ErrUsage
+	}
+	c, err := rt.Host().Containers.Get(rt.Shift())
+	if err != nil {
+		return err
+	}
+	if c.Jid() == 0 {
+		return errors.Errorf("Container %s is not started", c.Manifest.UUID)
+	}
+
+	args := rt.Args
+	user := rt.User
+	if len(args) == 0 {
+		args = []string{"login", "-f", user}
+		user = ""
+	}
+	if user == "root" {
+		user = ""
+	}
+	return c.RunJexec(user, args)
+}
+
+func (rt *Runtime) CmdPs() error {
+	c, err := rt.Host().Containers.Get(rt.Shift())
+	if err != nil {
+		return err
+	}
+	jid := c.Jid()
+	if jid == 0 {
+		return errors.Errorf("Container %s is not running", c.Manifest.UUID)
+	}
+	psArgs := []string{"-J", strconv.Itoa(jid)}
+	psArgs = append(psArgs, rt.Args...)
+	return runCommand("ps", psArgs...)
 }
