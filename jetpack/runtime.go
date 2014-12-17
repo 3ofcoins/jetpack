@@ -5,6 +5,7 @@ import "os"
 import "path"
 
 import "github.com/3ofcoins/jetpack/cli"
+import "github.com/3ofcoins/jetpack/ui"
 
 type Runtime struct {
 	// CLI stuff
@@ -21,6 +22,7 @@ type Runtime struct {
 
 	// Global runtime state
 	host *Host
+	UI   *ui.UI
 }
 
 func (rt *Runtime) AddCommand(name, synopsis string, runner func() error) {
@@ -57,7 +59,10 @@ func (rt *Runtime) Host() *Host {
 }
 
 func NewRuntime(name string) *Runtime {
-	rt := &Runtime{Cli: cli.NewCli(name)}
+	rt := &Runtime{
+		Cli: cli.NewCli(name),
+		UI:  ui.NewUI(os.Stdout),
+	}
 
 	rt.ZFSRoot = os.Getenv("JETPACK_ROOT")
 

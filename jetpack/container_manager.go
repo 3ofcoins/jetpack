@@ -10,8 +10,10 @@ import "github.com/juju/errors"
 
 // import "github.com/tgulacsi/go-locking"
 
+import "github.com/3ofcoins/jetpack/ui"
+
 type ContainerManager struct {
-	Dataset `json:"-"`
+	Dataset *Dataset `json:"-"`
 
 	Interface      string
 	AddressPool    string
@@ -25,7 +27,7 @@ var defaultContainerManager = ContainerManager{
 }
 
 func (cmgr *ContainerManager) All() ([]*Container, error) {
-	if dss, err := cmgr.Children(1); err != nil {
+	if dss, err := cmgr.Dataset.Children(1); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		rv := make([]*Container, 0, len(dss))
@@ -43,7 +45,7 @@ func (cmgr *ContainerManager) All() ([]*Container, error) {
 }
 
 func (cmgr *ContainerManager) Get(uuid string) (*Container, error) {
-	if ds, err := cmgr.GetDataset(uuid); err != nil {
+	if ds, err := cmgr.Dataset.GetDataset(uuid); err != nil {
 		return nil, err
 	} else {
 		return GetContainer(ds, cmgr)
@@ -51,14 +53,14 @@ func (cmgr *ContainerManager) Get(uuid string) (*Container, error) {
 }
 
 func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
-	ds, err := img.Clone(path.Join(cmgr.Name, uuid.NewRandom().String()))
+	ds, err := img.Clone(path.Join(cmgr.Dataset.Name, uuid.NewRandom().String()))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	c := NewContainer(ds, cmgr)
 
-	uuid, err := types.NewUUID(path.Base(c.Name))
+	uuid, err := types.NewUUID(path.Base(c.Dataset.Name))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -103,4 +105,12 @@ func (cmgr *ContainerManager) NextIP() net.IP {
 	} else {
 		return nil
 	}
+}
+
+func (cmgr ContainerManager) Show(ui *ui.UI) {
+	ui.RawShow(cmgr)
+	cc, _ := cmgr.All()
+	ui.Indent(" ")
+	ui.Summarize(cc)
+	ui.Dedent()
 }

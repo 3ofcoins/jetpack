@@ -1,5 +1,6 @@
 package jetpack
 
+import "bytes"
 import "encoding/json"
 import "fmt"
 import "io/ioutil"
@@ -14,7 +15,7 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 type Image struct {
-	Dataset  `json:"-"`
+	Dataset  *Dataset             `json:"-"`
 	Manifest schema.ImageManifest `json:"-"`
 
 	UUID uuid.UUID `json:"-"`
@@ -24,19 +25,9 @@ type Image struct {
 	Timestamp time.Time
 }
 
-func (img *Image) PPPrepare() interface{} {
-	return map[string]interface{}{
-		"Manifest": img.Manifest,
-		"Metadata": img,
-		"UUID":     img.UUID,
-		"Path":     img.Mountpoint,
-		"Dataset":  img.Name,
-	}
-}
-
 func NewImage(ds *Dataset) (*Image, error) {
 	img := &Image{
-		Dataset: *ds,
+		Dataset: ds,
 		UUID:    uuid.Parse(path.Base(ds.Name)),
 	}
 	if img.UUID == nil {
@@ -64,7 +55,7 @@ func ImportImage(ds *Dataset, uri string) (img *Image, err error) {
 }
 
 func (img *Image) IsEmpty() bool {
-	_, err := os.Stat(img.Path("manifest"))
+	_, err := os.Stat(img.Dataset.Path("manifest"))
 	return os.IsNotExist(err)
 }
 
@@ -81,7 +72,7 @@ func (img *Image) Load() error {
 		return errors.New("Image is empty")
 	}
 
-	metadataJSON, err := ioutil.ReadFile(img.Path("metadata"))
+	metadataJSON, err := ioutil.ReadFile(img.Dataset.Path("metadata"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -109,7 +100,7 @@ func (img *Image) Import(uri string) error {
 	img.Origin = uri
 	img.Timestamp = time.Now()
 
-	if hash, err := UnpackImage(uri, img.Mountpoint); err != nil {
+	if hash, err := UnpackImage(uri, img.Dataset.Mountpoint); err != nil {
 		return errors.Trace(err)
 	} else {
 		img.Hash = hash
@@ -123,16 +114,16 @@ func (img *Image) Import(uri string) error {
 	if metadataJSON, err := json.Marshal(img); err != nil {
 		return errors.Trace(err)
 	} else {
-		if err := ioutil.WriteFile(img.Path("metadata"), metadataJSON, 0400); err != nil {
+		if err := ioutil.WriteFile(img.Dataset.Path("metadata"), metadataJSON, 0400); err != nil {
 			return errors.Trace(err)
 		}
 	}
 
-	if _, err := img.Snapshot("aci", false); err != nil {
+	if _, err := img.Dataset.Snapshot("aci", false); err != nil {
 		return errors.Trace(err)
 	}
 
-	if err := img.SetProperty("readonly", "on"); err != nil {
+	if err := img.Dataset.SetProperty("readonly", "on"); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -140,7 +131,7 @@ func (img *Image) Import(uri string) error {
 }
 
 func (img *Image) readManifest() error {
-	manifestJSON, err := ioutil.ReadFile(img.Path("manifest"))
+	manifestJSON, err := ioutil.ReadFile(img.Dataset.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -152,10 +143,6 @@ func (img *Image) readManifest() error {
 	return nil
 }
 
-func (img *Image) String() string {
-	return fmt.Sprintf("#<Image %v %v %v %v>", img.UUID, img.Manifest.Name, img.PrettyLabels(), img.Hash)
-}
-
 func (img *Image) PrettyLabels() string {
 	labels := make([]string, len(img.Manifest.Labels))
 	for i, l := range img.Manifest.Labels {
@@ -165,7 +152,7 @@ func (img *Image) PrettyLabels() string {
 }
 
 func (img *Image) Clone(dest string) (*Dataset, error) {
-	snap, err := img.GetSnapshot("aci")
+	snap, err := img.Dataset.GetSnapshot("aci")
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -191,9 +178,14 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 	}
 }
 
+func (img *Image) Summary() string {
+	return fmt.Sprintf("%v %v %v",
+		img.UUID, img.Manifest.Name, img.PrettyLabels())
+}
+
 // For sorting
 type ImageSlice []*Image
 
 func (ii ImageSlice) Len() int           { return len(ii) }
-func (ii ImageSlice) Less(i, j int) bool { return ii[i].Name < ii[j].Name }
+func (ii ImageSlice) Less(i, j int) bool { return bytes.Compare(ii[i].UUID, ii[j].UUID) < 0 }
 func (ii ImageSlice) Swap(i, j int)      { ii[i], ii[j] = ii[j], ii[i] }

@@ -1,6 +1,5 @@
 package jetpack
 
-import "log"
 import "sort"
 
 import "github.com/juju/errors"
@@ -10,15 +9,14 @@ import "github.com/3ofcoins/jetpack/cli"
 func (rt *Runtime) CmdInfo() error {
 	h := rt.Host()
 	if rt.ImageName == "" {
-		log.Println("Host:", h)
-		PP(h)
+		rt.UI.Show(h)
+		rt.UI.Show(nil)
 	} else {
 		img, err := h.Images.Get(rt.ImageName)
 		if err != nil {
 			return err
 		}
-		log.Println("Image:", img)
-		PP(img)
+		rt.UI.Show(img)
 	}
 
 	return nil
@@ -49,12 +47,12 @@ func (rt *Runtime) CmdImport() error {
 
 	aciAddr := rt.Args[0]
 
-	log.Println("Importing image from", aciAddr)
+	rt.UI.Sayf("Importing image from %s", aciAddr)
 	img, err := rt.Host().Images.Import(aciAddr)
 	if err != nil {
 		return errors.Trace(err)
 	} else {
-		log.Println("Imported:", img)
+		rt.UI.Show(img)
 	}
 
 	return nil
@@ -69,11 +67,10 @@ func (rt *Runtime) CmdImages() error {
 		return errors.Trace(err)
 	}
 	sort.Sort(ii)
-	for _, img := range ii {
-		log.Println(img)
-		if rt.Verbose {
-			PP(img)
-		}
+	if rt.Verbose {
+		rt.UI.Show(ii)
+	} else {
+		rt.UI.Summarize(ii)
 	}
 	return nil
 }
@@ -86,12 +83,10 @@ func (rt *Runtime) CmdContainers() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	// sort.Sort(ii)
-	for _, c := range cc {
-		log.Println(c)
-		if rt.Verbose {
-			PP(c)
-		}
+	if rt.Verbose {
+		rt.UI.Show(cc)
+	} else {
+		rt.UI.Summarize(cc)
 	}
 	return nil
 }
@@ -111,8 +106,7 @@ func (rt *Runtime) CmdClone() error {
 	}
 
 	c, err := h.Containers.Clone(img)
-	log.Println(c, err)
-	PP(c)
+	rt.UI.Show(c)
 
 	return nil
 }

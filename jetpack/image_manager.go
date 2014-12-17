@@ -3,12 +3,14 @@ package jetpack
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/jetpack/ui"
+
 type ImageManager struct {
-	Dataset `json:"-"`
+	Dataset *Dataset `json:"-"`
 }
 
 func (imgr *ImageManager) All() (ImageSlice, error) {
-	if dss, err := imgr.Children(1); err != nil {
+	if dss, err := imgr.Dataset.Children(1); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		rv := make([]*Image, len(dss))
@@ -24,7 +26,7 @@ func (imgr *ImageManager) All() (ImageSlice, error) {
 }
 
 func (imgr *ImageManager) Get(spec string) (*Image, error) {
-	if ds, err := imgr.GetDataset(spec); err == nil {
+	if ds, err := imgr.Dataset.GetDataset(spec); err == nil {
 		return GetImage(ds)
 	}
 
@@ -43,9 +45,17 @@ func (imgr *ImageManager) Get(spec string) (*Image, error) {
 }
 
 func (imgr *ImageManager) Import(uri string) (*Image, error) {
-	if ds, err := imgr.CreateFilesystem(uuid.NewRandom().String(), nil); err != nil {
+	if ds, err := imgr.Dataset.CreateFilesystem(uuid.NewRandom().String(), nil); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		return ImportImage(ds, uri)
 	}
+}
+
+func (imgr ImageManager) Show(ui *ui.UI) {
+	ui.RawShow(imgr)
+	imgs, _ := imgr.All()
+	ui.Indent(" ")
+	ui.Summarize(imgs)
+	ui.Dedent()
 }

@@ -1,12 +1,13 @@
 package jetpack
 
-import "fmt"
 import "path"
 import "path/filepath"
 
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/go-zfs"
+
+import "github.com/3ofcoins/jetpack/ui"
 
 func getZpool() (*zfs.Zpool, error) {
 	if pools, err := zfs.ListZpools(); err != nil {
@@ -41,10 +42,6 @@ func CreateFilesystem(name string, properties map[string]string) (*Dataset, erro
 	} else {
 		return &Dataset{*ds}, nil
 	}
-}
-
-func (ds *Dataset) String() string {
-	return fmt.Sprintf("#<ZFS %v %v>", ds.Type, ds.Name)
 }
 
 func (ds *Dataset) Path(filename string) string {
@@ -93,4 +90,12 @@ func (ds *Dataset) Children(depth uint64) ([]*Dataset, error) {
 		}
 		return rv, nil
 	}
+}
+
+func (ds Dataset) Show(ui *ui.UI) {
+	at := " at "
+	if ds.Mountpoint == "" {
+		at = ""
+	}
+	ui.Sayf(": ZFS %v %#v%v%v", ds.Type, ds.Name, at, ds.Mountpoint)
 }

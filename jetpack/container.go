@@ -37,13 +37,13 @@ func init() {
 var ErrContainerIsEmpty = errors.New("Container is empty")
 
 type Container struct {
-	Dataset  `json:"-"`
+	Dataset  *Dataset                        `json:"-"`
 	Manifest schema.ContainerRuntimeManifest `json:"-"`
-	Manager  *ContainerManager               `json:"-"`
+	manager  *ContainerManager               `json:"-"`
 }
 
 func NewContainer(ds *Dataset, mgr *ContainerManager) *Container {
-	return &Container{Dataset: *ds, Manager: mgr}
+	return &Container{Dataset: ds, manager: mgr}
 }
 
 func GetContainer(ds *Dataset, mgr *ContainerManager) (*Container, error) {
@@ -56,7 +56,7 @@ func GetContainer(ds *Dataset, mgr *ContainerManager) (*Container, error) {
 }
 
 func (c *Container) IsEmpty() bool {
-	_, err := os.Stat(c.Path("manifest"))
+	_, err := os.Stat(c.Dataset.Path("manifest"))
 	return os.IsNotExist(err)
 }
 
@@ -81,7 +81,7 @@ func (c *Container) Load() error {
 }
 
 func (c *Container) readManifest() error {
-	manifestJSON, err := ioutil.ReadFile(c.Path("manifest"))
+	manifestJSON, err := ioutil.ReadFile(c.Dataset.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -99,12 +99,12 @@ func (c *Container) Save() error {
 		return errors.Trace(err)
 	}
 
-	err = ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0400)
+	err = ioutil.WriteFile(c.Dataset.Path("manifest"), manifestJSON, 0400)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	jc, err := os.OpenFile(c.Path("jail.conf"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+	jc, err := os.OpenFile(c.Dataset.Path("jail.conf"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -121,21 +121,9 @@ func (c *Container) GetAnnotation(key, defval string) string {
 }
 
 func (c *Container) JailName() string {
-	return c.Manager.JailNamePrefix + c.Manifest.UUID.String()
+	return c.manager.JailNamePrefix + c.Manifest.UUID.String()
 }
 
-func (c *Container) String() string {
-	return fmt.Sprintf("#<Container %v %v>",
-		c.Manifest.UUID, c.Manifest.Apps[0].Name)
-}
-
-func (c *Container) PPPrepare() interface{} {
-	if c == nil {
-		return nil
-	}
-	return map[string]interface{}{
-		"Manifest": c.Manifest,
-		"Path":     c.Mountpoint,
-		"Dataset":  c.Name,
-	}
+func (c *Container) Summary() string {
+	return fmt.Sprintf("%v %v", c.Manifest.UUID, c.Manifest.Apps[0].Name)
 }

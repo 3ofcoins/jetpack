@@ -1,7 +1,6 @@
 package jetpack
 
 import "encoding/json"
-import "fmt"
 import "io/ioutil"
 import "os"
 import "log"
@@ -11,8 +10,7 @@ import "github.com/juju/errors"
 const DefaultMountpoint = "/srv/jetpack"
 
 type Host struct {
-	Dataset `json:"-"`
-
+	Dataset    *Dataset `json:"-"`
 	Images     ImageManager
 	Containers ContainerManager
 }
@@ -27,9 +25,9 @@ func GetHost(rootDataset string) (*Host, error) {
 		return nil, errors.Trace(err)
 	}
 	h := hostDefaults
-	h.Dataset = *ds
+	h.Dataset = ds
 
-	if config, err := ioutil.ReadFile(h.Path("config")); err != nil {
+	if config, err := ioutil.ReadFile(h.Dataset.Path("config")); err != nil {
 		if os.IsNotExist(err) {
 			log.Println("WARN: config not found, saving now")
 			if err = h.SaveConfig(); err != nil {
@@ -46,16 +44,16 @@ func GetHost(rootDataset string) (*Host, error) {
 		}
 	}
 
-	if ds, err := h.GetDataset("images"); err != nil {
+	if ds, err := h.Dataset.GetDataset("images"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Images.Dataset = *ds
+		h.Images.Dataset = ds
 	}
 
-	if ds, err := h.GetDataset("containers"); err != nil {
+	if ds, err := h.Dataset.GetDataset("containers"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Containers.Dataset = *ds
+		h.Containers.Dataset = ds
 	}
 
 	return &h, nil
@@ -82,19 +80,19 @@ func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 	); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Dataset = *ds
+		h.Dataset = ds
 	}
 
-	if ds, err := h.CreateFilesystem("images", storageZFSProperties); err != nil {
+	if ds, err := h.Dataset.CreateFilesystem("images", storageZFSProperties); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Images.Dataset = *ds
+		h.Images.Dataset = ds
 	}
 
-	if ds, err := h.CreateFilesystem("containers", nil); err != nil {
+	if ds, err := h.Dataset.CreateFilesystem("containers", nil); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		h.Containers.Dataset = *ds
+		h.Containers.Dataset = ds
 	}
 
 	// TODO: accept configuration
@@ -110,9 +108,5 @@ func (h *Host) SaveConfig() error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(h.Path("config"), config, 0600)
-}
-
-func (h *Host) String() string {
-	return fmt.Sprintf("Jetpack[%v]", h.Name)
+	return ioutil.WriteFile(h.Dataset.Path("config"), config, 0600)
 }
