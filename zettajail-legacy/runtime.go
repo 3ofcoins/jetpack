@@ -49,7 +49,8 @@ func (rt *Runtime) Shift() string {
 }
 
 func (rt *Runtime) Properties() map[string]string {
-	return ParseProperties(rt.Args)
+	//IRRELEVANT 	return ParseProperties(rt.Args)
+	return nil
 }
 
 func (rt *Runtime) Host() *Host {
@@ -69,31 +70,33 @@ func (rt *Runtime) Host() *Host {
 }
 
 func (rt *Runtime) Jails(args []string) ([]*Jail, error) {
-	if len(args) == 0 {
-		return rt.Host().Jails(), nil // FIXME: Jails() should return an error
-	}
-	jails := make([]*Jail, 0, len(args))
-	var errs multierror.Accumulator
-	for _, jailName := range args {
-		if jail, err := rt.Host().GetJail(jailName); err != nil {
-			errs.Push(err)
-		} else {
-			jails = append(jails, jail)
-		}
-	}
-	return jails, errs.Error()
+	//IRRELEVANT 	if len(args) == 0 {
+	//IRRELEVANT 		return rt.Host().Jails(), nil // FIXME: Jails() should return an error
+	//IRRELEVANT 	}
+	//IRRELEVANT 	jails := make([]*Jail, 0, len(args))
+	//IRRELEVANT 	var errs multierror.Accumulator
+	//IRRELEVANT 	for _, jailName := range args {
+	//IRRELEVANT 		if jail, err := rt.Host().GetJail(jailName); err != nil {
+	//IRRELEVANT 			errs.Push(err)
+	//IRRELEVANT 		} else {
+	//IRRELEVANT 			jails = append(jails, jail)
+	//IRRELEVANT 		}
+	//IRRELEVANT 	}
+	//IRRELEVANT 	return jails, errs.Error()
+	return nil, nil
 }
 
 func (rt *Runtime) ForEachJail(fn func(*Jail) error) error {
-	jails, err := rt.Jails(rt.Args)
-	if err != nil {
-		return err
-	}
-	var errs multierror.Accumulator
-	for _, jail := range jails {
-		errs.Push(fn(jail))
-	}
-	return errs.Error()
+	//IRRELEVANT 	jails, err := rt.Jails(rt.Args)
+	//IRRELEVANT 	if err != nil {
+	//IRRELEVANT 		return err
+	//IRRELEVANT 	}
+	//IRRELEVANT 	var errs multierror.Accumulator
+	//IRRELEVANT 	for _, jail := range jails {
+	//IRRELEVANT 		errs.Push(fn(jail))
+	//IRRELEVANT 	}
+	//IRRELEVANT 	return errs.Error()
+	return nil
 }
 
 func NewRuntime(name string) *Runtime {
@@ -125,13 +128,13 @@ func NewRuntime(name string) *Runtime {
 	//DONE	rt.AddCommand("stop", "[JAIL...] -- stop (remove) some or all jails", rt.CmdCtlJail)
 	//DONE	rt.AddCommand("tree", "-- show family tree of jails", rt.CmdTree)
 
-	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
-	rt.Commands["create"].StringVar(&rt.Install, "i", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
-	rt.Commands["info"].StringVar(&rt.Folder, "p", "", "Limit to subfolder")
-	rt.Commands["init"].StringVar(&rt.Folder, "p", "", "Initialize subfolder")
-	rt.Commands["modify"].BoolVar(&rt.ModForce, "r", false, "Restart jail if necessary")
-	rt.Commands["modify"].BoolVar(&rt.ModStart, "c", false, "Start (create) jail if not started")
-	rt.Commands["snapshot"].StringVar(&rt.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
+	//DONE 	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
+	//DONE 	rt.Commands["create"].StringVar(&rt.Install, "i", "", "Install base system from DIST (e.g. ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/, /path/to/base.txz)")
+	//DONE 	rt.Commands["info"].StringVar(&rt.Folder, "p", "", "Limit to subfolder")
+	//DONE 	rt.Commands["init"].StringVar(&rt.Folder, "p", "", "Initialize subfolder")
+	//DONE 	rt.Commands["modify"].BoolVar(&rt.ModForce, "r", false, "Restart jail if necessary")
+	//DONE 	rt.Commands["modify"].BoolVar(&rt.ModStart, "c", false, "Start (create) jail if not started")
+	//DONE 	rt.Commands["snapshot"].StringVar(&rt.Snapshot, "s", time.Now().UTC().Format("20060102T150405Z"), "Snapshot name")
 
 	return rt
 }

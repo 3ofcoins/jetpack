@@ -103,80 +103,85 @@ func (jj jailsByName) Swap(i, j int)      { jj[i], jj[j] = jj[j], jj[i] }
 func (jj jailsByName) Less(i, j int) bool { return jj[i].Name < jj[j].Name }
 
 func (h *Host) Jails() []*Jail {
-	children, err := h.Dataset.Children(0)
-	if err != nil {
-		log.Fatalln("ERROR:", err)
-	}
-
-	rv := make([]*Jail, 0, len(children))
-	for _, child := range children {
-		if child.Type == "filesystem" && child.Properties["jetpack:jail"] == "on" {
-			jail := NewJail(h, Dataset{child})
-			rv = append(rv, jail)
-		}
-	}
-
-	sort.Sort(jailsByName(rv))
-	return rv
+	//DONE 	children, err := h.Dataset.Children(0)
+	//DONE 	if err != nil {
+	//DONE 		log.Fatalln("ERROR:", err)
+	//DONE 	}
+	//DONE
+	//DONE 	rv := make([]*Jail, 0, len(children))
+	//DONE 	for _, child := range children {
+	//DONE 		if child.Type == "filesystem" && child.Properties["jetpack:jail"] == "on" {
+	//DONE 			jail := NewJail(h, Dataset{child})
+	//DONE 			rv = append(rv, jail)
+	//DONE 		}
+	//DONE 	}
+	//DONE
+	//DONE 	sort.Sort(jailsByName(rv))
+	//DONE 	return rv
+	return nil
 }
 
 func (h *Host) GetJail(name string) (*Jail, error) {
-	ds, err := GetDataset(path.Join(h.Name, name))
-	if err != nil {
-		return nil, err
-	}
-	if ds.Type == "filesystem" && ds.Properties["jetpack:jail"] == "on" {
-		return NewJail(h, ds), nil
-	} else {
-		return nil, fmt.Errorf("Not a jail: %v", ds.Name)
-	}
+	//DONE 	ds, err := GetDataset(path.Join(h.Name, name))
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	if ds.Type == "filesystem" && ds.Properties["jetpack:jail"] == "on" {
+	//DONE 		return NewJail(h, ds), nil
+	//DONE 	} else {
+	//DONE 		return nil, fmt.Errorf("Not a jail: %v", ds.Name)
+	//DONE 	}
+	return nil, nil
 }
 
 func (h *Host) newJailProperties(name string, properties map[string]string) map[string]string {
-	if properties == nil {
-		properties = make(map[string]string)
-	}
-
-	if _, hasMountpoint := properties["mountpoint"]; !hasMountpoint {
-		properties["mountpoint"] = path.Join(h.Mountpoint, name, "rootfs")
-	}
-
-	if _, hasHostname := properties["jetpack:jail:host.hostname"]; !hasHostname {
-		properties["jetpack:jail:host.hostname"] = path.Base(name)
-	}
-
-	// Expand default console log
-	switch properties["jetpack:jail:exec.consolelog"] {
-	case "true":
-		properties["jetpack:jail:exec.consolelog"] = properties["mountpoint"] + ".log"
-	case "false":
-		delete(properties, "jetpack:jail:exec.consolelog")
-	}
-
-	properties["jetpack:jail"] = "on"
-	return properties
+	//IRRELEVANT 	if properties == nil {
+	//IRRELEVANT 		properties = make(map[string]string)
+	//IRRELEVANT 	}
+	//IRRELEVANT
+	//IRRELEVANT 	if _, hasMountpoint := properties["mountpoint"]; !hasMountpoint {
+	//IRRELEVANT 		properties["mountpoint"] = path.Join(h.Mountpoint, name, "rootfs")
+	//IRRELEVANT 	}
+	//IRRELEVANT
+	//IRRELEVANT 	if _, hasHostname := properties["jetpack:jail:host.hostname"]; !hasHostname {
+	//IRRELEVANT 		properties["jetpack:jail:host.hostname"] = path.Base(name)
+	//IRRELEVANT 	}
+	//IRRELEVANT
+	//IRRELEVANT 	// Expand default console log
+	//IRRELEVANT 	switch properties["jetpack:jail:exec.consolelog"] {
+	//IRRELEVANT 	case "true":
+	//IRRELEVANT 		properties["jetpack:jail:exec.consolelog"] = properties["mountpoint"] + ".log"
+	//IRRELEVANT 	case "false":
+	//IRRELEVANT 		delete(properties, "jetpack:jail:exec.consolelog")
+	//IRRELEVANT 	}
+	//IRRELEVANT
+	//IRRELEVANT 	properties["jetpack:jail"] = "on"
+	//IRRELEVANT 	return properties
+	return nil
 }
 
 func (h *Host) CreateJail(name string, properties map[string]string) (*Jail, error) {
-	properties = h.newJailProperties(name, properties)
-
-	ds, err := zfs.CreateFilesystem(path.Join(h.Name, name), properties)
-	if err != nil {
-		return nil, err
-	}
-	return NewJail(h, Dataset{ds}), nil
+	//DONE 	properties = h.newJailProperties(name, properties)
+	//DONE
+	//DONE 	ds, err := zfs.CreateFilesystem(path.Join(h.Name, name), properties)
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	return NewJail(h, Dataset{ds}), nil
+	return nil, nil
 }
 
 func (h *Host) CloneJail(snapshot, name string, properties map[string]string) (*Jail, error) {
-	// FIXME: base properties off snapshot's properties, at least for jetpack:*
-	properties = h.newJailProperties(name, properties)
-	snap, err := zfs.GetDataset(path.Join(h.Name, snapshot))
-	if err != nil {
-		return nil, err
-	}
-	ds, err := snap.Clone(path.Join(h.Name, name), properties)
-	if err != nil {
-		return nil, err
-	}
-	return NewJail(h, Dataset{ds}), nil
+	//DONE 	// FIXME: base properties off snapshot's properties, at least for jetpack:*
+	//DONE 	properties = h.newJailProperties(name, properties)
+	//DONE 	snap, err := zfs.GetDataset(path.Join(h.Name, snapshot))
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	ds, err := snap.Clone(path.Join(h.Name, name), properties)
+	//DONE 	if err != nil {
+	//DONE 		return nil, err
+	//DONE 	}
+	//DONE 	return NewJail(h, Dataset{ds}), nil
+	return nil
 }

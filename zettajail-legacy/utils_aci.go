@@ -123,14 +123,15 @@ func ReadACI(path string) (*ACI, error) {
 }
 
 func NewImageManifest(name string) *schema.ImageManifest {
-	// Cannot validate, assertValid is not exported, so we return as is.
-	return &schema.ImageManifest{
-		ACKind:    types.ACKind("ImageManifest"),
-		ACVersion: types.SemVer{Major: 0, Minor: 1, Patch: 0},
-		Name:      types.ACName(name),
-		Labels: types.Labels{
-			types.Label{"os", runtime.GOOS},
-			types.Label{"arch", runtime.GOARCH},
-		},
-	}
+	//DONE 	// Cannot validate, assertValid is not exported, so we return as is.
+	//DONE 	return &schema.ImageManifest{
+	//DONE 		ACKind:    types.ACKind("ImageManifest"),
+	//DONE 		ACVersion: types.SemVer{Major: 0, Minor: 1, Patch: 0},
+	//DONE 		Name:      types.ACName(name),
+	//DONE 		Labels: types.Labels{
+	//DONE 			types.Label{"os", runtime.GOOS},
+	//DONE 			types.Label{"arch", runtime.GOARCH},
+	//DONE 		},
+	//DONE 	}
+	return nil
 }

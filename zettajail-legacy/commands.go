@@ -171,15 +171,16 @@ func (rt *Runtime) CmdConsole() error {
 }
 
 func (rt *Runtime) CmdSet() error {
-	// FIXME: modify if running, -f for force-modify
-	if len(rt.Args) < 2 {
-		return cli.ErrUsage
-	}
-	jail, err := rt.Host().GetJail(rt.Shift())
-	if err != nil {
-		return err
-	}
-	return jail.SetProperties(rt.Properties())
+	//IRRELEVANT 	// FIXME: modify if running, -f for force-modify
+	//IRRELEVANT 	if len(rt.Args) < 2 {
+	//IRRELEVANT 		return cli.ErrUsage
+	//IRRELEVANT 	}
+	//IRRELEVANT 	jail, err := rt.Host().GetJail(rt.Shift())
+	//IRRELEVANT 	if err != nil {
+	//IRRELEVANT 		return err
+	//IRRELEVANT 	}
+	//IRRELEVANT 	return jail.SetProperties(rt.Properties())
+	return nil
 }
 
 //DONEfunc (rt *Runtime) cmdInitDwim() (*Host, error) {
@@ -202,11 +203,12 @@ func (rt *Runtime) CmdInit() error {
 }
 
 func (rt *Runtime) CmdSnapshot() error {
-	return rt.ForEachJail(func(jail *Jail) error {
-		// FIXME: feedback
-		_, err := jail.Snapshot(rt.Snapshot, false)
-		return err
-	})
+	//IRRELEVANT 	return rt.ForEachJail(func(jail *Jail) error {
+	//IRRELEVANT 		// FIXME: feedback
+	//IRRELEVANT 		_, err := jail.Snapshot(rt.Snapshot, false)
+	//IRRELEVANT 		return err
+	//IRRELEVANT 	})
+	return nil
 }
 
 func (rt *Runtime) CmdCreate() error {
@@ -287,8 +289,9 @@ func (rt *Runtime) CmdCreate() error {
 }
 
 func (rt *Runtime) CmdClone() error {
-	snapName := rt.Shift()
-	jailName := rt.Shift()
-	_, err := rt.Host().CloneJail(snapName, jailName, rt.Properties())
-	return err
+	//DONE 	snapName := rt.Shift()
+	//DONE 	jailName := rt.Shift()
+	//DONE 	_, err := rt.Host().CloneJail(snapName, jailName, rt.Properties())
+	//DONE 	return err
+	return nil
 }
