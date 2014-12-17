@@ -72,7 +72,7 @@ if [ $update == 1 ]; then
 fi
 
 if [ -z "$version" ]; then
-    version="$(./rootfs/bin/freebsd-version -u | sed 's/-[A-Z][A-Z]*//')"
+    version="$(./rootfs/bin/freebsd-version -u | sed 's/-[A-Z][A-Z]*-p/./')"
 fi
 
 if [ -z "$arch" ]; then
