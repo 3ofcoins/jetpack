@@ -20,11 +20,10 @@ base.txz:
 	fetch -o $@ $(BASE_URL)
 
 build:
-	sed -i~ 's/^Components.*/Components world/' /etc/freebsd-update.conf
+	sed -i~ 's|^Components.*|Components world/base|' /etc/freebsd-update.conf
 	rm -v /etc/freebsd-update.conf~
-	install -v -m 0644 rc.conf /etc/rc.conf
+	install -v -m 0644 rc.conf resolv.conf /etc/
 	install -v -m 0600 entropy /entropy
-	install -v -m 0644 resolv.conf /etc/resolv.conf
-	PAGER=cat freebsd-update fetch install
+	PAGER=cat http_proxy=127.0.0.1:3128 freebsd-update fetch install
 	rm -rf /var/db/freebsd-update/* /etc/resolv.conf
 	./manifest.json.sh > manifest.json
