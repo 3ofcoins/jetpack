@@ -27,6 +27,7 @@ func init() {
   # exec.start="/bin/sh /etc/rc";
   # exec.stop="/bin/sh /etc/rc.shutdown";
   host.hostname="{{(.GetAnnotation "hostname" .Manifest.UUID.String)}}";
+  host.hostuuid="{{.Manifest.UUID}}";
   interface="{{.Manager.Interface}}";
   ip4.addr="{{(.GetAnnotation "ip-address" "CAN'T HAPPEN")}}";
   mount.devfs="true";
