@@ -20,7 +20,7 @@ type Image struct {
 
 	UUID uuid.UUID `json:"-"`
 
-	Hash      types.Hash
+	Hash      *types.Hash `json:",omitempty"`
 	Origin    string
 	Timestamp time.Time
 }
@@ -45,29 +45,12 @@ func GetImage(ds *Dataset) (img *Image, err error) {
 	return
 }
 
-func ImportImage(ds *Dataset, uri string) (img *Image, err error) {
-	img, err = NewImage(ds)
-	if err != nil {
-		return
-	}
-	err = img.Import(uri)
-	return
-}
-
 func (img *Image) IsEmpty() bool {
 	_, err := os.Stat(img.Dataset.Path("manifest"))
 	return os.IsNotExist(err)
 }
 
-func (img *Image) IsLoaded() bool {
-	return !img.Hash.Empty()
-}
-
 func (img *Image) Load() error {
-	if img.IsLoaded() {
-		return errors.New("Already loaded")
-	}
-
 	if img.IsEmpty() {
 		return errors.New("Image is empty")
 	}
@@ -81,7 +64,7 @@ func (img *Image) Load() error {
 		return errors.Trace(err)
 	}
 
-	if err := img.readManifest(); err != nil {
+	if err := img.readManifest(""); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -89,10 +72,6 @@ func (img *Image) Load() error {
 }
 
 func (img *Image) Import(uri string) error {
-	if img.IsLoaded() {
-		return errors.New("Already loaded")
-	}
-
 	if !img.IsEmpty() {
 		return errors.New("Image is not empty")
 	}
@@ -103,13 +82,29 @@ func (img *Image) Import(uri string) error {
 	if hash, err := UnpackImage(uri, img.Dataset.Mountpoint); err != nil {
 		return errors.Trace(err)
 	} else {
-		img.Hash = hash
+		img.Hash = &hash
 	}
 
-	if err := img.readManifest(); err != nil {
+	if err := img.readManifest(""); err != nil {
 		return errors.Trace(err)
 	}
 
+	return errors.Trace(img.seal())
+}
+
+func (img *Image) Commit() error {
+	// Serialize metadata
+	if manifestJSON, err := json.Marshal(img.Manifest); err != nil {
+		return errors.Trace(err)
+	} else {
+		if err := ioutil.WriteFile(img.Dataset.Path("manifest"), manifestJSON, 0400); err != nil {
+			return errors.Trace(err)
+		}
+	}
+	return img.seal()
+}
+
+func (img *Image) seal() error {
 	// Serialize metadata
 	if metadataJSON, err := json.Marshal(img); err != nil {
 		return errors.Trace(err)
@@ -130,8 +125,11 @@ func (img *Image) Import(uri string) error {
 	return nil
 }
 
-func (img *Image) readManifest() error {
-	manifestJSON, err := ioutil.ReadFile(img.Dataset.Path("manifest"))
+func (img *Image) readManifest(path string) error {
+	if path == "" {
+		path = img.Dataset.Path("manifest")
+	}
+	manifestJSON, err := ioutil.ReadFile(path)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -151,8 +149,8 @@ func (img *Image) PrettyLabels() string {
 	return strings.Join(labels, " ")
 }
 
-func (img *Image) Clone(dest string) (*Dataset, error) {
-	snap, err := img.Dataset.GetSnapshot("aci")
+func (img *Image) Clone(snapshot, dest string) (*Dataset, error) {
+	snap, err := img.Dataset.GetSnapshot(snapshot)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -172,10 +170,11 @@ func (img *Image) Clone(dest string) (*Dataset, error) {
 }
 
 func (img *Image) RuntimeApp() schema.RuntimeApp {
-	return schema.RuntimeApp{
-		Name:    img.Manifest.Name,
-		ImageID: img.Hash,
+	app := schema.RuntimeApp{Name: img.Manifest.Name}
+	if img.Hash != nil {
+		app.ImageID = *img.Hash
 	}
+	return app
 }
 
 func (img *Image) Summary() string {

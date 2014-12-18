@@ -1,7 +1,12 @@
 package jetpack
 
+import "fmt"
+import "io/ioutil"
+import "os"
+import "path/filepath"
 import "sort"
 import "strconv"
+import "time"
 
 import "github.com/juju/errors"
 
@@ -106,7 +111,7 @@ func (rt *Runtime) CmdClone() error {
 		return errors.Errorf("Image not found: %v", rt.Args[0])
 	}
 
-	c, err := h.Containers.Clone(img)
+	c, err := h.Containers.Clone(img, "aci")
 	rt.UI.Show(c)
 
 	return nil
@@ -171,4 +176,73 @@ func (rt *Runtime) CmdPs() error {
 	psArgs := []string{"-J", strconv.Itoa(jid)}
 	psArgs = append(psArgs, rt.Args...)
 	return runCommand("ps", psArgs...)
+}
+
+func (rt *Runtime) CmdBuild() error {
+	var img *Image
+	var h = rt.Host()
+	var buildDir = rt.Shift()
+
+	if rt.ImageName == "" {
+		rt.UI.Say("Creating a new, empty image...")
+		if i, err := h.Images.Create(); err != nil {
+			return errors.Trace(err)
+		} else {
+			img = i
+		}
+
+		if err := os.Mkdir(img.Dataset.Path("rootfs"), 0700); err != nil {
+			return errors.Trace(err)
+		}
+	} else {
+		// Start by cloning an existing image
+		return errors.New("NFY")
+	}
+
+	rt.UI.Sayf("Created new image: %v", img.Summary())
+
+	destroot := img.Dataset.Path("rootfs")
+
+	if rt.Tarball != "" {
+		rt.UI.Sayf("Unpacking %v into %v...", rt.Tarball, destroot)
+		runCommand("tar", "-C", destroot, "-xf", rt.Tarball)
+	}
+
+	// FIXME: we're just chroot()ing into rootfs, rather than working
+	// from a jail. It should be possible to clone image into a
+	// temporary container, and then `zfs send/recv` rootfs changes…
+
+	workDir, err := ioutil.TempDir(destroot, ".jetpack.build.")
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	rt.UI.Sayf("Copying build directory %v to %v...", buildDir, workDir)
+	if err := runCommand("cp", "-R", buildDir, workDir); err != nil {
+		return errors.Trace(err)
+	}
+
+	args := append([]string{
+		destroot,
+		"/bin/sh", "-c",
+		fmt.Sprintf("cd %s && exec \"${@}\"", filepath.Base(workDir)),
+		"_",
+	}, rt.Args...)
+
+	if err := runCommand("chroot", args...); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := img.readManifest(filepath.Join(workDir, rt.Manifest)); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := os.RemoveAll(workDir); err != nil {
+		return errors.Trace(err)
+	}
+
+	img.Timestamp = time.Now()
+	// TODO: img.Origin? Or does it go into manifest's annotations?
+
+	return errors.Trace(img.Commit())
 }

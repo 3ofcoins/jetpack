@@ -52,8 +52,8 @@ func (cmgr *ContainerManager) Get(uuid string) (*Container, error) {
 	}
 }
 
-func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
-	ds, err := img.Clone(path.Join(cmgr.Dataset.Name, uuid.NewRandom().String()))
+func (cmgr *ContainerManager) Clone(img *Image, snapshot string) (*Container, error) {
+	ds, err := img.Clone(snapshot, path.Join(cmgr.Dataset.Name, uuid.NewRandom().String()))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

@@ -44,11 +44,23 @@ func (imgr *ImageManager) Get(spec string) (*Image, error) {
 	return nil, nil
 }
 
-func (imgr *ImageManager) Import(uri string) (*Image, error) {
+func (imgr *ImageManager) Create() (*Image, error) {
 	if ds, err := imgr.Dataset.CreateFilesystem(uuid.NewRandom().String(), nil); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		return ImportImage(ds, uri)
+		return NewImage(ds)
+	}
+}
+
+func (imgr *ImageManager) Import(uri string) (*Image, error) {
+	if img, err := imgr.Create(); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		if err := img.Import(uri); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			return img, nil
+		}
 	}
 }
 
