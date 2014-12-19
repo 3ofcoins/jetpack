@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 version="$(freebsd-version -u | sed 's/-[A-Z][A-Z]*-p/./')"
 arch="$(uname -m)"
