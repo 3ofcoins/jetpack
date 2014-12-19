@@ -14,7 +14,6 @@ clean:
 prepare: base.txz
 	sha256 -c $(BASE_SHA256) base.txz
 	dd if=/dev/random of=entropy bs=4096 count=1
-	cp /etc/resolv.conf .
 
 base.txz:
 	fetch -o $@ $(BASE_URL)
@@ -22,8 +21,8 @@ base.txz:
 build:
 	sed -i~ 's|^Components.*|Components world/base|' /etc/freebsd-update.conf
 	rm -v /etc/freebsd-update.conf~
-	install -v -m 0644 rc.conf resolv.conf /etc/
+	install -v -m 0644 rc.conf /etc/rc.conf
 	install -v -m 0600 entropy /entropy
-	PAGER=cat http_proxy=127.0.0.1:3128 freebsd-update fetch install
+	PAGER=cat freebsd-update -s update6.freebsd.org fetch install
 	rm -rf /var/db/freebsd-update/* /etc/resolv.conf
 	./manifest.json.sh > manifest.json

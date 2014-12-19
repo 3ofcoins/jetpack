@@ -17,6 +17,15 @@ import "github.com/appc/spec/aci"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
+func untilError(steps ...func() error) error {
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func runCommand(command string, args ...string) error {
 	cmd := exec.Command(command, args...)
 	cmd.Stdin = os.Stdin

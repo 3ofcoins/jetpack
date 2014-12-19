@@ -1,11 +1,13 @@
 package main
 
-import "log"
-
+import "fmt"
+import "os"
+import "github.com/juju/errors"
 import "github.com/3ofcoins/jetpack/jetpack"
 
 func main() {
 	if err := jetpack.Run("", nil); err != nil {
-		log.Fatalln(err)
+		fmt.Fprintln(os.Stderr, errors.ErrorStack(err))
+		os.Exit(1)
 	}
 }

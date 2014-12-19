@@ -1,6 +1,8 @@
 package jetpack
 
+import "io/ioutil"
 import "net"
+import "os"
 import "path"
 
 import "code.google.com/p/go-uuid/uuid"
@@ -52,13 +54,22 @@ func (cmgr *ContainerManager) Get(uuid string) (*Container, error) {
 	}
 }
 
-func (cmgr *ContainerManager) Clone(img *Image, snapshot string) (*Container, error) {
-	ds, err := img.Clone(snapshot, path.Join(cmgr.Dataset.Name, uuid.NewRandom().String()))
+func (cmgr *ContainerManager) newContainer(ds *Dataset) (*Container, error) {
+	c := NewContainer(ds, cmgr)
+
+	var resolvConf []byte
+	err := untilError(
+		func() error { return os.MkdirAll(c.Dataset.Path("rootfs"), 0700) },
+		func() error { return os.MkdirAll(c.Dataset.Path("rootfs/etc"), 0755) },
+		func() (err error) {
+			resolvConf, err = ioutil.ReadFile("/etc/resolv.conf")
+			return
+		},
+		func() error { return ioutil.WriteFile(c.Dataset.Path("rootfs/etc/resolv.conf"), resolvConf, 0644) },
+	)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-
-	c := NewContainer(ds, cmgr)
 
 	uuid, err := types.NewUUID(path.Base(c.Dataset.Name))
 	if err != nil {
@@ -68,11 +79,44 @@ func (cmgr *ContainerManager) Clone(img *Image, snapshot string) (*Container, er
 	c.Manifest.ACVersion = schema.AppContainerVersion
 	c.Manifest.ACKind = types.ACKind("ContainerRuntimeManifest")
 	c.Manifest.Annotations = make(map[types.ACName]string)
-	c.Manifest.Apps = []schema.RuntimeApp{img.RuntimeApp()}
 	c.Manifest.UUID = *uuid
 
-	// TODO: lock, defer unlock
+	// TODO: lock until saved?
 	c.Manifest.Annotations["ip-address"] = cmgr.NextIP().String()
+
+	return c, nil
+}
+
+func (cmgr *ContainerManager) Create() (*Container, error) {
+	ds, err := cmgr.Dataset.CreateFilesystem(uuid.NewRandom().String(), nil)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	c, err := cmgr.newContainer(ds)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := c.Save(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return c, nil
+}
+
+func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
+	ds, err := img.Clone("seal", path.Join(cmgr.Dataset.Name, uuid.NewRandom().String()))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	c, err := cmgr.newContainer(ds)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	c.Manifest.Apps = []schema.RuntimeApp{img.RuntimeApp()}
 
 	err = c.Save()
 	if err != nil {

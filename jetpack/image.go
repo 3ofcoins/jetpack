@@ -114,7 +114,7 @@ func (img *Image) seal() error {
 		}
 	}
 
-	if _, err := img.Dataset.Snapshot("aci", false); err != nil {
+	if _, err := img.Dataset.Snapshot("seal", false); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -173,6 +173,9 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 	app := schema.RuntimeApp{Name: img.Manifest.Name}
 	if img.Hash != nil {
 		app.ImageID = *img.Hash
+	} else {
+		// TODO: we need to store ACI tarballs to have an image ID on built images
+		app.ImageID.Set("sha512-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
 	}
 	return app
 }

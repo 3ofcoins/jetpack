@@ -3,6 +3,7 @@ package jetpack
 import "fmt"
 import "io/ioutil"
 import "os"
+import "path"
 import "path/filepath"
 import "sort"
 import "strconv"
@@ -111,10 +112,12 @@ func (rt *Runtime) CmdClone() error {
 		return errors.Errorf("Image not found: %v", rt.Args[0])
 	}
 
-	c, err := h.Containers.Clone(img, "aci")
-	rt.UI.Show(c)
-
-	return nil
+	if c, err := h.Containers.Clone(img); err != nil {
+		return errors.Trace(err)
+	} else {
+		rt.UI.Show(c)
+		return nil
+	}
 }
 
 func (rt *Runtime) CmdRunJail() error {
@@ -179,38 +182,44 @@ func (rt *Runtime) CmdPs() error {
 }
 
 func (rt *Runtime) CmdBuild() error {
-	var img *Image
+	var buildContainer *Container
+	var parentImage *Image
 	var h = rt.Host()
 	var buildDir = rt.Shift()
 
 	if rt.ImageName == "" {
-		rt.UI.Say("Creating a new, empty image...")
-		if i, err := h.Images.Create(); err != nil {
+		rt.UI.Say("Creating a new, empty container...")
+		if c, err := h.Containers.Create(); err != nil {
 			return errors.Trace(err)
 		} else {
-			img = i
-		}
-
-		if err := os.Mkdir(img.Dataset.Path("rootfs"), 0700); err != nil {
-			return errors.Trace(err)
+			buildContainer = c
 		}
 	} else {
-		// Start by cloning an existing image
-		return errors.New("NFY")
+		if img, err := h.Images.Get(rt.ImageName); err != nil {
+			return errors.Trace(err)
+		} else {
+			rt.UI.Sayf("Cloning a container from image %v...", img.Summary())
+			parentImage = img
+			if c, err := h.Containers.Clone(img); err != nil {
+				return errors.Trace(err)
+			} else {
+				buildContainer = c
+			}
+		}
 	}
 
-	rt.UI.Sayf("Created new image: %v", img.Summary())
+	// This is needed by freebsd-update at least, should be okay to
+	// allow this in builders.
+	buildContainer.JailParameters["allow.chflags"] = "true"
 
-	destroot := img.Dataset.Path("rootfs")
+	rt.UI.Sayf("Working in container: %v", buildContainer.Summary())
+
+	destroot := buildContainer.Dataset.Path("rootfs")
 
 	if rt.Tarball != "" {
 		rt.UI.Sayf("Unpacking %v into %v...", rt.Tarball, destroot)
 		runCommand("tar", "-C", destroot, "-xf", rt.Tarball)
 	}
-
-	// FIXME: we're just chroot()ing into rootfs, rather than working
-	// from a jail. It should be possible to clone image into a
-	// temporary container, and then `zfs send/recv` rootfs changes…
 
 	workDir, err := ioutil.TempDir(destroot, ".jetpack.build.")
 	if err != nil {
@@ -222,18 +231,34 @@ func (rt *Runtime) CmdBuild() error {
 		return errors.Trace(err)
 	}
 
-	args := append([]string{
-		destroot,
-		"/bin/sh", "-c",
-		fmt.Sprintf("cd %s && exec \"${@}\"", filepath.Base(workDir)),
-		"_",
-	}, rt.Args...)
-
-	if err := runCommand("chroot", args...); err != nil {
+	rt.UI.Sayf("Starting the container")
+	if err := buildContainer.RunJail("-c"); err != nil {
 		return errors.Trace(err)
 	}
 
-	if err := img.readManifest(filepath.Join(workDir, rt.Manifest)); err != nil {
+	cWorkDir := filepath.Base(workDir)
+
+	buildCommand := append([]string{
+		"/bin/sh", "-c",
+		fmt.Sprintf("cd '%s' && exec \"${@}\"", cWorkDir),
+		"jetpack-build@" + cWorkDir,
+	}, rt.Args...)
+
+	rt.UI.Sayf("Running build command: %v", buildCommand)
+	if err := buildContainer.RunJexec("", buildCommand); err != nil {
+		return errors.Trace(err)
+	}
+
+	rt.UI.Say("Stopping the container")
+	if err := buildContainer.RunJail("-r"); err != nil {
+		return errors.Trace(err)
+	}
+
+	rt.UI.Say("Cleaning up")
+	if err := os.Rename(
+		filepath.Join(workDir, rt.Manifest),
+		buildContainer.Dataset.Path("build.manifest"),
+	); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -241,8 +266,57 @@ func (rt *Runtime) CmdBuild() error {
 		return errors.Trace(err)
 	}
 
+	if err := os.Remove(filepath.Join(destroot, "/etc/resolv.conf")); err != nil {
+		return errors.Trace(err)
+	}
+
+	rt.UI.Say("Committing build container as an image")
+	uuid := path.Base(buildContainer.Dataset.Name)
+	if err := buildContainer.Dataset.Rename(h.Images.Dataset.ChildName(uuid)); err != nil {
+		return errors.Trace(err)
+	}
+
+	ds, err := h.Images.Dataset.GetDataset(uuid)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	// Clean up container's runtime stuff, leave only rootfs and new manifest
+	if entries, err := ioutil.ReadDir(ds.Mountpoint); err != nil {
+		return errors.Trace(err)
+	} else {
+		for _, entry := range entries {
+			filename := entry.Name()
+			if filename == "rootfs" || filename == "build.manifest" {
+				continue
+			}
+			if err := os.RemoveAll(ds.Path(filename)); err != nil {
+				return errors.Trace(err)
+			}
+		}
+	}
+
+	img, err := NewImage(ds)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if parentImage != nil {
+		img.Manifest = parentImage.Manifest
+		img.Origin = parentImage.UUID.String()
+	} else {
+		// img.Origin = …
+	}
+
 	img.Timestamp = time.Now()
-	// TODO: img.Origin? Or does it go into manifest's annotations?
+
+	if err := img.readManifest(img.Dataset.Path("build.manifest")); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := os.Remove(img.Dataset.Path("build.manifest")); err != nil {
+		return errors.Trace(err)
+	}
 
 	return errors.Trace(img.Commit())
 }

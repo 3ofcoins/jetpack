@@ -32,6 +32,9 @@ func init() {
   ip4.addr="{{(.GetAnnotation "ip-address" "CAN'T HAPPEN")}}";
   mount.devfs="true";
   persist="true";
+{{ range $param, $value := .JailParameters }}
+  {{$param}} = "{{$value}}";
+{{ end }}
 }
 `)
 	if err != nil {
@@ -47,10 +50,12 @@ type Container struct {
 	Dataset  *Dataset                        `json:"-"`
 	Manifest schema.ContainerRuntimeManifest `json:"-"`
 	Manager  *ContainerManager               `json:"-"`
+
+	JailParameters map[string]string
 }
 
 func NewContainer(ds *Dataset, mgr *ContainerManager) *Container {
-	return &Container{Dataset: ds, Manager: mgr}
+	return &Container{Dataset: ds, Manager: mgr, JailParameters: make(map[string]string)}
 }
 
 func GetContainer(ds *Dataset, mgr *ContainerManager) (*Container, error) {
@@ -105,7 +110,6 @@ func (c *Container) Save() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-
 	return errors.Trace(ioutil.WriteFile(c.Dataset.Path("manifest"), manifestJSON, 0400))
 }
 
@@ -146,7 +150,11 @@ func (c *Container) Summary() string {
 	if c.Jid() > 0 {
 		started = "*"
 	}
-	return fmt.Sprintf("%v%v %v", started, c.Manifest.UUID, c.Manifest.Apps[0].Name)
+	name := " (anonymous)"
+	if len(c.Manifest.Apps) > 0 {
+		name = " " + string(c.Manifest.Apps[0].Name)
+	}
+	return fmt.Sprintf("%v%v%v", started, c.Manifest.UUID, name)
 }
 
 func (c *Container) Show(ui *ui.UI) {
