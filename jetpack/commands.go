@@ -1,5 +1,6 @@
 package jetpack
 
+import "encoding/json"
 import "fmt"
 import "io/ioutil"
 import "os"
@@ -9,6 +10,7 @@ import "sort"
 import "strconv"
 import "time"
 
+import "github.com/appc/spec/schema"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
@@ -270,6 +272,9 @@ func (rt *Runtime) CmdBuild() error {
 		return errors.Trace(err)
 	}
 
+	rt.UI.Say("FIXME: Sleeping for 5 seconds")
+	time.Sleep(5 * time.Second)
+
 	rt.UI.Say("Committing build container as an image")
 	uuid := path.Base(buildContainer.Dataset.Name)
 	if err := buildContainer.Dataset.Rename(h.Images.Dataset.ChildName(uuid)); err != nil {
@@ -301,22 +306,73 @@ func (rt *Runtime) CmdBuild() error {
 		return errors.Trace(err)
 	}
 
+	// Construct the final manifest
+
+	// defaults that are always present
+	manifest := map[string]interface{}{
+		"acKind":    "ImageManifest",
+		"acVersion": schema.AppContainerVersion,
+	}
+
+	// Merge what the build directory has left for us
+	if manifestBytes, err := ioutil.ReadFile(img.Dataset.Path("build.manifest")); err != nil {
+		return errors.Trace(err)
+	} else {
+		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+			return errors.Trace(err)
+		}
+	}
+
+	// FIXME: the below is UGLY. Can we make it prettier?
+
+	// Annotate with timestamp if there is no such annotation yet
+	if manifest["annotations"] == nil {
+		manifest["annotations"] = make(map[string]interface{})
+	}
+
+	annotations := manifest["annotations"].(map[string]interface{})
+	if _, ok := annotations["timestamp"]; !ok {
+		annotations["timestamp"] = time.Now()
+	}
+
 	if parentImage != nil {
-		img.Manifest = parentImage.Manifest
+		// Merge OS and arch from parent image if it's not set
+		// TODO: can we prevent this?
+		hasLabels := map[string]bool{}
+		for _, labelI := range manifest["labels"].([]interface{}) {
+			label := labelI.(map[string]interface{})
+			hasLabels[label["name"].(string)] = true
+		}
+
+		if val, ok := parentImage.Manifest.GetLabel("os"); ok && !hasLabels["os"] {
+			manifest["labels"] = append(manifest["labels"].([]interface{}),
+				map[string]interface{}{"name": "os", "val": val})
+		}
+
+		if val, ok := parentImage.Manifest.GetLabel("arch"); ok && !hasLabels["arch"] {
+			manifest["labels"] = append(manifest["labels"].([]interface{}),
+				map[string]interface{}{"name": "arch", "val": val})
+		}
+
+		// TODO: merge app from parent image
+
 		img.Origin = parentImage.UUID.String()
 	} else {
 		// img.Origin = …
 	}
 
-	img.Timestamp = time.Now()
-
-	if err := img.readManifest(img.Dataset.Path("build.manifest")); err != nil {
+	if manifestBytes, err := json.Marshal(manifest); err != nil {
 		return errors.Trace(err)
+	} else {
+		if err := ioutil.WriteFile(img.Dataset.Path("manifest"), manifestBytes, 0400); err != nil {
+			return errors.Trace(err)
+		}
 	}
 
 	if err := os.Remove(img.Dataset.Path("build.manifest")); err != nil {
 		return errors.Trace(err)
 	}
 
-	return errors.Trace(img.Commit())
+	img.Timestamp = time.Now()
+	return errors.Trace(img.Seal())
 }

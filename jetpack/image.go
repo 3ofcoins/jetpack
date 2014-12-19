@@ -64,7 +64,7 @@ func (img *Image) Load() error {
 		return errors.Trace(err)
 	}
 
-	if err := img.readManifest(""); err != nil {
+	if err := img.LoadManifest(); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -85,26 +85,15 @@ func (img *Image) Import(uri string) error {
 		img.Hash = &hash
 	}
 
-	if err := img.readManifest(""); err != nil {
+	return errors.Trace(img.Seal())
+}
+
+func (img *Image) Seal() error {
+	// Make sure that manifest exists and validates correctly
+	if err := img.LoadManifest(); err != nil {
 		return errors.Trace(err)
 	}
 
-	return errors.Trace(img.seal())
-}
-
-func (img *Image) Commit() error {
-	// Serialize metadata
-	if manifestJSON, err := json.Marshal(img.Manifest); err != nil {
-		return errors.Trace(err)
-	} else {
-		if err := ioutil.WriteFile(img.Dataset.Path("manifest"), manifestJSON, 0400); err != nil {
-			return errors.Trace(err)
-		}
-	}
-	return img.seal()
-}
-
-func (img *Image) seal() error {
 	// Serialize metadata
 	if metadataJSON, err := json.Marshal(img); err != nil {
 		return errors.Trace(err)
@@ -125,11 +114,8 @@ func (img *Image) seal() error {
 	return nil
 }
 
-func (img *Image) readManifest(path string) error {
-	if path == "" {
-		path = img.Dataset.Path("manifest")
-	}
-	manifestJSON, err := ioutil.ReadFile(path)
+func (img *Image) LoadManifest() error {
+	manifestJSON, err := ioutil.ReadFile(img.Dataset.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -175,7 +161,10 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 		app.ImageID = *img.Hash
 	} else {
 		// TODO: we need to store ACI tarballs to have an image ID on built images
-		app.ImageID.Set("sha512-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+		app.ImageID.Set(fmt.Sprintf(
+			"sha512-0000000000000000000000000000000000000000000000000000000000000000%x",
+			img.UUID,
+		))
 	}
 	return app
 }
