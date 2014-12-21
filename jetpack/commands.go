@@ -227,28 +227,16 @@ func (rt *Runtime) CmdRunJail() error {
 	return errors.Trace(c.RunJail(op))
 }
 
-func (rt *Runtime) CmdConsole() error {
-	if len(rt.Args) == 0 {
+func (rt *Runtime) CmdRun() (err1 error) {
+	if len(rt.Args) != 1 {
 		return cli.ErrUsage
 	}
-	c, err := rt.Host().Containers.Get(rt.Shift())
-	if err != nil {
-		return err
-	}
-	if c.Jid() == 0 {
-		return errors.Errorf("Container %s is not started", c.Manifest.UUID)
-	}
 
-	args := rt.Args
-	user := rt.User
-	if len(args) == 0 {
-		args = []string{"login", "-f", user}
-		user = ""
+	if c, err := rt.Host().Containers.Get(rt.Args[0]); err != nil {
+		return errors.Trace(err)
+	} else {
+		return errors.Trace(c.Run(nil))
 	}
-	if user == "root" {
-		user = ""
-	}
-	return c.RunJexec(user, args)
 }
 
 func (rt *Runtime) CmdPs() error {
@@ -263,14 +251,6 @@ func (rt *Runtime) CmdPs() error {
 	psArgs := []string{"-J", strconv.Itoa(jid)}
 	psArgs = append(psArgs, rt.Args...)
 	return runCommand("ps", psArgs...)
-}
-
-func (rt *Runtime) CmdStage2() error {
-	c, err := rt.Host().Containers.Get(rt.Shift())
-	if err != nil {
-		return err
-	}
-	return c.Stage2()
 }
 
 func (rt *Runtime) CmdBuild() error {

@@ -68,7 +68,9 @@ func (cli *Cli) Usage() {
 		"Usage: %s [flags] command [args...]\nKnown commands:\n  %s help [COMMAND] -- show help\n", cli.Name, cli.Name)
 	commands := make([]string, 0, len(cli.Commands))
 	for cmd := range cli.Commands {
-		commands = append(commands, cmd)
+		if cmd[0] != '.' {
+			commands = append(commands, cmd)
+		}
 	}
 	sort.Strings(commands)
 	for _, cmd := range commands {

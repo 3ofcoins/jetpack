@@ -195,6 +195,14 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 	return app
 }
 
+func (img *Image) GetApp() *types.App {
+	if img.Manifest.App != nil {
+		return img.Manifest.App
+	} else {
+		return ConsoleApp("root")
+	}
+}
+
 // For sorting
 type ImageSlice []*Image
 

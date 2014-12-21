@@ -1,6 +1,6 @@
 //+build cgo
 
-package jetpack
+package main
 
 /*
 #include <errno.h>
@@ -11,8 +11,6 @@ package jetpack
 import "C"
 
 import "unsafe"
-
-// TODO: try to strconv.Atoi() UID/GID
 
 func getGid(groupname string) (int, error) {
 	cgroupname := C.CString(groupname)

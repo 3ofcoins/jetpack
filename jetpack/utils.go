@@ -12,7 +12,6 @@ import "net"
 import "os"
 import "os/exec"
 import "sort"
-import "syscall"
 
 import "github.com/appc/spec/aci"
 import "github.com/appc/spec/schema/types"
@@ -200,14 +199,6 @@ func nextIP(ip net.IP) net.IP {
 		}
 	}
 	panic("RAN OUT OF IPS")
-}
-
-func JailAttach(jid int) error {
-	if _, _, err := syscall.Syscall(syscall.SYS_JAIL_ATTACH, uintptr(jid), 0, 0); err == 0 {
-		return nil
-	} else {
-		return err
-	}
 }
 
 func ConsoleApp(username string) *types.App {

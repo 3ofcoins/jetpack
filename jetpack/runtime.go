@@ -17,11 +17,12 @@ type Runtime struct {
 	ZFSRoot string
 
 	// Per-command switches
-	ImageName string
-	Tarball   string
-	Manifest  string
-	Verbose   bool
-	User      string
+	ImageName     string
+	Tarball       string
+	Manifest      string
+	Verbose       bool
+	User          string
+	Console, Keep bool
 
 	// Global runtime state
 	host *Host
@@ -91,15 +92,16 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("clone", "IMAGE -- clone a container from an image", rt.CmdClone)
 	rt.AddCommand("start", "CONTAINER -- start a container", rt.CmdRunJail)
 	rt.AddCommand("stop", "CONTAINER -- stop a container", rt.CmdRunJail)
-	rt.AddCommand("console", "[-u=USER] CONTAINER [COMMAND...] -- execute COMMAND or login shell in CONTAINER", rt.CmdConsole)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
-	rt.AddCommand(".stage2", "UUID -- run container's stage2", rt.CmdStage2)
+	rt.AddCommand("run", "[OPTIONS] UUID -- run container or image", rt.CmdRun)
 
 	// Switches
 	rt.Commands["build"].StringVar(&rt.ImageName, "from", "", "Build from an existing image")
 	rt.Commands["build"].StringVar(&rt.Tarball, "tarball", "", "Unpack a tarball into filesystem")
 	rt.Commands["build"].StringVar(&rt.Manifest, "manifest", "manifest.json", "Image manifest file")
-	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
+
+	rt.Commands["run"].BoolVar(&rt.Console, "console", false, "Run console, not image's app")
+	rt.Commands["run"].BoolVar(&rt.Keep, "keep", false, "Keep container after command finishes")
 
 	return rt
 }

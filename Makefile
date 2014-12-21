@@ -1,4 +1,4 @@
-all: bin/jetpack
+all: bin/jetpack bin/stage2
 
 .PHONY: bin/jetpack clean distclean sys.destroy sys.init sys.recycle
 
@@ -7,6 +7,9 @@ CC=clang
 
 bin/jetpack:
 	go build -o $@
+
+bin/stage2: stage2/*.go
+	cd stage2 && go build -o ../bin/stage2
 
 clean:
 	rm -rf bin/ *.aci

@@ -1,16 +1,14 @@
 package jetpack
 
-import "fmt"
-
 import "bytes"
 import "encoding/json"
+import "fmt"
 import "io/ioutil"
 import "path/filepath"
 import "os"
 import "os/exec"
 import "strconv"
 import "strings"
-import "syscall"
 import "text/template"
 
 import "github.com/appc/spec/schema"
@@ -211,10 +209,29 @@ func (c *Container) GetImage() (*Image, error) {
 	return c.Manager.Host.Images.Get(uuid)
 }
 
+func (c *Container) Run(app *types.App) (err1 error) {
+	if err := c.RunJail("-c"); err != nil {
+		return errors.Trace(err)
+	}
+	defer func() {
+		if err := c.RunJail("-r"); err != nil {
+			if err1 != nil {
+				fmt.Fprintln(os.Stderr, errors.ErrorStack(err1))
+			}
+			err1 = errors.Trace(err)
+		}
+	}()
+	return c.Stage2(app)
+}
+
 func (c *Container) Stage2(app *types.App) error {
 	img, err := c.GetImage()
 	if err != nil {
 		return errors.Trace(err)
+	}
+
+	if app == nil {
+		app = img.GetApp()
 	}
 
 	jid := c.Jid()
@@ -222,78 +239,26 @@ func (c *Container) Stage2(app *types.App) error {
 		return errors.New("Not started")
 	}
 
-	if err := JailAttach(jid); err != nil {
-		return errors.Trace(err)
+	user := app.User
+	if user == "" {
+		user = "root"
 	}
 
-	if err := os.Chdir("/"); err != nil {
-		return errors.Trace(err)
-	}
-
-	if app == nil {
-		app = img.Manifest.App
-	}
-
-	if app == nil {
-		app = ConsoleApp("root")
-	}
-
-	username := app.User
-	if username == "" {
-		username = "root"
-	}
-
-	user, err := getUserData(username)
-	if err != nil {
-		return errors.Trace(err)
-	} else if user == nil {
-		return errors.Errorf("User not found: %s", username)
-	}
-
-	var gid int
-	if app.Group == "" {
-		gid = user.gid
-	} else {
-		agid, err := getGid(app.Group)
-		if err != nil {
-			return errors.Trace(err)
-		} else if agid < 0 {
-			return errors.Errorf("Group not found: %s", app.Group)
-		}
-		gid = agid
-	}
-
-	os.Clearenv()
-
-	// Put environment in a map to avoid duplicates when App.Environment
-	// overrides one of the default variables
-
-	env := map[string]string{
-		"PATH":    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-		"USER":    user.username,
-		"LOGNAME": user.username,
-		"HOME":    user.home,
-		"SHELL":   user.shell,
+	args := []string{
+		"-jid", strconv.Itoa(jid),
+		"-user", user,
+		"-group", app.Group,
+		"-name", string(img.Manifest.Name),
 	}
 
 	for k, v := range app.Environment {
-		env[k] = v
+		args = append(args, "-setenv", k+"="+v)
 	}
 
-	env["AC_APP_NAME"] = string(img.Manifest.Name)
-	env["AC_METADATA_URL"] = ""
+	args = append(args, app.Exec...)
 
-	envv := make([]string, 0, len(env))
-	for k, v := range env {
-		envv = append(envv, k+"="+v)
-	}
-
-	return errors.Trace(untilError(
-		func() error { return syscall.Setgroups([]int{}) },
-		func() error { return syscall.Setregid(gid, gid) },
-		func() error { return syscall.Setreuid(user.uid, user.uid) },
-		func() error { return syscall.Exec(app.Exec[0], app.Exec, envv) },
-	))
+	// FIXME:libexec
+	return runCommand("/home/japhy/Go/src/github.com/3ofcoins/jetpack/bin/stage2", args...)
 }
 
 type ContainerSlice []*Container
