@@ -3,8 +3,6 @@ package jetpack
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/jetpack/ui"
-
 type ImageManager struct {
 	Dataset *Dataset `json:"-"`
 }
@@ -62,12 +60,4 @@ func (imgr *ImageManager) Import(uri string) (*Image, error) {
 			return img, nil
 		}
 	}
-}
-
-func (imgr ImageManager) Show(ui *ui.UI) {
-	ui.RawShow(imgr)
-	imgs, _ := imgr.All()
-	ui.Indent(" ")
-	ui.Summarize(imgs)
-	ui.Dedent()
 }

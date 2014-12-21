@@ -10,10 +10,6 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-// import "github.com/tgulacsi/go-locking"
-
-import "github.com/3ofcoins/jetpack/ui"
-
 type ContainerManager struct {
 	Dataset *Dataset `json:"-"`
 
@@ -28,11 +24,11 @@ var defaultContainerManager = ContainerManager{
 	JailNamePrefix: "jetpack:",
 }
 
-func (cmgr *ContainerManager) All() ([]*Container, error) {
+func (cmgr *ContainerManager) All() (ContainerSlice, error) {
 	if dss, err := cmgr.Dataset.Children(1); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		rv := make([]*Container, 0, len(dss))
+		rv := make(ContainerSlice, 0, len(dss))
 		for _, ds := range dss {
 			if c, err := GetContainer(ds, cmgr); err != nil {
 				if err != ErrContainerIsEmpty {
@@ -149,12 +145,4 @@ func (cmgr *ContainerManager) NextIP() net.IP {
 	} else {
 		return nil
 	}
-}
-
-func (cmgr ContainerManager) Show(ui *ui.UI) {
-	ui.RawShow(cmgr)
-	cc, _ := cmgr.All()
-	ui.Indent(" ")
-	ui.Summarize(cc)
-	ui.Dedent()
 }

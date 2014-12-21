@@ -83,12 +83,11 @@ func NewRuntime(name string) *Runtime {
 
 	// Commands
 	rt.AddCommand("build", "[OPTIONS] PATH COMMAND...", rt.CmdBuild)
-	rt.AddCommand("info", "[-i IMAGE] -- show global info or image details", rt.CmdInfo)
+	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
 	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
-	rt.AddCommand("images", "[-v] -- list images", rt.CmdImages)
+	rt.AddCommand("list", "[images|containers] -- list images and/or containers", rt.CmdList)
 	rt.AddCommand("clone", "IMAGE -- clone a container from an image", rt.CmdClone)
-	rt.AddCommand("containers", "[-v] -- list containers", rt.CmdContainers)
 	rt.AddCommand("start", "CONTAINER -- start a container", rt.CmdRunJail)
 	rt.AddCommand("stop", "CONTAINER -- stop a container", rt.CmdRunJail)
 	rt.AddCommand("console", "[-u=USER] CONTAINER [COMMAND...] -- execute COMMAND or login shell in CONTAINER", rt.CmdConsole)
@@ -98,9 +97,6 @@ func NewRuntime(name string) *Runtime {
 	rt.Commands["build"].StringVar(&rt.ImageName, "from", "", "Build from an existing image")
 	rt.Commands["build"].StringVar(&rt.Tarball, "tarball", "", "Unpack a tarball into filesystem")
 	rt.Commands["build"].StringVar(&rt.Manifest, "manifest", "manifest.json", "Image manifest file")
-	rt.Commands["info"].StringVar(&rt.ImageName, "i", "", "Show info about an image")
-	rt.Commands["images"].BoolVar(&rt.Verbose, "v", false, "Show detailed info")
-	rt.Commands["containers"].BoolVar(&rt.Verbose, "v", false, "Show detailed info")
 	rt.Commands["console"].StringVar(&rt.User, "u", "root", "User to run command as")
 
 	return rt

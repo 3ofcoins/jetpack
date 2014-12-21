@@ -1,7 +1,7 @@
 package jetpack
 
+import "bytes"
 import "encoding/json"
-import "fmt"
 import "io/ioutil"
 import "path/filepath"
 import "os"
@@ -13,8 +13,6 @@ import "text/template"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
-
-import "github.com/3ofcoins/jetpack/ui"
 
 var jailConfTmpl *template.Template
 
@@ -145,23 +143,6 @@ func (c *Container) JailName() string {
 	return c.Manager.JailNamePrefix + c.Manifest.UUID.String()
 }
 
-func (c *Container) Summary() string {
-	started := " "
-	if c.Jid() > 0 {
-		started = "*"
-	}
-	name := " (anonymous)"
-	if len(c.Manifest.Apps) > 0 {
-		name = " " + string(c.Manifest.Apps[0].Name)
-	}
-	return fmt.Sprintf("%v%v%v", started, c.Manifest.UUID, name)
-}
-
-func (c *Container) Show(ui *ui.UI) {
-	ui.RawShow(c)
-	ui.Sayf(".JID: %d", c.Jid())
-}
-
 func (c *Container) Jid() int {
 	cmd := exec.Command("jls", "-j", c.JailName(), "jid")
 	out, err := cmd.Output()
@@ -203,3 +184,11 @@ func (c *Container) RunJexec(user string, jcmd []string) error {
 
 	return runCommand("jexec", args...)
 }
+
+type ContainerSlice []*Container
+
+func (ii ContainerSlice) Len() int { return len(ii) }
+func (ii ContainerSlice) Less(i, j int) bool {
+	return bytes.Compare(ii[i].Manifest.UUID[:], ii[j].Manifest.UUID[:]) < 0
+}
+func (ii ContainerSlice) Swap(i, j int) { ii[i], ii[j] = ii[j], ii[i] }

@@ -127,12 +127,18 @@ func (img *Image) LoadManifest() error {
 	return nil
 }
 
-func (img *Image) PrettyLabels() string {
-	labels := make([]string, len(img.Manifest.Labels))
+type imageLabels []string
+
+func (lb imageLabels) String() string {
+	return strings.Join(lb, " ")
+}
+
+func (img *Image) PrettyLabels() imageLabels {
+	labels := make(imageLabels, len(img.Manifest.Labels))
 	for i, l := range img.Manifest.Labels {
 		labels[i] = fmt.Sprintf("%v=%#v", l.Name, l.Value)
 	}
-	return strings.Join(labels, " ")
+	return labels
 }
 
 func (img *Image) Clone(snapshot, dest string) (*Dataset, error) {
@@ -167,11 +173,6 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 		))
 	}
 	return app
-}
-
-func (img *Image) Summary() string {
-	return fmt.Sprintf("%v %v %v",
-		img.UUID, img.Manifest.Name, img.PrettyLabels())
 }
 
 // For sorting

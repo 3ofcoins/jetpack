@@ -17,15 +17,14 @@ import "github.com/3ofcoins/jetpack/cli"
 
 func (rt *Runtime) CmdInfo() error {
 	h := rt.Host()
-	if rt.ImageName == "" {
-		rt.UI.Show(h)
-		rt.UI.Show(nil)
-	} else {
-		img, err := h.Images.Get(rt.ImageName)
-		if err != nil {
-			return err
-		}
-		rt.UI.Show(img)
+	switch len(rt.Args) {
+	case 0: // host info
+		rt.UI.Sayf("ZFS dataset: %v (%v)", h.Dataset.Name, h.Dataset.Mountpoint)
+		rt.UI.Sayf("IP range: %v on %v", h.Containers.AddressPool, h.Containers.Interface)
+	case 1: // UUID
+		rt.UI.Say("FIXME")
+	default:
+		return cli.ErrUsage
 	}
 
 	return nil
@@ -61,43 +60,79 @@ func (rt *Runtime) CmdImport() error {
 	if err != nil {
 		return errors.Trace(err)
 	} else {
-		rt.UI.Show(img)
+		rt.UI.Sayf("Imported image %v", img.UUID)
 	}
 
 	return nil
 }
 
-func (rt *Runtime) CmdImages() error {
-	if len(rt.Args) != 0 {
-		return cli.ErrUsage
-	}
+func (rt *Runtime) listImages() error {
 	ii, err := rt.Host().Images.All()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	sort.Sort(ii)
-	if rt.Verbose {
-		rt.UI.Show(ii)
-	} else {
-		rt.UI.Summarize(ii)
+	if len(ii) == 0 {
+		rt.UI.Say("No images")
+		return nil
 	}
+	sort.Sort(ii)
+
+	rows := make([][]string, len(ii)+1)
+	rows[0] = []string{"UUID", "NAME", "LABELS"}
+	for i, img := range ii {
+		rows[i+1] = append([]string{img.UUID.String(), string(img.Manifest.Name)}, img.PrettyLabels()...)
+	}
+
+	rt.UI.Table(rows)
+
 	return nil
 }
 
-func (rt *Runtime) CmdContainers() error {
-	if len(rt.Args) != 0 {
-		return cli.ErrUsage
-	}
+func (rt *Runtime) listContainers() error {
 	cc, err := rt.Host().Containers.All()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	if rt.Verbose {
-		rt.UI.Show(cc)
-	} else {
-		rt.UI.Summarize(cc)
+	if len(cc) == 0 {
+		rt.UI.Say("No containers")
+		return nil
 	}
+	sort.Sort(cc)
+
+	rows := make([][]string, len(cc)+1)
+	rows[0] = []string{"UUID", "NAME"}
+	for i, c := range cc {
+		name := " (anonymous)"
+		if len(c.Manifest.Apps) > 0 {
+			name = " " + string(c.Manifest.Apps[0].Name)
+		}
+		rows[i+1] = []string{c.Manifest.UUID.String(), name}
+	}
+
+	rt.UI.Table(rows)
+
 	return nil
+}
+
+func (rt *Runtime) CmdList() error {
+	switch len(rt.Args) {
+	case 0:
+		return untilError(
+			func() error { return rt.UI.Section("Images", rt.listImages) },
+			func() error { return rt.UI.Section("Containers", rt.listContainers) },
+		)
+	case 1:
+		switch rt.Args[0] {
+		case "images":
+			return rt.listImages()
+		case "containers":
+			return rt.listContainers()
+		default:
+			return cli.ErrUsage
+		}
+	default:
+		return cli.ErrUsage
+	}
 }
 
 func (rt *Runtime) CmdClone() error {
@@ -117,7 +152,7 @@ func (rt *Runtime) CmdClone() error {
 	if c, err := h.Containers.Clone(img); err != nil {
 		return errors.Trace(err)
 	} else {
-		rt.UI.Show(c)
+		rt.UI.Sayf("Cloned container %v", c.Manifest.UUID)
 		return nil
 	}
 }
@@ -200,7 +235,7 @@ func (rt *Runtime) CmdBuild() error {
 		if img, err := h.Images.Get(rt.ImageName); err != nil {
 			return errors.Trace(err)
 		} else {
-			rt.UI.Sayf("Cloning a container from image %v...", img.Summary())
+			rt.UI.Sayf("Cloning a container from image %v...", img.UUID)
 			parentImage = img
 			if c, err := h.Containers.Clone(img); err != nil {
 				return errors.Trace(err)
@@ -214,7 +249,7 @@ func (rt *Runtime) CmdBuild() error {
 	// allow this in builders.
 	buildContainer.JailParameters["allow.chflags"] = "true"
 
-	rt.UI.Sayf("Working in container: %v", buildContainer.Summary())
+	rt.UI.Sayf("Working in container: %v", buildContainer.Manifest.UUID)
 
 	destroot := buildContainer.Dataset.Path("rootfs")
 
