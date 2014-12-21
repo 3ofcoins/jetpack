@@ -14,8 +14,11 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/go-zfs"
+
 type Image struct {
 	Dataset  *Dataset             `json:"-"`
+	Manager  *ImageManager        `json:"-"`
 	Manifest schema.ImageManifest `json:"-"`
 
 	UUID uuid.UUID `json:"-"`
@@ -25,9 +28,10 @@ type Image struct {
 	Timestamp time.Time
 }
 
-func NewImage(ds *Dataset) (*Image, error) {
+func NewImage(ds *Dataset, mgr *ImageManager) (*Image, error) {
 	img := &Image{
 		Dataset: ds,
+		Manager: mgr,
 		UUID:    uuid.Parse(path.Base(ds.Name)),
 	}
 	if img.UUID == nil {
@@ -36,8 +40,8 @@ func NewImage(ds *Dataset) (*Image, error) {
 	return img, nil
 }
 
-func GetImage(ds *Dataset) (img *Image, err error) {
-	img, err = NewImage(ds)
+func GetImage(ds *Dataset, mgr *ImageManager) (img *Image, err error) {
+	img, err = NewImage(ds, mgr)
 	if err != nil {
 		return
 	}
@@ -142,6 +146,10 @@ func (img *Image) LoadManifest() error {
 	return nil
 }
 
+func (img *Image) Destroy() error {
+	return img.Dataset.Destroy(zfs.DestroyRecursive)
+}
+
 type imageLabels []string
 
 func (lb imageLabels) String() string {
@@ -201,6 +209,26 @@ func (img *Image) GetApp() *types.App {
 	} else {
 		return ConsoleApp("root")
 	}
+}
+
+func (img *Image) Run(app *types.App, keep bool) (err1 error) {
+	c, err := img.Manager.Host.Containers.Clone(img)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !keep {
+		defer func() {
+			if err := c.Destroy(); err != nil {
+				err = errors.Trace(err)
+				if err1 != nil {
+					err1 = errors.Wrap(err1, err)
+				} else {
+					err1 = err
+				}
+			}
+		}()
+	}
+	return c.Run(app)
 }
 
 // For sorting

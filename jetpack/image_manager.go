@@ -5,6 +5,7 @@ import "github.com/juju/errors"
 
 type ImageManager struct {
 	Dataset *Dataset `json:"-"`
+	Host    *Host    `json:"-"`
 }
 
 func (imgr *ImageManager) All() (ImageSlice, error) {
@@ -13,7 +14,7 @@ func (imgr *ImageManager) All() (ImageSlice, error) {
 	} else {
 		rv := make([]*Image, len(dss))
 		for i, ds := range dss {
-			if img, err := GetImage(ds); err != nil {
+			if img, err := GetImage(ds, imgr); err != nil {
 				return nil, errors.Trace(err)
 			} else {
 				rv[i] = img
@@ -25,7 +26,7 @@ func (imgr *ImageManager) All() (ImageSlice, error) {
 
 func (imgr *ImageManager) Get(spec string) (*Image, error) {
 	if ds, err := imgr.Dataset.GetDataset(spec); err == nil {
-		return GetImage(ds)
+		return GetImage(ds, imgr)
 	}
 
 	// TODO: cache image list?
@@ -46,7 +47,7 @@ func (imgr *ImageManager) Create() (*Image, error) {
 	if ds, err := imgr.Dataset.CreateFilesystem(uuid.NewRandom().String(), nil); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		return NewImage(ds)
+		return NewImage(ds, imgr)
 	}
 }
 

@@ -44,6 +44,7 @@ func GetHost(rootDataset string) (*Host, error) {
 		}
 	}
 
+	h.Images.Host = &h
 	if ds, err := h.Dataset.GetDataset("images"); err != nil {
 		return nil, errors.Trace(err)
 	} else {

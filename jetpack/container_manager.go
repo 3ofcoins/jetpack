@@ -113,6 +113,7 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 		return nil, errors.Trace(err)
 	}
 
+	c.image = img
 	c.Manifest.Apps = []schema.RuntimeApp{img.RuntimeApp()}
 
 	err = c.Save()

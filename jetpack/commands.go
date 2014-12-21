@@ -11,9 +11,8 @@ import "strconv"
 import "time"
 
 import "github.com/appc/spec/schema"
+import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
-
-import "github.com/3ofcoins/go-zfs"
 
 import "github.com/3ofcoins/jetpack/cli"
 
@@ -157,8 +156,8 @@ func (rt *Runtime) byUUID(
 func (rt *Runtime) CmdDestroy() error {
 	for _, uuid := range rt.Args {
 		if err := rt.byUUID(uuid,
-			func(c *Container) error { return c.Dataset.Destroy(zfs.DestroyRecursive) },
-			func(i *Image) error { return i.Dataset.Destroy(zfs.DestroyRecursive) },
+			func(c *Container) error { return c.Destroy() },
+			func(i *Image) error { return i.Destroy() },
 		); err != nil {
 			return err
 		}
@@ -244,12 +243,15 @@ func (rt *Runtime) CmdRun() (err1 error) {
 	if len(rt.Args) != 1 {
 		return cli.ErrUsage
 	}
-
-	if c, err := rt.Host().Containers.Get(rt.Args[0]); err != nil {
-		return errors.Trace(err)
-	} else {
-		return errors.Trace(c.Run(nil))
+	var app *types.App
+	if rt.Console {
+		app = ConsoleApp("root")
 	}
+	return errors.Trace(
+		rt.byUUID(rt.Args[0],
+			func(c *Container) error { return errors.Trace(c.Run(app)) },
+			func(i *Image) error { return errors.Trace(i.Run(app, rt.Keep)) },
+		))
 }
 
 func (rt *Runtime) CmdPs() error {
@@ -384,7 +386,7 @@ func (rt *Runtime) CmdBuild() error {
 		}
 	}
 
-	img, err := NewImage(ds)
+	img, err := NewImage(ds, &(h.Images))
 	if err != nil {
 		return errors.Trace(err)
 	}

@@ -15,6 +15,8 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/go-zfs"
+
 var jailConfTmpl *template.Template
 
 func init() {
@@ -70,6 +72,8 @@ type Container struct {
 	Manager  *ContainerManager               `json:"-"`
 
 	JailParameters map[string]string
+
+	image *Image
 }
 
 func NewContainer(ds *Dataset, mgr *ContainerManager) *Container {
@@ -108,19 +112,19 @@ func (c *Container) Load() error {
 	}
 
 	if len(c.Manifest.Apps) == 0 {
-		return errors.New("No application set?")
+		return errors.Errorf("No application set?")
 	}
 
 	if len(c.Manifest.Apps) > 1 {
-		return errors.New("Multi-application containers are not supported (yet)")
+		return errors.Errorf("TODO: Multi-application containers are not supported")
 	}
 
 	if len(c.Manifest.Volumes) != 0 {
-		return errors.New("TODO: columes are not supported")
+		return errors.Errorf("TODO: volumes are not supported")
 	}
 
 	if len(c.Manifest.Isolators) != 0 || len(c.Manifest.Apps[0].Isolators) != 0 {
-		return errors.New("TODO: isolators are not supported")
+		return errors.Errorf("TODO: isolators are not supported")
 	}
 	return nil
 }
@@ -182,6 +186,10 @@ func (c *Container) Status() ContainerStatus {
 	}
 }
 
+func (c *Container) Destroy() error {
+	return c.Dataset.Destroy(zfs.DestroyRecursive)
+}
+
 func (c *Container) JailName() string {
 	return c.Manager.JailNamePrefix + c.Manifest.UUID.String()
 }
@@ -229,13 +237,20 @@ func (c *Container) RunJexec(user string, jcmd []string) error {
 }
 
 func (c *Container) GetImage() (*Image, error) {
-	hash := c.Manifest.Apps[0].ImageID.Val
-	if !strings.HasPrefix(hash, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000") {
-		return nil, errors.New("FIXME: sha512 is a real checksum, not wrapped UUID, and I am confused now.")
+	if c.image == nil {
+		hash := c.Manifest.Apps[0].ImageID.Val
+		if !strings.HasPrefix(hash, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000") {
+			return nil, errors.New("FIXME: sha512 is a real checksum, not wrapped UUID, and I am confused now.")
+		}
+		hash = hash[128-32:]
+		uuid := strings.Join([]string{hash[:8], hash[8:12], hash[12:16], hash[16:20], hash[20:]}, "-")
+		if img, err := c.Manager.Host.Images.Get(uuid); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			c.image = img
+		}
 	}
-	hash = hash[128-32:]
-	uuid := strings.Join([]string{hash[:8], hash[8:12], hash[12:16], hash[16:20], hash[20:]}, "-")
-	return c.Manager.Host.Images.Get(uuid)
+	return c.image, nil
 }
 
 func (c *Container) Run(app *types.App) (err1 error) {
@@ -245,9 +260,10 @@ func (c *Container) Run(app *types.App) (err1 error) {
 	defer func() {
 		if err := c.RunJail("-r"); err != nil {
 			if err1 != nil {
-				fmt.Fprintln(os.Stderr, errors.ErrorStack(err1))
+				err1 = errors.Wrap(err1, errors.Trace(err))
+			} else {
+				err1 = errors.Trace(err)
 			}
-			err1 = errors.Trace(err)
 		}
 	}()
 	return c.Stage2(app)
