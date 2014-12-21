@@ -4,6 +4,7 @@ import "io/ioutil"
 import "net"
 import "os"
 import "path"
+import "path/filepath"
 
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
@@ -106,6 +107,14 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 	ds, err := img.Clone("seal", path.Join(cmgr.Dataset.Name, uuid.NewRandom().String()))
 	if err != nil {
 		return nil, errors.Trace(err)
+	}
+
+	if img.Manifest.App != nil {
+		for _, mnt := range img.Manifest.App.MountPoints {
+			if err := os.MkdirAll(filepath.Join(ds.Mountpoint, mnt.Path), 0755); err != nil {
+				return nil, errors.Trace(err)
+			}
+		}
 	}
 
 	c, err := cmgr.newContainer(ds)

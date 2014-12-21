@@ -62,14 +62,7 @@ func (rt *Runtime) listImages() error {
 		return nil
 	}
 	sort.Sort(ii)
-
-	rows := make([][]string, len(ii)+1)
-	rows[0] = []string{"UUID", "NAME", "LABELS"}
-	for i, img := range ii {
-		rows[i+1] = append([]string{img.UUID.String(), string(img.Manifest.Name)}, img.PrettyLabels()...)
-	}
-
-	rt.UI.Table(rows)
+	rt.UI.Table(ii.Table())
 
 	return nil
 }
@@ -84,31 +77,7 @@ func (rt *Runtime) listContainers() error {
 		return nil
 	}
 	sort.Sort(cc)
-
-	rows := make([][]string, len(cc)+1)
-	rows[0] = []string{"UUID", "IMAGE", "APP", "IP", "STATUS"}
-	for i, c := range cc {
-		imageID := ""
-		if img, err := c.GetImage(); err != nil {
-			imageID = fmt.Sprintf("[%v]", err)
-		} else {
-			imageID = img.UUID.String()
-		}
-
-		appName := ""
-		if len(c.Manifest.Apps) > 0 {
-			appName = string(c.Manifest.Apps[0].Name)
-		}
-		rows[i+1] = []string{
-			c.Manifest.UUID.String(),
-			imageID,
-			appName,
-			c.GetAnnotation("ip-address", ""),
-			c.Status().String(),
-		}
-	}
-
-	rt.UI.Table(rows)
+	rt.UI.Table(cc.Table())
 
 	return nil
 }
@@ -166,26 +135,13 @@ func (rt *Runtime) CmdRm() error {
 }
 
 func (rt *Runtime) CmdInfo() error {
-	h := rt.Host()
 	switch len(rt.Args) {
 	case 0: // host info
-		rt.UI.Sayf("ZFS dataset: %v (%v)", h.Dataset.Name, h.Dataset.Mountpoint)
-		rt.UI.Sayf("IP range: %v on %v", h.Containers.AddressPool, h.Containers.Interface)
+		return errors.Trace(rt.Show(rt.Host()))
 	case 1: // UUID
 		return rt.byUUID(rt.Args[0],
-			func(c *Container) error {
-				rt.UI.Sayf("%#v", c)
-				rt.UI.Section("Image:", func() error {
-					if img, err := c.GetImage(); err != nil {
-						return err
-					} else {
-						rt.UI.Sayf("%#v", img)
-					}
-					return nil
-				})
-				return nil
-			},
-			func(i *Image) error { rt.UI.Sayf("%#v", i); return nil },
+			func(c *Container) error { return errors.Trace(rt.Show(c)) },
+			func(i *Image) error { return errors.Trace(rt.Show(i)) },
 		)
 	default:
 		return cli.ErrUsage

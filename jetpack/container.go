@@ -119,10 +119,6 @@ func (c *Container) Load() error {
 		return errors.Errorf("TODO: Multi-application containers are not supported")
 	}
 
-	if len(c.Manifest.Volumes) != 0 {
-		return errors.Errorf("TODO: volumes are not supported")
-	}
-
 	if len(c.Manifest.Isolators) != 0 || len(c.Manifest.Apps[0].Isolators) != 0 {
 		return errors.Errorf("TODO: isolators are not supported")
 	}
@@ -308,8 +304,34 @@ func (c *Container) Stage2(app *types.App) error {
 
 type ContainerSlice []*Container
 
-func (ii ContainerSlice) Len() int { return len(ii) }
-func (ii ContainerSlice) Less(i, j int) bool {
-	return bytes.Compare(ii[i].Manifest.UUID[:], ii[j].Manifest.UUID[:]) < 0
+func (cc ContainerSlice) Len() int { return len(cc) }
+func (cc ContainerSlice) Less(i, j int) bool {
+	return bytes.Compare(cc[i].Manifest.UUID[:], cc[j].Manifest.UUID[:]) < 0
 }
-func (ii ContainerSlice) Swap(i, j int) { ii[i], ii[j] = ii[j], ii[i] }
+func (cc ContainerSlice) Swap(i, j int) { cc[i], cc[j] = cc[j], cc[i] }
+
+func (cc ContainerSlice) Table() [][]string {
+	rows := make([][]string, len(cc)+1)
+	rows[0] = []string{"UUID", "IMAGE", "APP", "IP", "STATUS"}
+	for i, c := range cc {
+		imageID := ""
+		if img, err := c.GetImage(); err != nil {
+			imageID = fmt.Sprintf("[%v]", err)
+		} else {
+			imageID = img.UUID.String()
+		}
+
+		appName := ""
+		if len(c.Manifest.Apps) > 0 {
+			appName = string(c.Manifest.Apps[0].Name)
+		}
+		rows[i+1] = []string{
+			c.Manifest.UUID.String(),
+			imageID,
+			appName,
+			c.GetAnnotation("ip-address", ""),
+			c.Status().String(),
+		}
+	}
+	return rows
+}

@@ -76,9 +76,6 @@ func (img *Image) Load() error {
 		if len(app.EventHandlers) != 0 {
 			return errors.New("TODO: event handlers are not supported")
 		}
-		if len(app.MountPoints) != 0 {
-			return errors.New("TODO: mount points are not supported")
-		}
 		if len(app.Ports) != 0 {
 			return errors.New("TODO: ports are not supported")
 		}
@@ -144,6 +141,20 @@ func (img *Image) LoadManifest() error {
 	}
 
 	return nil
+}
+
+func (img *Image) Containers() (children ContainerSlice, _ error) {
+	if containers, err := img.Manager.Host.Containers.All(); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		snap := img.Dataset.Name + "@seal"
+		for _, container := range containers {
+			if container.Dataset.Origin == snap {
+				children = append(children, container)
+			}
+		}
+		return
+	}
 }
 
 func (img *Image) Destroy() error {
@@ -237,3 +248,12 @@ type ImageSlice []*Image
 func (ii ImageSlice) Len() int           { return len(ii) }
 func (ii ImageSlice) Less(i, j int) bool { return bytes.Compare(ii[i].UUID, ii[j].UUID) < 0 }
 func (ii ImageSlice) Swap(i, j int)      { ii[i], ii[j] = ii[j], ii[i] }
+
+func (ii ImageSlice) Table() [][]string {
+	rows := make([][]string, len(ii)+1)
+	rows[0] = []string{"UUID", "NAME", "LABELS"}
+	for i, img := range ii {
+		rows[i+1] = append([]string{img.UUID.String(), string(img.Manifest.Name)}, img.PrettyLabels()...)
+	}
+	return rows
+}

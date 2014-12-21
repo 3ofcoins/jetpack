@@ -1,7 +1,7 @@
 {
   "name": "example/showenv",
   "labels": [
-    { "name": "version", "val": "1.0.0" }
+    { "name": "version", "val": "1.1.1" }
   ],
   "app": {
     "exec": [
@@ -12,6 +12,13 @@
       "quux"
     ],
     "user": "games",
-    "group": "guest"
+    "group": "guest",
+    "mountPoints": [
+      {"name": "data", "path": "/opt/data"}
+    ],
+    "environment": {
+      "FOO": "bar",
+      "BAZ": "quux"
+    }
   }
 }

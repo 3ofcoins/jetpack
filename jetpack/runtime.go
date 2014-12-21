@@ -62,6 +62,10 @@ func (rt *Runtime) Host() *Host {
 	return rt.host
 }
 
+func (rt *Runtime) Show(obj ...interface{}) error {
+	return Show(rt.UI, obj...)
+}
+
 func NewRuntime(name string) *Runtime {
 	rt := &Runtime{
 		Cli: cli.NewCli(name),

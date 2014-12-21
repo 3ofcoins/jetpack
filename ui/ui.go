@@ -37,7 +37,7 @@ func (ui *UI) IsIndented() bool {
 }
 
 func (ui *UI) Section(name string, inner func() error) error {
-	ui.Sayf("\n%v:", name)
+	ui.Sayf("%v:", name)
 	ui.Indent("  ")
 	defer ui.Dedent()
 	return inner()

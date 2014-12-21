@@ -16,4 +16,4 @@ cat <<EOF
 
 Files:
 EOF
-ls -l
+ls -la . /opt/data/
