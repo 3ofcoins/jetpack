@@ -87,6 +87,21 @@ func (c *Container) Load() error {
 		return errors.Trace(err)
 	}
 
+	if len(c.Manifest.Apps) == 0 {
+		return errors.New("No application set?")
+	}
+
+	if len(c.Manifest.Apps) > 1 {
+		return errors.New("Multi-application containers are not supported (yet)")
+	}
+
+	if len(c.Manifest.Volumes) != 0 {
+		return errors.New("TODO: columes are not supported")
+	}
+
+	if len(c.Manifest.Isolators) != 0 || len(c.Manifest.Apps[0]) != 0 {
+		return errors.New("TODO: isolators are not supported")
+	}
 	return nil
 }
 
