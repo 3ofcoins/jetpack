@@ -153,7 +153,7 @@ func (rt *Runtime) byUUID(
 	return errors.Errorf("Not found: %#v", uuid)
 }
 
-func (rt *Runtime) CmdDestroy() error {
+func (rt *Runtime) CmdRm() error {
 	for _, uuid := range rt.Args {
 		if err := rt.byUUID(uuid,
 			func(c *Container) error { return c.Destroy() },
@@ -192,51 +192,6 @@ func (rt *Runtime) CmdInfo() error {
 	}
 
 	return nil
-}
-
-func (rt *Runtime) CmdClone() error {
-	if len(rt.Args) != 1 {
-		return cli.ErrUsage
-	}
-	h := rt.Host()
-
-	img, err := h.Images.Get(rt.Args[0])
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if img == nil {
-		return errors.Errorf("Image not found: %v", rt.Args[0])
-	}
-
-	if c, err := h.Containers.Clone(img); err != nil {
-		return errors.Trace(err)
-	} else {
-		rt.UI.Sayf("Cloned container %v", c.Manifest.UUID)
-		return nil
-	}
-}
-
-func (rt *Runtime) CmdRunJail() error {
-	if len(rt.Args) != 1 {
-		return cli.ErrUsage
-	}
-	h := rt.Host()
-	c, err := h.Containers.Get(rt.Args[0])
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	var op string
-	switch rt.Command {
-	case "start":
-		op = "-c"
-	case "stop":
-		op = "-r"
-	default:
-		return errors.Errorf("Unrecognized command %#v", rt.Command)
-	}
-
-	return errors.Trace(c.RunJail(op))
 }
 
 func (rt *Runtime) CmdRun() (err1 error) {

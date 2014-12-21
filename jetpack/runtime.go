@@ -85,13 +85,10 @@ func NewRuntime(name string) *Runtime {
 	// Commands
 	rt.AddCommand("build", "[OPTIONS] PATH COMMAND...", rt.CmdBuild)
 	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
-	rt.AddCommand("destroy", "UUID... -- destroy images or containers", rt.CmdDestroy)
+	rt.AddCommand("rm", "UUID ... -- destroy images or containers", rt.CmdRm)
 	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
 	rt.AddCommand("list", "[images|containers] -- list images and/or containers", rt.CmdList)
-	rt.AddCommand("clone", "IMAGE -- clone a container from an image", rt.CmdClone)
-	rt.AddCommand("start", "CONTAINER -- start a container", rt.CmdRunJail)
-	rt.AddCommand("stop", "CONTAINER -- stop a container", rt.CmdRunJail)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
 	rt.AddCommand("run", "[OPTIONS] UUID -- run container or image", rt.CmdRun)
 
