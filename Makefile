@@ -2,6 +2,9 @@ all: bin/jetpack
 
 .PHONY: bin/jetpack clean distclean sys.destroy sys.init sys.recycle
 
+CC=clang
+.export CC
+
 bin/jetpack:
 	go build -o $@
 

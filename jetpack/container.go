@@ -1,5 +1,7 @@
 package jetpack
 
+import "fmt"
+
 import "bytes"
 import "encoding/json"
 import "io/ioutil"
@@ -8,6 +10,7 @@ import "os"
 import "os/exec"
 import "strconv"
 import "strings"
+import "syscall"
 import "text/template"
 
 import "github.com/appc/spec/schema"
@@ -22,8 +25,6 @@ func init() {
   path = "{{.Dataset.Mountpoint}}/rootfs";
   devfs_ruleset="4";
   exec.clean="true";
-  # exec.start="/bin/sh /etc/rc";
-  # exec.stop="/bin/sh /etc/rc.shutdown";
   host.hostname="{{(.GetAnnotation "hostname" .Manifest.UUID.String)}}";
   host.hostuuid="{{.Manifest.UUID}}";
   interface="{{.Manager.Interface}}";
@@ -99,7 +100,7 @@ func (c *Container) Load() error {
 		return errors.New("TODO: columes are not supported")
 	}
 
-	if len(c.Manifest.Isolators) != 0 || len(c.Manifest.Apps[0]) != 0 {
+	if len(c.Manifest.Isolators) != 0 || len(c.Manifest.Apps[0].Isolators) != 0 {
 		return errors.New("TODO: isolators are not supported")
 	}
 	return nil
@@ -198,6 +199,101 @@ func (c *Container) RunJexec(user string, jcmd []string) error {
 	args = append(args, jcmd...)
 
 	return runCommand("jexec", args...)
+}
+
+func (c *Container) GetImage() (*Image, error) {
+	hash := c.Manifest.Apps[0].ImageID.Val
+	if !strings.HasPrefix(hash, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000") {
+		return nil, errors.New("FIXME: sha512 is a real checksum, not wrapped UUID, and I am confused now.")
+	}
+	hash = hash[128-32:]
+	uuid := strings.Join([]string{hash[:8], hash[8:12], hash[12:16], hash[16:20], hash[20:]}, "-")
+	return c.Manager.Host.Images.Get(uuid)
+}
+
+func (c *Container) Stage2(app *types.App) error {
+	img, err := c.GetImage()
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	jid := c.Jid()
+	if jid == 0 {
+		return errors.New("Not started")
+	}
+
+	if err := JailAttach(jid); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := os.Chdir("/"); err != nil {
+		return errors.Trace(err)
+	}
+
+	if app == nil {
+		app = img.Manifest.App
+	}
+
+	if app == nil {
+		app = ConsoleApp("root")
+	}
+
+	username := app.User
+	if username == "" {
+		username = "root"
+	}
+
+	user, err := getUserData(username)
+	if err != nil {
+		return errors.Trace(err)
+	} else if user == nil {
+		return errors.Errorf("User not found: %s", username)
+	}
+
+	var gid int
+	if app.Group == "" {
+		gid = user.gid
+	} else {
+		agid, err := getGid(app.Group)
+		if err != nil {
+			return errors.Trace(err)
+		} else if agid < 0 {
+			return errors.Errorf("Group not found: %s", app.Group)
+		}
+		gid = agid
+	}
+
+	os.Clearenv()
+
+	// Put environment in a map to avoid duplicates when App.Environment
+	// overrides one of the default variables
+
+	env := map[string]string{
+		"PATH":    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"USER":    user.username,
+		"LOGNAME": user.username,
+		"HOME":    user.home,
+		"SHELL":   user.shell,
+	}
+
+	for k, v := range app.Environment {
+		env[k] = v
+	}
+
+	env["AC_APP_NAME"] = string(img.Manifest.Name)
+	env["AC_METADATA_URL"] = ""
+
+	envv := make([]string, 0, len(env))
+	for k, v := range env {
+		envv = append(envv, k+"="+v)
+	}
+
+	return errors.Trace(untilError(
+		func() error { return syscall.Setgroups([]int{}) },
+		func() error { return syscall.Setregid(gid, gid) },
+		func() error { return syscall.Setreuid(user.uid, user.uid) },
+		func() error { return syscall.Exec(app.Exec[0], app.Exec, envv) },
+	))
 }
 
 type ContainerSlice []*Container

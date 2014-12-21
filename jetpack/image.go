@@ -177,14 +177,19 @@ func (img *Image) Clone(snapshot, dest string) (*Dataset, error) {
 }
 
 func (img *Image) RuntimeApp() schema.RuntimeApp {
-	app := schema.RuntimeApp{Name: img.Manifest.Name}
+	app := schema.RuntimeApp{
+		Name: img.Manifest.Name,
+		Annotations: map[types.ACName]string{
+			"jetpack/image-uuid": img.UUID.String(),
+		},
+	}
 	if img.Hash != nil {
 		app.ImageID = *img.Hash
 	} else {
-		// TODO: we need to store ACI tarballs to have an image ID on built images
+		// TODO: do we really need to store ACI tarballs to have an image ID on built images?
 		app.ImageID.Set(fmt.Sprintf(
-			"sha512-0000000000000000000000000000000000000000000000000000000000000000%x",
-			img.UUID,
+			"sha512-000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000%032x",
+			[]byte(img.UUID),
 		))
 	}
 	return app

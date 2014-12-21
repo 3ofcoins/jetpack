@@ -1,0 +1,17 @@
+{
+  "name": "example/showenv",
+  "labels": [
+    { "name": "version", "val": "1.0.0" }
+  ],
+  "app": {
+    "exec": [
+      "/usr/local/bin/showenv",
+      "foo",
+      "bar",
+      "baz",
+      "quux"
+    ],
+    "user": "games",
+    "group": "guest"
+  }
+}

@@ -12,6 +12,7 @@ import "github.com/juju/errors"
 
 type ContainerManager struct {
 	Dataset *Dataset `json:"-"`
+	Host    *Host    `json:"-"`
 
 	Interface      string
 	AddressPool    string

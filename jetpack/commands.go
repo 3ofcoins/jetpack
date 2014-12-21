@@ -17,21 +17,6 @@ import "github.com/3ofcoins/go-zfs"
 
 import "github.com/3ofcoins/jetpack/cli"
 
-func (rt *Runtime) CmdInfo() error {
-	h := rt.Host()
-	switch len(rt.Args) {
-	case 0: // host info
-		rt.UI.Sayf("ZFS dataset: %v (%v)", h.Dataset.Name, h.Dataset.Mountpoint)
-		rt.UI.Sayf("IP range: %v on %v", h.Containers.AddressPool, h.Containers.Interface)
-	case 1: // UUID
-		rt.UI.Say("FIXME")
-	default:
-		return cli.ErrUsage
-	}
-
-	return nil
-}
-
 func (rt *Runtime) CmdInit() error {
 	mountpoint := ""
 	switch len(rt.Args) {
@@ -168,6 +153,35 @@ func (rt *Runtime) CmdDestroy() error {
 	return nil
 }
 
+func (rt *Runtime) CmdInfo() error {
+	h := rt.Host()
+	switch len(rt.Args) {
+	case 0: // host info
+		rt.UI.Sayf("ZFS dataset: %v (%v)", h.Dataset.Name, h.Dataset.Mountpoint)
+		rt.UI.Sayf("IP range: %v on %v", h.Containers.AddressPool, h.Containers.Interface)
+	case 1: // UUID
+		return rt.byUUID(rt.Args[0],
+			func(c *Container) error {
+				rt.UI.Sayf("%#v", c)
+				rt.UI.Section("Image:", func() error {
+					if img, err := c.GetImage(); err != nil {
+						return err
+					} else {
+						rt.UI.Sayf("%#v", img)
+					}
+					return nil
+				})
+				return nil
+			},
+			func(i *Image) error { rt.UI.Sayf("%#v", i); return nil },
+		)
+	default:
+		return cli.ErrUsage
+	}
+
+	return nil
+}
+
 func (rt *Runtime) CmdClone() error {
 	if len(rt.Args) != 1 {
 		return cli.ErrUsage
@@ -249,6 +263,14 @@ func (rt *Runtime) CmdPs() error {
 	psArgs := []string{"-J", strconv.Itoa(jid)}
 	psArgs = append(psArgs, rt.Args...)
 	return runCommand("ps", psArgs...)
+}
+
+func (rt *Runtime) CmdStage2() error {
+	c, err := rt.Host().Containers.Get(rt.Shift())
+	if err != nil {
+		return err
+	}
+	return c.Stage2()
 }
 
 func (rt *Runtime) CmdBuild() error {

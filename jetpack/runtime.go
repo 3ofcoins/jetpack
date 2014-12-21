@@ -93,6 +93,7 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("stop", "CONTAINER -- stop a container", rt.CmdRunJail)
 	rt.AddCommand("console", "[-u=USER] CONTAINER [COMMAND...] -- execute COMMAND or login shell in CONTAINER", rt.CmdConsole)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
+	rt.AddCommand(".stage2", "UUID -- run container's stage2", rt.CmdStage2)
 
 	// Switches
 	rt.Commands["build"].StringVar(&rt.ImageName, "from", "", "Build from an existing image")
