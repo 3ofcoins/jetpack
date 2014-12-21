@@ -13,6 +13,8 @@ import "time"
 import "github.com/appc/spec/schema"
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/go-zfs"
+
 import "github.com/3ofcoins/jetpack/cli"
 
 func (rt *Runtime) CmdInfo() error {
@@ -133,6 +135,37 @@ func (rt *Runtime) CmdList() error {
 	default:
 		return cli.ErrUsage
 	}
+}
+
+func (rt *Runtime) byUUID(
+	uuid string,
+	handleContainer func(*Container) error,
+	handleImage func(*Image) error,
+) error {
+	h := rt.Host()
+
+	// TODO: distinguish "not found" from actual errors
+	if c, err := h.Containers.Get(uuid); err == nil {
+		return handleContainer(c)
+	}
+
+	if i, err := h.Images.Get(uuid); err == nil {
+		return handleImage(i)
+	}
+
+	return errors.Errorf("Not found: %#v", uuid)
+}
+
+func (rt *Runtime) CmdDestroy() error {
+	for _, uuid := range rt.Args {
+		if err := rt.byUUID(uuid,
+			func(c *Container) error { return c.Dataset.Destroy(zfs.DestroyRecursive) },
+			func(i *Image) error { return i.Dataset.Destroy(zfs.DestroyRecursive) },
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (rt *Runtime) CmdClone() error {

@@ -84,6 +84,7 @@ func NewRuntime(name string) *Runtime {
 	// Commands
 	rt.AddCommand("build", "[OPTIONS] PATH COMMAND...", rt.CmdBuild)
 	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
+	rt.AddCommand("destroy", "UUID... -- destroy images or containers", rt.CmdDestroy)
 	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
 	rt.AddCommand("list", "[images|containers] -- list images and/or containers", rt.CmdList)
