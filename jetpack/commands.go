@@ -87,13 +87,26 @@ func (rt *Runtime) listContainers() error {
 	sort.Sort(cc)
 
 	rows := make([][]string, len(cc)+1)
-	rows[0] = []string{"UUID", "NAME"}
+	rows[0] = []string{"UUID", "IMAGE", "APP", "IP", "STATUS"}
 	for i, c := range cc {
-		name := " (anonymous)"
-		if len(c.Manifest.Apps) > 0 {
-			name = " " + string(c.Manifest.Apps[0].Name)
+		imageID := ""
+		if img, err := c.GetImage(); err != nil {
+			imageID = fmt.Sprintf("[%v]", err)
+		} else {
+			imageID = img.UUID.String()
 		}
-		rows[i+1] = []string{c.Manifest.UUID.String(), name}
+
+		appName := ""
+		if len(c.Manifest.Apps) > 0 {
+			appName = string(c.Manifest.Apps[0].Name)
+		}
+		rows[i+1] = []string{
+			c.Manifest.UUID.String(),
+			imageID,
+			appName,
+			c.GetAnnotation("ip-address", ""),
+			c.Status().String(),
+		}
 	}
 
 	rt.UI.Table(rows)

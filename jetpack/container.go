@@ -43,6 +43,27 @@ func init() {
 
 var ErrContainerIsEmpty = errors.New("Container is empty")
 
+type ContainerStatus uint
+
+const (
+	ContainerStatusInvalid ContainerStatus = iota
+	ContainerStatusRunning
+	ContainerStatusStopped
+)
+
+var containerStatusNames = []string{
+	ContainerStatusInvalid: "invalid",
+	ContainerStatusRunning: "running",
+	ContainerStatusStopped: "stopped",
+}
+
+func (cs ContainerStatus) String() string {
+	if int(cs) < len(containerStatusNames) {
+		return containerStatusNames[cs]
+	}
+	return fmt.Sprintf("ContainerStatus[%d]", cs)
+}
+
 type Container struct {
 	Dataset  *Dataset                        `json:"-"`
 	Manifest schema.ContainerRuntimeManifest `json:"-"`
@@ -150,6 +171,14 @@ func (c *Container) GetAnnotation(key, defval string) string {
 		return val
 	} else {
 		return defval
+	}
+}
+
+func (c *Container) Status() ContainerStatus {
+	if c.Jid() > 0 {
+		return ContainerStatusRunning
+	} else {
+		return ContainerStatusStopped
 	}
 }
 
