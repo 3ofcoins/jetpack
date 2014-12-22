@@ -95,6 +95,9 @@ func main() {
 		panic(err)
 	}
 
+	// FIXME: setusercontext()?
+	// See https://github.com/freebsd/freebsd/blob/master/usr.sbin/jexec/jexec.c#L123-L126
+
 	if err := syscall.Exec(Exec[0], Exec, envv); err != nil {
 		panic(err)
 	}
