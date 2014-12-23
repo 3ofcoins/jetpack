@@ -110,6 +110,18 @@ images:
 	}
 }
 
+func (imgr *ImageManager) Find1(query string) (*Image, error) {
+	if imgs, err := imgr.Find(query); err != nil {
+		return nil, err
+	} else {
+		if len(imgs) == 1 {
+			return imgs[0], nil
+		} else {
+			return nil, ErrManyFound
+		}
+	}
+}
+
 func (imgr *ImageManager) Get(spec string) (*Image, error) {
 	// TODO: by uuid.UUID only
 	if ds, err := imgr.Dataset.GetDataset(spec); err == nil {

@@ -21,7 +21,6 @@ type Runtime struct {
 	// Per-command switches
 	ImageName     string
 	Tarball       string
-	Manifest      string
 	Verbose       bool
 	User          string
 	Console, Keep bool
@@ -113,7 +112,6 @@ func NewRuntime(name string) *Runtime {
 	// Switches
 	rt.Commands["build"].StringVar(&rt.ImageName, "from", "", "Build from an existing image")
 	rt.Commands["build"].StringVar(&rt.Tarball, "tarball", "", "Unpack a tarball into filesystem")
-	rt.Commands["build"].StringVar(&rt.Manifest, "manifest", "manifest.json", "Image manifest file")
 
 	rt.Commands["run"].BoolVar(&rt.Console, "console", false, "Run console, not image's app")
 	rt.Commands["run"].BoolVar(&rt.Keep, "keep", false, "Keep container after command finishes")

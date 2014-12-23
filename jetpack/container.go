@@ -163,9 +163,9 @@ func (c *Container) Prep() error {
 		return errors.Trace(err)
 	}
 
-	if app := img.Manifest.App; app != nil && len(app.MountPoints) > 0 {
-		fstab := make([]string, len(app.MountPoints))
-		for i, mnt := range app.MountPoints {
+	if img != nil && img.Manifest.App != nil && len(img.Manifest.App.MountPoints) > 0 {
+		fstab := make([]string, len(img.Manifest.App.MountPoints))
+		for i, mnt := range img.Manifest.App.MountPoints {
 			if vol := c.findVolume(mnt.Name); vol == nil {
 				return errors.Errorf("No volume found for %v", mnt.Name)
 			} else {
@@ -272,6 +272,10 @@ func (c *Container) RunJexec(user string, jcmd []string) error {
 
 func (c *Container) GetImage() (*Image, error) {
 	if c.image == nil {
+		if len(c.Manifest.Apps) == 0 {
+			// FIXME: Empty container (another argument for import/build split)
+			return nil, nil
+		}
 		hash := c.Manifest.Apps[0].ImageID.Val
 		if !strings.HasPrefix(hash, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000") {
 			return nil, errors.New("FIXME: sha512 is a real checksum, not wrapped UUID, and I am confused now.")
@@ -323,11 +327,17 @@ func (c *Container) Stage2(app *types.App) error {
 		user = "root"
 	}
 
+	// FIXME: no-image app
+	name := fmt.Sprintf(".%v", c.Manifest.UUID)
+	if img != nil {
+		name = string(img.Manifest.Name)
+	}
+
 	args := []string{
 		"-jid", strconv.Itoa(jid),
 		"-user", user,
 		"-group", app.Group,
-		"-name", string(img.Manifest.Name),
+		"-name", name,
 	}
 
 	for k, v := range app.Environment {
