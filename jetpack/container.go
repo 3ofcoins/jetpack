@@ -146,24 +146,62 @@ func (c *Container) Save() error {
 	return errors.Trace(ioutil.WriteFile(c.Dataset.Path("manifest"), manifestJSON, 0400))
 }
 
+func (c *Container) findVolume(name types.ACName) *types.Volume {
+	for _, vol := range c.Manifest.Volumes {
+		for _, fulfills := range vol.Fulfills {
+			if fulfills == name {
+				return &vol
+			}
+		}
+	}
+	return nil
+}
+
 func (c *Container) Prep() error {
+	img, err := c.GetImage()
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if app := img.Manifest.App; app != nil && len(app.MountPoints) > 0 {
+		fstab := make([]string, len(app.MountPoints))
+		for i, mnt := range app.MountPoints {
+			if vol := c.findVolume(mnt.Name); vol == nil {
+				return errors.Errorf("No volume found for %v", mnt.Name)
+			} else {
+				opts := "rw"
+				if vol.ReadOnly {
+					opts = "ro"
+				}
+				fstab[i] = fmt.Sprintf("%v %v nullfs %v 0 0\n",
+					vol.Source,
+					filepath.Join(c.Dataset.Mountpoint, "rootfs", mnt.Path),
+					opts,
+				)
+			}
+		}
+		fstabPath := c.Dataset.Path("fstab")
+		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
+			return errors.Trace(err)
+		}
+		c.JailParameters["mount.fstab"] = fstabPath
+	}
+
+	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+		return errors.Trace(err)
+	} else {
+		if err := ioutil.WriteFile(filepath.Join(c.Dataset.Mountpoint, "rootfs/etc/resolv.conf"), bb, 0644); err != nil {
+			return errors.Trace(err)
+		}
+	}
+
 	jc, err := os.OpenFile(c.Dataset.Path("jail.conf"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	defer jc.Close()
 
-	err = jailConfTmpl.Execute(jc, c)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
-		return errors.Trace(err)
-	} else {
-		return errors.Trace(
-			ioutil.WriteFile(filepath.Join(c.Dataset.Mountpoint, "rootfs/etc/resolv.conf"), bb, 0644))
-	}
+	return errors.Trace(jailConfTmpl.Execute(jc, c))
 }
 
 func (c *Container) GetAnnotation(key, defval string) string {

@@ -127,7 +127,7 @@ func (imgr *ImageManager) Get(spec string) (*Image, error) {
 			return img, nil
 		}
 	}
-	return nil, nil
+	return nil, ErrNotFound
 }
 
 func (imgr *ImageManager) Create() (*Image, error) {
