@@ -1,22 +1,22 @@
-BASE_URL = ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/base.txz
-BASE_SHA256 = 2b028a894d25711ad496762622a52d74b1e32ee04693ad1cf056e3ddcdc23975
+RELEASE_LABELS = 
 JETPACK = jetpack
+
+build_params =
+.ifdef http_proxy
+build_params += http_proxy=$(http_proxy)
+.endif
 
 all: prepare
 	$(JETPACK) build \
-	    -tarball=base.txz \
+	    freebsd-base/release$(RELEASE_LABELS) \
 	    . \
-	    make build
+	    make build $(build_params)
 
 clean:
-	rm -vf base.txz entropy manifest.json
+	rm -vf entropy manifest.json
 
-prepare: base.txz
-	sha256 -c $(BASE_SHA256) base.txz
+prepare:
 	dd if=/dev/random of=entropy bs=4096 count=1
-
-base.txz:
-	fetch -o $@ $(BASE_URL)
 
 build:
 	sed -i~ 's|^Components.*|Components world/base|' /etc/freebsd-update.conf

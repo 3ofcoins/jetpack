@@ -1,0 +1,9 @@
+
+{
+  "name": "freebsd-base/release",
+  "labels": [
+    { "name": "version", "val": "10.1" },
+    { "name": "os", "val": "freebsd" },
+    { "name": "arch", "val": "amd64" }
+  ]
+}

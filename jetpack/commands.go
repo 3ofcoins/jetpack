@@ -27,21 +27,21 @@ func (rt *Runtime) CmdInit() error {
 }
 
 func (rt *Runtime) CmdImport() error {
-	if len(rt.Args) != 1 {
+	if narg := len(rt.Args); narg == 0 || narg > 2 {
 		return cli.ErrUsage
 	}
 
-	aciAddr := rt.Args[0]
-
-	rt.UI.Sayf("Importing image from %s", aciAddr)
-	img, err := rt.Host().Images.Import(aciAddr)
-	if err != nil {
-		return errors.Trace(err)
-	} else {
-		rt.UI.Sayf("Imported image %v", img.UUID)
+	imageUri := rt.Args[0]
+	manifestUri := ""
+	if len(rt.Args) == 2 {
+		manifestUri = rt.Args[1]
 	}
 
-	return nil
+	if img, err := rt.Host().Images.Import(imageUri, manifestUri); err != nil {
+		return errors.Trace(err)
+	} else {
+		return errors.Trace(rt.Show(img))
+	}
 }
 
 func (rt *Runtime) CmdImages() error {
@@ -158,21 +158,20 @@ func (rt *Runtime) CmdPs() error {
 }
 
 func (rt *Runtime) CmdBuild() error {
-	var parentImage *Image
-	var h = rt.Host()
-	var buildDir = rt.Shift()
-
-	if rt.ImageName != "" {
-		if img, err := h.Images.Find1(rt.ImageName); err != nil {
-			return errors.Trace(err)
-		} else {
-			parentImage = img
-		}
+	if len(rt.Args) < 3 {
+		return cli.ErrUsage
 	}
 
-	if img, err := h.Build(parentImage, rt.Tarball, buildDir, rt.Args); err != nil {
+	h := rt.Host()
+
+	if parentImg, err := h.Images.Find1(rt.Shift()); err != nil {
 		return errors.Trace(err)
 	} else {
-		return errors.Trace(rt.Show(img))
+		buildDir := rt.Shift()
+		if childImg, err := parentImg.Build(buildDir, rt.Args); err != nil {
+			return errors.Trace(err)
+		} else {
+			return errors.Trace(rt.Show(childImg))
+		}
 	}
 }

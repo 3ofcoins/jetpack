@@ -19,8 +19,6 @@ type Runtime struct {
 	ZFSRoot string
 
 	// Per-command switches
-	ImageName     string
-	Tarball       string
 	Verbose       bool
 	User          string
 	Console, Keep bool
@@ -99,10 +97,10 @@ func NewRuntime(name string) *Runtime {
 	rt.StringVar(&rt.ZFSRoot, "root", rt.ZFSRoot, "Root ZFS filesystem")
 
 	// Commands
-	rt.AddCommand("build", "[OPTIONS] PATH COMMAND...", rt.CmdBuild)
+	rt.AddCommand("build", "IMAGE BUILD-DIR COMMAND...", rt.CmdBuild)
 	rt.AddCommand("destroy", "UUID ... -- destroy images or containers", rt.CmdDestroy)
 	rt.AddCommand("images", "[QUERY] -- list images", rt.CmdImages)
-	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
+	rt.AddCommand("import", "URI_OR_PATH [MANIFEST] -- import an image from ACI or rootfs tarball", rt.CmdImport)
 	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
 	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
 	rt.AddCommand("list", "-- list containers", rt.CmdList)
@@ -110,8 +108,6 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("run", "[OPTIONS] UUID -- run container or image", rt.CmdRun)
 
 	// Switches
-	rt.Commands["build"].StringVar(&rt.ImageName, "from", "", "Build from an existing image")
-	rt.Commands["build"].StringVar(&rt.Tarball, "tarball", "", "Unpack a tarball into filesystem")
 
 	rt.Commands["run"].BoolVar(&rt.Console, "console", false, "Run console, not image's app")
 	rt.Commands["run"].BoolVar(&rt.Keep, "keep", false, "Keep container after command finishes")

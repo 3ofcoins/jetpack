@@ -1,9 +1,15 @@
 package jetpack
 
-import "strings"
+import "encoding/json"
+import "io/ioutil"
 import "net/url"
+import "os"
+import "os/exec"
+import "strings"
+import "time"
 
 import "code.google.com/p/go-uuid/uuid"
+import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
@@ -150,14 +156,73 @@ func (imgr *ImageManager) Create() (*Image, error) {
 	}
 }
 
-func (imgr *ImageManager) Import(uri string) (*Image, error) {
-	if img, err := imgr.Create(); err != nil {
+func (imgr *ImageManager) Import(imageUri, manifestUri string) (*Image, error) {
+	img, err := imgr.Create()
+	if err != nil {
 		return nil, errors.Trace(err)
-	} else {
-		if err := img.Import(uri); err != nil {
+	}
+	img.Origin = imageUri
+	img.Timestamp = time.Now()
+
+	if manifestUri == "" {
+		if hash, err := UnpackImage(imageUri, img.Dataset.Mountpoint); err != nil {
 			return nil, errors.Trace(err)
 		} else {
-			return img, nil
+			img.Hash = &hash
+		}
+	} else {
+		// FIXME: does this really belong here, or rather in an Image method?
+
+		rootfsPath := img.Dataset.Path("rootfs")
+		if err := os.Mkdir(rootfsPath, 0755); err != nil {
+			return nil, errors.Trace(err)
+		}
+		if hash, err := UnpackImage(imageUri, rootfsPath); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			img.Hash = &hash
+		}
+
+		// Read the provided manifest
+		fetchCmd := exec.Command("fetch", "-o", "-", manifestUri)
+		fetchCmd.Stderr = os.Stderr
+		manifestBytes, err := fetchCmd.Output()
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		// Construct final manifest
+		// FIXME: this may be somehow merged with build, and final manifest should be validated
+		manifest := map[string]interface{}{
+			"acKind":    "ImageManifest",
+			"acVersion": schema.AppContainerVersion,
+		}
+
+		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if manifest["annotations"] == nil {
+			manifest["annotations"] = make(map[string]interface{})
+		}
+
+		annotations := manifest["annotations"].(map[string]interface{})
+		if _, ok := annotations["timestamp"]; !ok {
+			annotations["timestamp"] = time.Now()
+		}
+
+		if manifestBytes, err := json.Marshal(manifest); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			if err := ioutil.WriteFile(img.Dataset.Path("manifest"), manifestBytes, 0400); err != nil {
+				return nil, errors.Trace(err)
+			}
 		}
 	}
+
+	if err := img.Seal(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return img, nil
 }

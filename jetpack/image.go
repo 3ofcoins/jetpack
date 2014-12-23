@@ -6,7 +6,9 @@ import "fmt"
 import "io/ioutil"
 import "os"
 import "path"
+import "path/filepath"
 import "strings"
+import "syscall"
 import "time"
 
 import "code.google.com/p/go-uuid/uuid"
@@ -86,23 +88,6 @@ func (img *Image) Load() error {
 	}
 
 	return nil
-}
-
-func (img *Image) Import(uri string) error {
-	if !img.IsEmpty() {
-		return errors.New("Image is not empty")
-	}
-
-	img.Origin = uri
-	img.Timestamp = time.Now()
-
-	if hash, err := UnpackImage(uri, img.Dataset.Mountpoint); err != nil {
-		return errors.Trace(err)
-	} else {
-		img.Hash = &hash
-	}
-
-	return errors.Trace(img.Seal())
 }
 
 func (img *Image) Seal() error {
@@ -241,6 +226,164 @@ func (img *Image) Run(app *types.App, keep bool) (err1 error) {
 		}()
 	}
 	return c.Run(app)
+}
+
+func (img *Image) Build(buildDir string, buildExec []string) (*Image, error) {
+	var buildContainer *Container
+	if c, err := img.Manager.Host.Containers.Clone(img); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		buildContainer = c
+	}
+
+	// This is needed by freebsd-update at least, should be okay to
+	// allow this in builders.
+	buildContainer.JailParameters["allow.chflags"] = "true"
+
+	destroot := buildContainer.Dataset.Path("rootfs")
+
+	workDir, err := ioutil.TempDir(destroot, ".jetpack.build.")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := runCommand("cp", "-R", buildDir, workDir); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	cWorkDir := filepath.Base(workDir)
+	buildApp := &types.App{
+		Exec: append([]string{
+			"/bin/sh", "-c",
+			fmt.Sprintf("cd '%s' && exec \"${@}\"", cWorkDir),
+			"jetpack-build@" + cWorkDir,
+		}, buildExec...),
+	}
+
+	if err := buildContainer.Run(buildApp); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := os.Rename(
+		filepath.Join(workDir, "manifest.json"),
+		buildContainer.Dataset.Path("build.manifest"),
+	); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := os.RemoveAll(workDir); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := os.Remove(filepath.Join(destroot, "/etc/resolv.conf")); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	// FIXME HARD: sleep to avoid race condition before `zfs rename`
+	// time.Sleep(time.Second)
+
+	// Pivot container into an image
+	uuid := path.Base(buildContainer.Dataset.Name)
+	syscall.Sync()
+	if err := buildContainer.Dataset.Rename(img.Manager.Dataset.ChildName(uuid)); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	ds, err := img.Manager.Dataset.GetDataset(uuid)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	// Clean up container's runtime stuff, leave only rootfs and new manifest
+	if entries, err := ioutil.ReadDir(ds.Mountpoint); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		for _, entry := range entries {
+			filename := entry.Name()
+			if filename == "rootfs" || filename == "build.manifest" {
+				continue
+			}
+			if err := os.RemoveAll(ds.Path(filename)); err != nil {
+				return nil, errors.Trace(err)
+			}
+		}
+	}
+
+	childImage, err := NewImage(ds, img.Manager)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	// Construct the final manifest
+
+	// defaults that are always present
+	manifest := map[string]interface{}{
+		"acKind":    "ImageManifest",
+		"acVersion": schema.AppContainerVersion,
+	}
+
+	// Merge what the build directory has left for us
+	if manifestBytes, err := ioutil.ReadFile(childImage.Dataset.Path("build.manifest")); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+			return nil, errors.Trace(err)
+		}
+	}
+
+	// FIXME: the below is UGLY. Can we make it prettier?
+
+	// Annotate with timestamp if there is no such annotation yet
+	if manifest["annotations"] == nil {
+		manifest["annotations"] = make(map[string]interface{})
+	}
+
+	annotations := manifest["annotations"].(map[string]interface{})
+	if _, ok := annotations["timestamp"]; !ok {
+		annotations["timestamp"] = time.Now()
+	}
+
+	// Merge OS and arch from parent image if it's not set
+	// TODO: can we prevent this?
+	hasLabels := map[string]bool{}
+	for _, labelI := range manifest["labels"].([]interface{}) {
+		label := labelI.(map[string]interface{})
+		hasLabels[label["name"].(string)] = true
+	}
+
+	if val, ok := img.Manifest.GetLabel("os"); ok && !hasLabels["os"] {
+		manifest["labels"] = append(manifest["labels"].([]interface{}),
+			map[string]interface{}{"name": "os", "val": val})
+	}
+
+	if val, ok := img.Manifest.GetLabel("arch"); ok && !hasLabels["arch"] {
+		manifest["labels"] = append(manifest["labels"].([]interface{}),
+			map[string]interface{}{"name": "arch", "val": val})
+	}
+
+	// TODO: merge app from parent image?
+
+	childImage.Origin = img.UUID.String()
+
+	if manifestBytes, err := json.Marshal(manifest); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		if err := ioutil.WriteFile(childImage.Dataset.Path("manifest"), manifestBytes, 0400); err != nil {
+			return nil, errors.Trace(err)
+		}
+	}
+
+	if err := os.Remove(childImage.Dataset.Path("build.manifest")); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	childImage.Timestamp = time.Now()
+
+	if err := childImage.Seal(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return childImage, nil
 }
 
 // For sorting
