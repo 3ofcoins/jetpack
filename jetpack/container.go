@@ -255,21 +255,6 @@ func (c *Container) RunJail(op string) error {
 	return runCommand("jail", "-f", c.Dataset.Path("jail.conf"), "-v", op, c.JailName())
 }
 
-func (c *Container) RunJexec(user string, jcmd []string) error {
-	if c.Jid() == 0 {
-		return errors.New("Not started")
-	}
-
-	args := []string{}
-	if user != "" {
-		args = append(args, "-U", user)
-	}
-	args = append(args, c.JailName())
-	args = append(args, jcmd...)
-
-	return runCommand("jexec", args...)
-}
-
 func (c *Container) GetImage() (*Image, error) {
 	if c.image == nil {
 		if len(c.Manifest.Apps) == 0 {
