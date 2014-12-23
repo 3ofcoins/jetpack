@@ -32,8 +32,12 @@ func (cmgr *ContainerManager) All() (ContainerSlice, error) {
 	} else {
 		rv := make(ContainerSlice, 0, len(dss))
 		for _, ds := range dss {
+			if ds.Type != "filesystem" {
+				continue
+			}
 			if c, err := GetContainer(ds, cmgr); err != nil {
 				if err != ErrContainerIsEmpty {
+					// TODO: warn but still return useful containers
 					return nil, errors.Trace(err)
 				}
 			} else {

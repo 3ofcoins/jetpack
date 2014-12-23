@@ -4,6 +4,8 @@ import "log"
 import "os"
 import "path"
 
+import "code.google.com/p/go-uuid/uuid"
+
 import "github.com/3ofcoins/jetpack/cli"
 import "github.com/3ofcoins/jetpack/ui"
 
@@ -49,6 +51,17 @@ func (rt *Runtime) Shift() string {
 	return rv
 }
 
+func (rt *Runtime) ShiftUUID() uuid.UUID {
+	if len(rt.Args) == 0 {
+		return nil
+	}
+	if uuid := uuid.Parse(rt.Args[0]); uuid != nil {
+		rt.Args = rt.Args[1:]
+		return uuid
+	}
+	return nil
+}
+
 func (rt *Runtime) Host() *Host {
 	if rt.host == nil {
 		if host, err := GetHost(rt.ZFSRoot); err != nil {
@@ -88,11 +101,12 @@ func NewRuntime(name string) *Runtime {
 
 	// Commands
 	rt.AddCommand("build", "[OPTIONS] PATH COMMAND...", rt.CmdBuild)
-	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
-	rt.AddCommand("rm", "UUID ... -- destroy images or containers", rt.CmdRm)
-	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
+	rt.AddCommand("destroy", "UUID ... -- destroy images or containers", rt.CmdDestroy)
+	rt.AddCommand("images", "[QUERY] -- list images", rt.CmdImages)
 	rt.AddCommand("import", "URI_OR_PATH -- import an image", rt.CmdImport)
-	rt.AddCommand("list", "[images|containers] -- list images and/or containers", rt.CmdList)
+	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
+	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
+	rt.AddCommand("list", "-- list containers", rt.CmdList)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
 	rt.AddCommand("run", "[OPTIONS] UUID -- run container or image", rt.CmdRun)
 

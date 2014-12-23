@@ -87,29 +87,30 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 		return ShowSection(ui, fmt.Sprintf("ZFS Dataset %v", ds.Name), tbl)
 
 	case *Image:
-		img := obj.(*Image)
-		metadata := [][]string{}
-		if img.Hash != nil {
-			metadata = append(metadata, []string{"Hash", img.Hash.String()})
-		}
-		if img.Origin != "" {
-			metadata = append(metadata, []string{"Origin", img.Origin})
-		}
-		metadata = append(metadata, []string{"Timestamp", img.Timestamp.String()})
+		if img := obj.(*Image); img != nil {
+			metadata := [][]string{}
+			if img.Hash != nil {
+				metadata = append(metadata, []string{"Hash", img.Hash.String()})
+			}
+			if img.Origin != "" {
+				metadata = append(metadata, []string{"Origin", img.Origin})
+			}
+			metadata = append(metadata, []string{"Timestamp", img.Timestamp.String()})
 
-		containersTbl := SectionTable{Name: "Containers"}
-		if containers, err := img.Containers(); err != nil {
-			return errors.Trace(err)
-		} else if len(containers) > 0 {
-			containersTbl.Contents = containers.Table()
-		}
+			containersTbl := SectionTable{Name: "Containers"}
+			if containers, err := img.Containers(); err != nil {
+				return errors.Trace(err)
+			} else if len(containers) > 0 {
+				containersTbl.Contents = containers.Table()
+			}
 
-		return ShowSection(ui, fmt.Sprintf("Image %v", img.UUID),
-			img.Dataset,
-			metadata,
-			img.Manifest,
-			containersTbl,
-		)
+			return ShowSection(ui, fmt.Sprintf("Image %v", img.UUID),
+				img.Dataset,
+				metadata,
+				img.Manifest,
+				containersTbl,
+			)
+		}
 
 	case *Container:
 		c := obj.(*Container)

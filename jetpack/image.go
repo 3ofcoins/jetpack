@@ -29,13 +29,14 @@ type Image struct {
 }
 
 func NewImage(ds *Dataset, mgr *ImageManager) (*Image, error) {
+	basename := path.Base(ds.Name)
 	img := &Image{
 		Dataset: ds,
 		Manager: mgr,
-		UUID:    uuid.Parse(path.Base(ds.Name)),
+		UUID:    uuid.Parse(basename),
 	}
 	if img.UUID == nil {
-		return nil, errors.New("Invalid UUID")
+		return nil, errors.Errorf("Invalid UUID: %#v", basename)
 	}
 	return img, nil
 }

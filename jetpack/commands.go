@@ -52,22 +52,29 @@ func (rt *Runtime) CmdImport() error {
 	return nil
 }
 
-func (rt *Runtime) listImages() error {
-	ii, err := rt.Host().Images.All()
-	if err != nil {
+func (rt *Runtime) CmdImages() error {
+	q := rt.Shift()
+	if len(rt.Args) > 0 {
+		return cli.ErrUsage
+	}
+
+	switch imgs, err := rt.Host().Images.Find(q); err {
+	case nil:
+		sort.Sort(imgs)
+		rt.UI.Table(imgs.Table())
+	case ErrNotFound:
+		rt.UI.Say("No images")
+	default:
 		return errors.Trace(err)
 	}
-	if len(ii) == 0 {
-		rt.UI.Say("No images")
-		return nil
-	}
-	sort.Sort(ii)
-	rt.UI.Table(ii.Table())
 
 	return nil
 }
 
-func (rt *Runtime) listContainers() error {
+func (rt *Runtime) CmdList() error {
+	if len(rt.Args) > 0 {
+		return cli.ErrUsage
+	}
 	cc, err := rt.Host().Containers.All()
 	if err != nil {
 		return errors.Trace(err)
@@ -80,27 +87,6 @@ func (rt *Runtime) listContainers() error {
 	rt.UI.Table(cc.Table())
 
 	return nil
-}
-
-func (rt *Runtime) CmdList() error {
-	switch len(rt.Args) {
-	case 0:
-		return untilError(
-			func() error { return rt.UI.Section("Images", rt.listImages) },
-			func() error { return rt.UI.Section("Containers", rt.listContainers) },
-		)
-	case 1:
-		switch rt.Args[0] {
-		case "images":
-			return rt.listImages()
-		case "containers":
-			return rt.listContainers()
-		default:
-			return cli.ErrUsage
-		}
-	default:
-		return cli.ErrUsage
-	}
 }
 
 func (rt *Runtime) byUUID(
@@ -122,7 +108,7 @@ func (rt *Runtime) byUUID(
 	return errors.Errorf("Not found: %#v", uuid)
 }
 
-func (rt *Runtime) CmdRm() error {
+func (rt *Runtime) CmdDestroy() error {
 	for _, uuid := range rt.Args {
 		if err := rt.byUUID(uuid,
 			func(c *Container) error { return c.Destroy() },

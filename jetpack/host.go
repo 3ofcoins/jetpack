@@ -1,6 +1,7 @@
 package jetpack
 
 import "encoding/json"
+import stderrors "errors"
 import "io/ioutil"
 import "os"
 import "log"
@@ -8,6 +9,8 @@ import "log"
 import "github.com/juju/errors"
 
 const DefaultMountpoint = "/srv/jetpack"
+
+var ErrNotFound = stderrors.New("Not found")
 
 type Host struct {
 	Dataset    *Dataset `json:"-"`

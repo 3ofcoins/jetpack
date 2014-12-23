@@ -1,5 +1,5 @@
 /bin
 /cache
-/.fuse*
+.fuse*
 /tmp
 *.aci
