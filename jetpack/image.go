@@ -279,12 +279,13 @@ func (img *Image) Build(buildDir string, buildExec []string) (*Image, error) {
 		return nil, errors.Trace(err)
 	}
 
-	// FIXME HARD: sleep to avoid race condition before `zfs rename`
-	// time.Sleep(time.Second)
+	// Sync buffers to avoid "Cannot unmount …: device is busy" on
+	// rename, which seems to be caused by buffers still being written
+	// to the disk
+	syscall.Sync()
 
 	// Pivot container into an image
 	uuid := path.Base(buildContainer.Dataset.Name)
-	syscall.Sync()
 	if err := buildContainer.Dataset.Rename(img.Manager.Dataset.ChildName(uuid)); err != nil {
 		return nil, errors.Trace(err)
 	}

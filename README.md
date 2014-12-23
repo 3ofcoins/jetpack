@@ -47,6 +47,21 @@ Features, or The Laundry List
    - [ ] Specify image/container by name & labels, not only UUID
    - [ ] Consistent options for specifying application options (CLI,
          JSON file)
+ - General TODO
+   - [ ] Refactor the Thing/ThingManager/Host sandwich to use embedded
+     fields
+   - [ ] CLI-specified types.App fields for custom exec, maybe build
+         parameters too?
+   - [ ] Live, movable "tags" or "bookmarks", to mark e.g. latest
+         version of an image without need to modify its
+         manifest. Possible search syntax: `name@tag1,tag2,…`, where a
+         tag is an ACName, so it may be also a key/value pair like
+         `environment/production`.
+         - [ ] Maybe some variant of tags that would be unique per
+               name?
+   - If/when we get enough live runtime data to make it complicated,
+     maybe a centralized indexed storage, like SQLite? This could also
+     solve some locking issues for long-running processes…
 
 Getting Started
 ---------------
