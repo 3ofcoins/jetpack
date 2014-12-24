@@ -4,7 +4,6 @@ import "bytes"
 import "encoding/json"
 import "fmt"
 import "io/ioutil"
-import "path/filepath"
 import "os"
 import "strconv"
 import "strings"
@@ -14,9 +13,8 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/go-zfs"
-
 import "github.com/3ofcoins/jetpack/run"
+import "github.com/3ofcoins/jetpack/zfs"
 
 var jailConfTmpl *template.Template
 
@@ -68,7 +66,7 @@ func (cs ContainerStatus) String() string {
 }
 
 type Container struct {
-	Dataset  *Dataset                        `json:"-"`
+	Dataset  *zfs.Dataset                    `json:"-"`
 	Manifest schema.ContainerRuntimeManifest `json:"-"`
 	Manager  *ContainerManager               `json:"-"`
 
@@ -77,11 +75,11 @@ type Container struct {
 	image *Image
 }
 
-func NewContainer(ds *Dataset, mgr *ContainerManager) *Container {
+func NewContainer(ds *zfs.Dataset, mgr *ContainerManager) *Container {
 	return &Container{Dataset: ds, Manager: mgr, JailParameters: make(map[string]string)}
 }
 
-func GetContainer(ds *Dataset, mgr *ContainerManager) (*Container, error) {
+func GetContainer(ds *zfs.Dataset, mgr *ContainerManager) (*Container, error) {
 	c := NewContainer(ds, mgr)
 	if err := c.Load(); err != nil {
 		return nil, err
@@ -176,7 +174,7 @@ func (c *Container) Prep() error {
 				}
 				fstab[i] = fmt.Sprintf("%v %v nullfs %v 0 0\n",
 					vol.Source,
-					filepath.Join(c.Dataset.Mountpoint, "rootfs", mnt.Path),
+					c.Dataset.Path("rootfs", mnt.Path),
 					opts,
 				)
 			}
@@ -191,7 +189,7 @@ func (c *Container) Prep() error {
 	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
 		return errors.Trace(err)
 	} else {
-		if err := ioutil.WriteFile(filepath.Join(c.Dataset.Mountpoint, "rootfs/etc/resolv.conf"), bb, 0644); err != nil {
+		if err := ioutil.WriteFile(c.Dataset.Path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
 			return errors.Trace(err)
 		}
 	}
@@ -229,7 +227,7 @@ func (c *Container) Kill() error {
 }
 
 func (c *Container) Destroy() error {
-	return c.Dataset.Destroy(zfs.DestroyRecursive)
+	return c.Dataset.Destroy("-r")
 }
 
 func (c *Container) JailName() string {

@@ -3,6 +3,8 @@ package zfs
 import "errors"
 import "fmt"
 import "io"
+import "path"
+import "path/filepath"
 import "strings"
 
 import "github.com/3ofcoins/jetpack/run"
@@ -56,6 +58,7 @@ type Dataset struct {
 	Type       string
 	Mounted    bool
 	Mountpoint string
+	Origin     string
 }
 
 func (ds *Dataset) String() string {
@@ -70,18 +73,15 @@ func (ds *Dataset) String() string {
 }
 
 func (ds *Dataset) Zfs(cmd string, args ...string) error {
-	args = append(args, ds.Name)
-	return Zfs(cmd, args...)
+	return Zfs(cmd, append(args, ds.Name)...)
 }
 
 func (ds *Dataset) ZfsOutput(cmd string, args ...string) (string, error) {
-	args = append(args, ds.Name)
-	return ZfsOutput(cmd, args...)
+	return ZfsOutput(cmd, append(args, ds.Name)...)
 }
 
 func (ds *Dataset) ZfsFields(cmd string, args ...string) ([][]string, error) {
-	args = append(args, ds.Name)
-	return ZfsFields(cmd, args...)
+	return ZfsFields(cmd, append(args, ds.Name)...)
 }
 
 var ErrNotFound = errors.New("Not found")
@@ -90,15 +90,20 @@ func ListDatasets(typ string) ([]string, error) {
 	if typ == "" {
 		typ = "all"
 	}
-	return ZfsLines("list", "-H", "-t"+typ, "-oname")
+	return ZfsLines("list", "-t"+typ, "-oname")
 }
 
 func (ds *Dataset) load() error {
-	if props, err := ds.GetMany("type", "mounted", "mountpoint"); err != nil {
+	if props, err := ds.GetMany("type", "mounted", "mountpoint", "origin"); err != nil {
 		return err
 	} else {
 		ds.Type = props["type"]
-		ds.Mountpoint = props["mountpoint"]
+		if props["mountpoint"] != "none" {
+			ds.Mountpoint = props["mountpoint"]
+		}
+		if props["origin"] != "-" {
+			ds.Origin = props["origin"]
+		}
 		ds.Mounted = (props["mounted"] == "yes")
 		return nil
 	}
@@ -138,6 +143,17 @@ func ReceiveDataset(r io.Reader, name string, mounted bool) (*Dataset, error) {
 	return GetDataset(name)
 }
 
+func CreateDataset(name string, args ...string) (*Dataset, error) {
+	if err := Zfs("create", append(args, name)...); err != nil {
+		return nil, err
+	}
+	return GetDataset(name)
+}
+
+func (ds *Dataset) Get(name string) (string, error) {
+	return ds.ZfsOutput("get", "-oproperty", name)
+}
+
 func (ds *Dataset) GetMany(attr ...string) (map[string]string, error) {
 	attrArg := "all"
 	if len(attr) > 0 {
@@ -155,15 +171,20 @@ func (ds *Dataset) GetMany(attr ...string) (map[string]string, error) {
 	}
 }
 
-func (ds *Dataset) Get(name string) (string, error) {
-	return ds.ZfsOutput("get", "-oproperty", name)
-}
-
 func firstError(err1, err2 error) error {
 	if err1 == nil {
 		return err2
 	}
 	return err1
+}
+
+func (ds *Dataset) Set(name, value string) (err error) {
+	if name == "mountpoint" {
+		defer func() {
+			err = firstError(err, ds.load())
+		}()
+	}
+	return ds.Zfs("set", name+"="+value)
 }
 
 func (ds *Dataset) SetMany(attr map[string]string) (err error) {
@@ -183,26 +204,21 @@ func (ds *Dataset) SetMany(attr map[string]string) (err error) {
 	return ds.Zfs("set", args...)
 }
 
-func (ds *Dataset) Set(name, value string) (err error) {
-	if name == "mountpoint" {
-		defer func() {
-			err = firstError(err, ds.load())
-		}()
-	}
-	return ds.Zfs("set", name+"="+value)
+func (ds *Dataset) SnapshotName(name string) string {
+	return ds.Name + "@" + name
 }
 
 func (ds *Dataset) Snapshot(name string, args ...string) (*Dataset, error) {
-	snapName := ds.Name + "@" + name
-	if err := Zfs("snapshot", append(args, snapName)...); err != nil {
+	name = ds.SnapshotName(name)
+	if err := Zfs("snapshot", append(args, name)...); err != nil {
 		return nil, err
 	} else {
-		return GetDataset(snapName)
+		return GetDataset(name)
 	}
 }
 
 func (ds *Dataset) GetSnapshot(name string) (*Dataset, error) {
-	return GetDataset(ds.Name + "@" + name)
+	return GetDataset(ds.SnapshotName(name))
 }
 
 func (ds *Dataset) RollbackTo(name string, args ...string) error {
@@ -220,6 +236,16 @@ func (ds *Dataset) Send(w io.Writer, args ...string) error {
 	return ZfsSend(w, append(args, ds.Name)...)
 }
 
+func (ds *Dataset) Clone(name string, args ...string) (*Dataset, error) {
+	if ds.Type != "snapshot" {
+		return nil, fmt.Errorf("Not a snapshot: %v", ds)
+	}
+	if err := Zfs("clone", append(args, ds.Name, name)...); err != nil {
+		return nil, err
+	}
+	return GetDataset(name)
+}
+
 func (ds *Dataset) Rollback(args ...string) error {
 	if ds.Type != "snapshot" {
 		return fmt.Errorf("Not a snapshot: %v", ds)
@@ -232,6 +258,37 @@ func (ds *Dataset) Mount() (err error) {
 		err = firstError(err, ds.load())
 	}()
 	return ds.Zfs("mount")
+}
+
+func (ds *Dataset) Unmount() (err error) {
+	defer func() {
+		err = firstError(err, ds.load())
+	}()
+	return ds.Zfs("unmount")
+}
+
+func (ds *Dataset) Rename(name string, args ...string) (err error) {
+	if err := Zfs("rename", append(args, ds.Name, name)...); err != nil {
+		return err
+	}
+	ds.Name = name
+	return ds.load()
+}
+
+func (ds *Dataset) ChildName(name string) string {
+	return path.Join(ds.Name, name)
+}
+
+func (ds *Dataset) GetDataset(name string) (*Dataset, error) {
+	return GetDataset(ds.ChildName(name))
+}
+
+func (ds *Dataset) CreateDataset(name string, args ...string) (*Dataset, error) {
+	return CreateDataset(ds.ChildName(name), args...)
+}
+
+func (ds *Dataset) Path(elem ...string) string {
+	return filepath.Join(append([]string{ds.Mountpoint}, elem...)...)
 }
 
 // depth: -1: self and all descendants (unlimited recursion); 0: only
@@ -260,7 +317,6 @@ func (ds *Dataset) Children(depth int, args ...string) ([]*Dataset, error) {
 		} else {
 			return rv[1:], nil
 		}
-
 	}
 }
 

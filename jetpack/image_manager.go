@@ -13,10 +13,11 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/run"
+import "github.com/3ofcoins/jetpack/zfs"
 
 type ImageManager struct {
-	Dataset *Dataset `json:"-"`
-	Host    *Host    `json:"-"`
+	Dataset *zfs.Dataset `json:"-"`
+	Host    *Host        `json:"-"`
 }
 
 func (imgr *ImageManager) All() (ImageSlice, error) {
@@ -150,7 +151,7 @@ func (imgr *ImageManager) Get(spec string) (*Image, error) {
 }
 
 func (imgr *ImageManager) Create() (*Image, error) {
-	if ds, err := imgr.Dataset.CreateFilesystem(uuid.NewRandom().String(), nil); err != nil {
+	if ds, err := imgr.Dataset.CreateDataset(uuid.NewRandom().String()); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		return NewImage(ds, imgr)

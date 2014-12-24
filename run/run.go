@@ -20,7 +20,7 @@ type CmdError struct {
 }
 
 func (err *CmdError) Error() string {
-	return fmt.Sprintf("%v: %v", err.Cmd, err.ExecError.Error())
+	return fmt.Sprintf("%v: %v", err.Cmd, err.ExecError)
 }
 
 func Command(command string, args ...string) *Cmd {

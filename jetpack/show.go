@@ -10,6 +10,7 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/ui"
+import "github.com/3ofcoins/jetpack/zfs"
 
 func showExec(strs []string) string {
 	for i, str := range strs {
@@ -77,8 +78,8 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 				[]string{"Interface", h.Containers.Interface},
 				[]string{"IP Pool", h.Containers.AddressPool}}})
 
-	case *Dataset:
-		ds := obj.(*Dataset)
+	case *zfs.Dataset:
+		ds := obj.(*zfs.Dataset)
 		tbl := [][]string{[]string{"Mountpoint", ds.Mountpoint}}
 		if ds.Origin != "" {
 			tbl = append(tbl, []string{"Origin", ds.Origin})

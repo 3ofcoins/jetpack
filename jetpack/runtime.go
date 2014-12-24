@@ -5,9 +5,11 @@ import "os"
 import "path"
 
 import "code.google.com/p/go-uuid/uuid"
+import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
 import "github.com/3ofcoins/jetpack/ui"
+import "github.com/3ofcoins/jetpack/zfs"
 
 type Runtime struct {
 	// CLI stuff
@@ -76,7 +78,22 @@ func (rt *Runtime) Show(obj ...interface{}) error {
 	return Show(rt.UI, obj...)
 }
 
-func NewRuntime(name string) *Runtime {
+func guessRoot() (string, error) {
+	if pools, err := zfs.ZPools(); err != nil {
+		return "", err
+	} else {
+		switch len(pools) {
+		case 0:
+			return "", errors.New("No ZFS pools found")
+		case 1:
+			return path.Join(pools[0], "jetpack"), nil
+		default:
+			return "", errors.New("Multiple ZFS pools found, I don't dare guess")
+		}
+	}
+}
+
+func NewRuntime(name string) (*Runtime, error) {
 	rt := &Runtime{
 		Cli: cli.NewCli(name),
 		UI:  ui.NewUI(os.Stdout),
@@ -85,11 +102,11 @@ func NewRuntime(name string) *Runtime {
 	rt.ZFSRoot = os.Getenv("JETPACK_ROOT")
 
 	if rt.ZFSRoot == "" {
-		if pool, err := getZpool(); err != nil {
-			log.Printf("Can't guess default ZFS filesystem: %v.", err)
-			log.Fatalln("please set JETPACK_ROOT environment variable or use -root flag")
+
+		if root, err := guessRoot(); err != nil {
+			return nil, errors.Maskf(err, "Can't guess default ZFS filesystem; please set JETPACK_ROOT environment variable or use -root flag")
 		} else {
-			rt.ZFSRoot = path.Join(pool.Name, "jetpack")
+			rt.ZFSRoot = root
 		}
 	}
 
@@ -113,11 +130,14 @@ func NewRuntime(name string) *Runtime {
 	rt.Commands["run"].BoolVar(&rt.Console, "console", false, "Run console, not image's app")
 	rt.Commands["run"].BoolVar(&rt.Keep, "keep", false, "Keep container after command finishes")
 
-	return rt
+	return rt, nil
 }
 
 func Run(name string, args []string) error {
-	rt := NewRuntime(name)
-	rt.Parse(args)
-	return rt.Run()
+	if rt, err := NewRuntime(name); err != nil {
+		return err
+	} else {
+		rt.Parse(args)
+		return rt.Run()
+	}
 }

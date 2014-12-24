@@ -12,9 +12,11 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/jetpack/zfs"
+
 type ContainerManager struct {
-	Dataset *Dataset `json:"-"`
-	Host    *Host    `json:"-"`
+	Dataset *zfs.Dataset `json:"-"`
+	Host    *Host        `json:"-"`
 
 	Interface      string
 	AddressPool    string
@@ -57,7 +59,7 @@ func (cmgr *ContainerManager) Get(uuid string) (*Container, error) {
 	}
 }
 
-func (cmgr *ContainerManager) newContainer(ds *Dataset) (*Container, error) {
+func (cmgr *ContainerManager) newContainer(ds *zfs.Dataset) (*Container, error) {
 	c := NewContainer(ds, cmgr)
 
 	var resolvConf []byte
@@ -91,7 +93,7 @@ func (cmgr *ContainerManager) newContainer(ds *Dataset) (*Container, error) {
 }
 
 func (cmgr *ContainerManager) Create() (*Container, error) {
-	ds, err := cmgr.Dataset.CreateFilesystem(uuid.NewRandom().String(), nil)
+	ds, err := cmgr.Dataset.CreateDataset(uuid.NewRandom().String())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

@@ -8,13 +8,15 @@ import "os"
 
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/jetpack/zfs"
+
 const DefaultMountpoint = "/srv/jetpack"
 
 var ErrNotFound = stderrors.New("Not found")
 var ErrManyFound = stderrors.New("Multiple results found")
 
 type Host struct {
-	Dataset    *Dataset `json:"-"`
+	Dataset    *zfs.Dataset `json:"-"`
 	Images     ImageManager
 	Containers ContainerManager
 }
@@ -24,7 +26,7 @@ var hostDefaults = Host{
 }
 
 func GetHost(rootDataset string) (*Host, error) {
-	ds, err := GetDataset(rootDataset)
+	ds, err := zfs.GetDataset(rootDataset)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -64,12 +66,6 @@ func GetHost(rootDataset string) (*Host, error) {
 	return &h, nil
 }
 
-var storageZFSProperties = map[string]string{
-	"atime":    "off",
-	"compress": "lz4",
-	"dedup":    "on",
-}
-
 func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 	h := hostDefaults
 
@@ -79,22 +75,23 @@ func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 	}
 
 	log.Printf("Creating root ZFS dataset %#v at %v\n", rootDataset, rootMountpoint)
-	if ds, err := CreateFilesystem(
-		rootDataset,
-		map[string]string{"mountpoint": rootMountpoint},
-	); err != nil {
+	if ds, err := zfs.CreateDataset(rootDataset, "-omountpoint="+rootMountpoint); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.Dataset = ds
 	}
 
-	if ds, err := h.Dataset.CreateFilesystem("images", storageZFSProperties); err != nil {
+	if ds, err := h.Dataset.CreateDataset("images",
+		"-oatime=off",
+		"-ocompress=lz4",
+		"-odedup=on",
+	); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.Images.Dataset = ds
 	}
 
-	if ds, err := h.Dataset.CreateFilesystem("containers", nil); err != nil {
+	if ds, err := h.Dataset.CreateDataset("containers"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.Containers.Dataset = ds

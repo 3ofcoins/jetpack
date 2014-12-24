@@ -125,14 +125,16 @@ func doRun(m *testing.M) int {
 			Flags[elts[0]] = true
 		} else {
 			if err := os.Setenv(elts[0], elts[1]); err != nil {
-				panic(err)
+				fmt.Fprintln(os.Stderr, "ERROR:", err)
+				return 2
 			}
 		}
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
+		return 2
 	}
 
 	// Add ../bin to $PATH (FIXME: test could be actually compiled and
@@ -144,16 +146,18 @@ func doRun(m *testing.M) int {
 				filepath.Clean(filepath.Join(cwd, "..", "bin")),
 				os.Getenv("PATH"),
 			}, ":")); err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
 	}
 
 	var parentDataset *zfs.Dataset
 
 	if parentName := os.Getenv("DATASET"); parentName == "" {
-		panic("DATASET environment variable is not set")
+		fmt.Fprintln(os.Stderr, "ERROR: DATASET environment variable is not set")
+		return 2
 	} else {
 		if ds, err := zfs.GetDataset(parentName); err != nil {
-			panic(err)
+			fmt.Fprintln(os.Stderr, "ERROR:", err)
+			return 2
 		} else {
 			parentDataset = ds
 		}
@@ -161,7 +165,8 @@ func doRun(m *testing.M) int {
 
 	RootDatadir, err = ioutil.TempDir(parentDataset.Mountpoint, "jetpack.")
 	if err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
+		return 2
 	}
 
 	if !Flags["keepfs"] {
@@ -171,13 +176,22 @@ func doRun(m *testing.M) int {
 	RootDatasetName = path.Join(parentDataset.Name, path.Base(RootDatadir))
 
 	if err := os.Setenv("JETPACK_ROOT", RootDatasetName); err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
+		return 2
 	}
 
 	defer func() {
+		if RootDataset == nil {
+			if ds, err := zfs.GetDataset(RootDatasetName); err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: RootDataset is nil, trying to get %#v: %v\n", RootDatasetName, err)
+				return
+			} else {
+				RootDataset = ds
+			}
+		}
 		if !Flags["keepfs"] {
 			if err := RootDataset.Destroy("-r"); err != nil {
-				panic(err)
+				fmt.Fprintln(os.Stderr, "ERROR:", err)
 			}
 		} else {
 			fmt.Fprintln(os.Stderr, "*** Keeping", RootDataset)
@@ -186,7 +200,8 @@ func doRun(m *testing.M) int {
 
 	// Fill dataset
 	if err := prepareDataset(); err != nil {
-		panic(err)
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
+		return 2
 	} else if Flags["verbose"] {
 		RootDataset.Zfs("list", "-r", "-tall", "-oname,mounted,mountpoint")
 	}

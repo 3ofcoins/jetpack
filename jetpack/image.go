@@ -16,12 +16,11 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/go-zfs"
-
 import "github.com/3ofcoins/jetpack/run"
+import "github.com/3ofcoins/jetpack/zfs"
 
 type Image struct {
-	Dataset  *Dataset             `json:"-"`
+	Dataset  *zfs.Dataset         `json:"-"`
 	Manager  *ImageManager        `json:"-"`
 	Manifest schema.ImageManifest `json:"-"`
 
@@ -32,7 +31,7 @@ type Image struct {
 	Timestamp time.Time
 }
 
-func NewImage(ds *Dataset, mgr *ImageManager) (*Image, error) {
+func NewImage(ds *zfs.Dataset, mgr *ImageManager) (*Image, error) {
 	basename := path.Base(ds.Name)
 	img := &Image{
 		Dataset: ds,
@@ -45,7 +44,7 @@ func NewImage(ds *Dataset, mgr *ImageManager) (*Image, error) {
 	return img, nil
 }
 
-func GetImage(ds *Dataset, mgr *ImageManager) (img *Image, err error) {
+func GetImage(ds *zfs.Dataset, mgr *ImageManager) (img *Image, err error) {
 	img, err = NewImage(ds, mgr)
 	if err != nil {
 		return
@@ -107,11 +106,11 @@ func (img *Image) Seal() error {
 		}
 	}
 
-	if _, err := img.Dataset.Snapshot("seal", false); err != nil {
+	if _, err := img.Dataset.Snapshot("seal"); err != nil {
 		return errors.Trace(err)
 	}
 
-	if err := img.Dataset.SetProperty("readonly", "on"); err != nil {
+	if err := img.Dataset.Zfs("set", "readonly=on"); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -135,7 +134,7 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 	if containers, err := img.Manager.Host.Containers.All(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		snap := img.Dataset.Name + "@seal"
+		snap := img.Dataset.SnapshotName("seal")
 		for _, container := range containers {
 			if container.Dataset.Origin == snap {
 				children = append(children, container)
@@ -146,7 +145,7 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 }
 
 func (img *Image) Destroy() error {
-	return img.Dataset.Destroy(zfs.DestroyRecursive)
+	return img.Dataset.Destroy("-r")
 }
 
 type imageLabels []string
@@ -163,13 +162,13 @@ func (img *Image) PrettyLabels() imageLabels {
 	return labels
 }
 
-func (img *Image) Clone(snapshot, dest string) (*Dataset, error) {
+func (img *Image) Clone(snapshot, dest string) (*zfs.Dataset, error) {
 	snap, err := img.Dataset.GetSnapshot(snapshot)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ds, err := snap.Clone(dest, nil)
+	ds, err := snap.Clone(dest)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
