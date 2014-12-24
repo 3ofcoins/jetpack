@@ -8,12 +8,12 @@ import "crypto/sha512"
 import "fmt"
 import "io"
 import "net"
-import "os"
-import "os/exec"
 
 import "github.com/appc/spec/aci"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
+
+import "github.com/3ofcoins/jetpack/run"
 
 func untilError(steps ...func() error) error {
 	for _, step := range steps {
@@ -60,16 +60,14 @@ func DecompressingReader(rd io.Reader) (io.Reader, error) {
 
 func UnpackImage(uri, path string) (types.Hash, error) {
 	// use fetch(1) to avoid worrying about protocols, proxies and such
-	fetchCmd := exec.Command("fetch", "-o", "-", uri)
-	fetchCmd.Stderr = os.Stderr
+	fetchCmd := run.Command("fetch", "-o", "-", uri)
 	fetch, err := fetchCmd.StdoutPipe()
 	if err != nil {
 		return types.Hash{}, errors.Trace(err)
 	}
 
 	// We trust system's tar, no need to roll our own
-	untarCmd := exec.Command("tar", "-C", path, "-xf", "-")
-	untarCmd.Stderr = os.Stderr
+	untarCmd := run.Command("tar", "-C", path, "-xf", "-")
 	untar, err := untarCmd.StdinPipe()
 	if err != nil {
 		return types.Hash{}, errors.Trace(err)

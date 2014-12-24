@@ -6,7 +6,6 @@ import "fmt"
 import "io/ioutil"
 import "path/filepath"
 import "os"
-import "os/exec"
 import "strconv"
 import "strings"
 import "text/template"
@@ -238,22 +237,15 @@ func (c *Container) JailName() string {
 }
 
 func (c *Container) Jid() int {
-	cmd := exec.Command("jls", "-j", c.JailName(), "jid")
-	out, err := cmd.Output()
-	switch err.(type) {
-	case nil:
-		// Jail found
-		jid, err := strconv.Atoi(strings.TrimSpace(string(out)))
-		if err != nil {
-			panic(err)
-		}
-		return jid
-	case *exec.ExitError:
-		// Jail not found (or so we assume)
+	if out, err := run.Command("jls", "-j", c.JailName(), "jid").OutputString(); err != nil {
+		// FIXME: we assume that jail was not found. Should we do anything else here?
 		return 0
-	default:
-		// Other error
-		panic(err)
+	} else {
+		if jid, err := strconv.Atoi(out); err != nil {
+			panic(err)
+		} else {
+			return jid
+		}
 	}
 }
 

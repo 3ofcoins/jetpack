@@ -25,7 +25,11 @@ func initDataset() error {
 		[]string{"make", "-C", "../images/freebsd-base"},
 		[]string{"make", "-C", "../images/example.showenv"},
 	} {
-		if err := run.Command(cmd[0], cmd[1:]...).Run(); err != nil {
+		cmd := run.Command(cmd[0], cmd[1:]...)
+		if Flags["verbose"] {
+			fmt.Println(cmd)
+		}
+		if err := cmd.Run(); err != nil {
 			return err
 		}
 	}

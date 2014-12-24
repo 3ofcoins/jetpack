@@ -42,6 +42,32 @@ func (c *Cmd) Run() error {
 	return c.wrapError(c.Cmd.Run())
 }
 
+func (c *Cmd) Start() error {
+	return c.wrapError(c.Cmd.Start())
+}
+
+func (c *Cmd) Wait() error {
+	return c.wrapError(c.Cmd.Wait())
+}
+
+func (c *Cmd) StdinPipe() (io.WriteCloser, error) {
+	c.Cmd.Stdin = nil
+	wc, err := c.Cmd.StdinPipe()
+	return wc, c.wrapError(err)
+}
+
+func (c *Cmd) StdoutPipe() (io.ReadCloser, error) {
+	c.Cmd.Stdout = nil
+	rc, err := c.Cmd.StdoutPipe()
+	return rc, c.wrapError(err)
+}
+
+func (c *Cmd) StderrPipe() (io.ReadCloser, error) {
+	c.Cmd.Stderr = nil
+	rc, err := c.Cmd.StderrPipe()
+	return rc, c.wrapError(err)
+}
+
 func (c *Cmd) Output() ([]byte, error) {
 	c.Cmd.Stdout = nil
 	out, err := c.Cmd.Output()

@@ -4,7 +4,6 @@ import "encoding/json"
 import "io/ioutil"
 import "net/url"
 import "os"
-import "os/exec"
 import "strings"
 import "time"
 
@@ -12,6 +11,8 @@ import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
+
+import "github.com/3ofcoins/jetpack/run"
 
 type ImageManager struct {
 	Dataset *Dataset `json:"-"`
@@ -183,10 +184,7 @@ func (imgr *ImageManager) Import(imageUri, manifestUri string) (*Image, error) {
 			img.Hash = &hash
 		}
 
-		// Read the provided manifest
-		fetchCmd := exec.Command("fetch", "-o", "-", manifestUri)
-		fetchCmd.Stderr = os.Stderr
-		manifestBytes, err := fetchCmd.Output()
+		manifestBytes, err := run.Command("fetch", "-o", "-", manifestUri).Output()
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
