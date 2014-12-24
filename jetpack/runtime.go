@@ -106,6 +106,7 @@ func NewRuntime(name string) *Runtime {
 	rt.AddCommand("list", "-- list containers", rt.CmdList)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
 	rt.AddCommand("run", "[OPTIONS] UUID -- run container or image", rt.CmdRun)
+	rt.AddCommand("kill", "UUID... -- kill running containers", rt.CmdKill)
 
 	// Switches
 

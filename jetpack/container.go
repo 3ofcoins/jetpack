@@ -220,6 +220,13 @@ func (c *Container) Status() ContainerStatus {
 	}
 }
 
+func (c *Container) Kill() error {
+	if c.Jid() > 0 {
+		return errors.Trace(c.RunJail("-r"))
+	}
+	return nil
+}
+
 func (c *Container) Destroy() error {
 	return c.Dataset.Destroy(zfs.DestroyRecursive)
 }

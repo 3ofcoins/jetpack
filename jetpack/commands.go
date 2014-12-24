@@ -9,12 +9,8 @@ import "github.com/juju/errors"
 import "github.com/3ofcoins/jetpack/cli"
 
 func (rt *Runtime) CmdInit() error {
-	mountpoint := ""
-	switch len(rt.Args) {
-	case 0: // pass
-	case 1:
-		mountpoint = rt.Args[0]
-	default:
+	mountpoint := rt.Shift()
+	if len(rt.Args) != 0 {
 		return cli.ErrUsage
 	}
 
@@ -106,7 +102,19 @@ func (rt *Runtime) CmdDestroy() error {
 			func(c *Container) error { return c.Destroy() },
 			func(i *Image) error { return i.Destroy() },
 		); err != nil {
-			return err
+			return errors.Trace(err)
+		}
+	}
+	return nil
+}
+
+func (rt *Runtime) CmdKill() error {
+	for _, uuid := range rt.Args {
+		if err := rt.byUUID(uuid,
+			func(c *Container) error { return c.Kill() },
+			func(i *Image) error { return ErrNotFound },
+		); err != nil {
+			return errors.Trace(err)
 		}
 	}
 	return nil
