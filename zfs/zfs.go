@@ -7,10 +7,12 @@ import "strings"
 
 import "github.com/3ofcoins/jetpack/run"
 
-const zfsBin = "/sbin/zfs"
+func ZPools() ([]string, error) {
+	return run.Command("/sbin/zpool", "list", "-Hp", "-oname").OutputLines()
+}
 
 func zfs(command string, args []string) *run.Cmd {
-	return run.Command(zfsBin, append([]string{command}, args...)...)
+	return run.Command("/sbin/zfs", append([]string{command}, args...)...)
 }
 
 func zfsHp(command string, args []string) *run.Cmd {
