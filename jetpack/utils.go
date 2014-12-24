@@ -138,69 +138,6 @@ func UnpackImage(uri, path string) (types.Hash, error) {
 	}
 }
 
-// Pretty-printing by resorting to JSON roundabout
-
-type PPPrepper interface {
-	PPPrepare() interface{}
-}
-
-func ppInner(obj interface{}, prefix string) {
-	switch obj.(type) {
-	case map[string]interface{}:
-		m := obj.(map[string]interface{})
-
-		if prefix != "" {
-			prefix += "."
-		}
-
-		keys := make([]string, 0, len(m))
-		for k := range m {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		for _, k := range keys {
-			ppInner(m[k], prefix+k)
-		}
-	case []interface{}:
-		for i, v := range obj.([]interface{}) {
-			ppInner(v, fmt.Sprintf("%v[%d]", prefix, i))
-		}
-	default:
-		fmt.Printf("%v = %#v\n", prefix, obj)
-	}
-}
-
-func ReJSON(obj interface{}) (rv interface{}) {
-	bb, err := json.Marshal(obj)
-	if err != nil {
-		panic(err)
-	}
-	err = json.Unmarshal(bb, &rv)
-	if err != nil {
-		panic(err)
-	}
-	return rv
-}
-
-func PP(obj interface{}) {
-	switch obj.(type) {
-	case PPPrepper:
-		obj = obj.(PPPrepper).PPPrepare()
-	}
-	ppInner(ReJSON(obj), "")
-}
-
-func nextIP(ip net.IP) net.IP {
-	for i := len(ip) - 1; i >= 0; i-- {
-		ip[i] += 1
-		if ip[i] > 0 {
-			return ip
-		}
-	}
-	panic("RAN OUT OF IPS")
-}
-
 func ConsoleApp(username string) *types.App {
 	return &types.App{
 		Exec: []string{"/usr/bin/login", "-f", username},
