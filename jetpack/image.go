@@ -18,6 +18,8 @@ import "github.com/juju/errors"
 
 import "github.com/3ofcoins/go-zfs"
 
+import "github.com/3ofcoins/jetpack/run"
+
 type Image struct {
 	Dataset  *Dataset             `json:"-"`
 	Manager  *ImageManager        `json:"-"`
@@ -247,7 +249,7 @@ func (img *Image) Build(buildDir string, buildExec []string) (*Image, error) {
 		return nil, errors.Trace(err)
 	}
 
-	if err := runCommand("cp", "-R", buildDir, workDir); err != nil {
+	if err := run.Command("cp", "-R", buildDir, workDir).Run(); err != nil {
 		return nil, errors.Trace(err)
 	}
 

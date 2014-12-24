@@ -5,13 +5,11 @@ import "bytes"
 import "compress/bzip2"
 import "compress/gzip"
 import "crypto/sha512"
-import "encoding/json"
 import "fmt"
 import "io"
 import "net"
 import "os"
 import "os/exec"
-import "sort"
 
 import "github.com/appc/spec/aci"
 import "github.com/appc/spec/schema/types"
@@ -24,22 +22,6 @@ func untilError(steps ...func() error) error {
 		}
 	}
 	return nil
-}
-
-func runCommand(command string, args ...string) error {
-	cmd := exec.Command(command, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func bool2zfs(fl bool) string {
-	if fl {
-		return "on"
-	} else {
-		return "off"
-	}
 }
 
 // FIXME: mostly copy/paste from github.com/appc/spec/actool/validate.go
@@ -143,4 +125,14 @@ func ConsoleApp(username string) *types.App {
 		Exec: []string{"/usr/bin/login", "-f", username},
 		User: "root",
 	}
+}
+
+func nextIP(ip net.IP) net.IP {
+	for i := len(ip) - 1; i >= 0; i-- {
+		ip[i] += 1
+		if ip[i] > 0 {
+			return ip
+		}
+	}
+	panic("RAN OUT OF IPS")
 }

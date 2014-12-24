@@ -7,6 +7,7 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
+import "github.com/3ofcoins/jetpack/run"
 
 func (rt *Runtime) CmdInit() error {
 	mountpoint := rt.Shift()
@@ -160,9 +161,7 @@ func (rt *Runtime) CmdPs() error {
 	if jid == 0 {
 		return errors.Errorf("Container %s is not running", c.Manifest.UUID)
 	}
-	psArgs := []string{"-J", strconv.Itoa(jid)}
-	psArgs = append(psArgs, rt.Args...)
-	return runCommand("ps", psArgs...)
+	return run.Command("ps", append([]string{"-J", strconv.Itoa(jid)}, rt.Args...)...).Run()
 }
 
 func (rt *Runtime) CmdBuild() error {

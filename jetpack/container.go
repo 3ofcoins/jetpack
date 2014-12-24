@@ -17,6 +17,8 @@ import "github.com/juju/errors"
 
 import "github.com/3ofcoins/go-zfs"
 
+import "github.com/3ofcoins/jetpack/run"
+
 var jailConfTmpl *template.Template
 
 func init() {
@@ -259,7 +261,7 @@ func (c *Container) RunJail(op string) error {
 	if err := c.Prep(); err != nil {
 		return err
 	}
-	return runCommand("jail", "-f", c.Dataset.Path("jail.conf"), "-v", op, c.JailName())
+	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), "-v", op, c.JailName()).Run()
 }
 
 func (c *Container) GetImage() (*Image, error) {
@@ -329,7 +331,7 @@ func (c *Container) Stage2(app *types.App) error {
 	args = append(args, app.Exec...)
 
 	// FIXME:libexec
-	return runCommand("/home/japhy/Go/src/github.com/3ofcoins/jetpack/bin/stage2", args...)
+	return run.Command("/home/japhy/Go/src/github.com/3ofcoins/jetpack/bin/stage2", args...).Run()
 }
 
 type ContainerSlice []*Container
