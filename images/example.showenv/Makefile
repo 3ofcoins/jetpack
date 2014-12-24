@@ -1,7 +1,7 @@
 JETPACK = jetpack
 
 all:
-	$(JETPACK) build -from=freebsd-base . $(MAKE) build
+	$(JETPACK) build freebsd-base . $(MAKE) build
 
 build:
 	install -d /usr/local/bin
