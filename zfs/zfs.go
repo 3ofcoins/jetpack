@@ -1,93 +1,52 @@
 package zfs
 
-import "bytes"
-import stderrors "errors"
+import "errors"
 import "fmt"
 import "io"
-import "os"
-import "os/exec"
 import "strings"
 
-import "github.com/juju/errors"
+import "github.com/3ofcoins/jetpack/run"
 
-type CommandError struct {
-	Wrapped error
-	Command string
-	Args    []string
-	Stderr  string
+const zfsBin = "/sbin/zfs"
+
+func zfs(command string, args []string) *run.Cmd {
+	return run.Command(zfsBin, append([]string{command}, args...)...)
 }
 
-func (err *CommandError) Error() string {
-	return fmt.Sprintf("%v%v: %v (stderr: %#v)",
-		err.Command,
-		err.Args,
-		err.Wrapped.Error(),
-		err.Stderr)
+func zfsHp(command string, args []string) *run.Cmd {
+	return zfs(command, append([]string{"-Hp"}, args...))
 }
 
-func runCommand(stdout io.Writer, stdin io.Reader, command string, arg ...string) error {
-	var stderr bytes.Buffer
-	if stdout == nil {
-		stdout = os.Stdout
-	}
-	if stdin == nil {
-		stdin = os.Stdin
-	}
-	cmd := exec.Command(command, arg...)
-	cmd.Stdout = stdout
-	cmd.Stderr = &stderr
-	cmd.Stdin = stdin
-	if err := cmd.Run(); err != nil {
-		return &CommandError{errors.Trace(err), command, arg, stderr.String()}
-	}
-	return nil
+func Zfs(cmd string, args ...string) error {
+	return zfs(cmd, args).Run()
 }
 
-func RunCommand(cmd string, arg ...string) error {
-	return runCommand(os.Stdout, nil, cmd, arg...)
+func ZfsOutput(cmd string, args ...string) (string, error) {
+	return zfsHp(cmd, args).OutputString()
 }
 
-func RunCommandOutput(cmd string, arg ...string) (string, error) {
-	var stdout bytes.Buffer
-	err := runCommand(&stdout, nil, cmd, arg...)
-	return stdout.String(), err
+func ZfsLines(cmd string, args ...string) ([]string, error) {
+	return zfsHp(cmd, args).OutputLines()
 }
 
-func lines(in string) []string {
-	return strings.Split(strings.TrimRight(in, "\n"), "\n")
-}
-
-func linefields(in string) []string {
-	return strings.Split(in, "\t")
-}
-
-func fields(in string) [][]string {
-	lns := lines(in)
-	rv := make([][]string, len(lns))
-	for i, ln := range lns {
-		rv[i] = linefields(ln)
-	}
-	return rv
-}
-
-func ListZPools() ([]string, error) {
-	if out, err := RunCommandOutput("/sbin/zpool", "list", "-H", "-oname"); err != nil {
-		return nil, errors.Trace(err)
+func ZfsFields(cmd string, args ...string) ([][]string, error) {
+	if lines, err := ZfsLines(cmd, args...); err != nil {
+		return nil, err
 	} else {
-		return lines(out), nil
+		rv := make([][]string, len(lines))
+		for i, line := range lines {
+			rv[i] = strings.Split(line, "\t")
+		}
+		return rv, nil
 	}
 }
 
-func Zfs(args ...string) error {
-	return RunCommand("/sbin/zfs", args...)
+func ZfsReceive(r io.Reader, args ...string) error {
+	return zfs("receive", args).ReadFrom(r).Run()
 }
 
-func Receive(in io.Reader, args ...string) error {
-	return runCommand(nil, in, "/sbin/zfs", append([]string{"receive"}, args...)...)
-}
-
-func Send(out io.Writer, args ...string) error {
-	return runCommand(out, nil, "/sbin/zfs", append([]string{"send"}, args...)...)
+func ZfsSend(w io.Writer, args ...string) error {
+	return zfs("send", args).WriteTo(w).Run()
 }
 
 type Dataset struct {
@@ -108,22 +67,33 @@ func (ds *Dataset) String() string {
 	return strings.Join(pieces, " ")
 }
 
-var ErrNotFound = stderrors.New("Not found")
+func (ds *Dataset) Zfs(cmd string, args ...string) error {
+	args = append(args, ds.Name)
+	return Zfs(cmd, args...)
+}
+
+func (ds *Dataset) ZfsOutput(cmd string, args ...string) (string, error) {
+	args = append(args, ds.Name)
+	return ZfsOutput(cmd, args...)
+}
+
+func (ds *Dataset) ZfsFields(cmd string, args ...string) ([][]string, error) {
+	args = append(args, ds.Name)
+	return ZfsFields(cmd, args...)
+}
+
+var ErrNotFound = errors.New("Not found")
 
 func ListDatasets(typ string) ([]string, error) {
 	if typ == "" {
 		typ = "all"
 	}
-	if out, err := RunCommandOutput("/sbin/zfs", "list", "-H", "-t"+typ, "-oname"); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		return lines(out), nil
-	}
+	return ZfsLines("list", "-H", "-t"+typ, "-oname")
 }
 
 func (ds *Dataset) load() error {
-	if props, err := ds.Get("type", "mounted", "mountpoint"); err != nil {
-		return errors.Trace(err)
+	if props, err := ds.GetMany("type", "mounted", "mountpoint"); err != nil {
+		return err
 	} else {
 		ds.Type = props["type"]
 		ds.Mountpoint = props["mountpoint"]
@@ -137,12 +107,14 @@ func GetDataset(name string) (*Dataset, error) {
 	if err := ds.load(); err != nil {
 		// Check if dataset exists
 		if dss, err2 := ListDatasets(""); err2 != nil {
-			// Can't list datasets, assume original error was not "not found"
-			return nil, errors.Trace(err)
+			// Can't list datasets, assume original error was not "not
+			// found" and return it rather than the new one
+			return nil, err
 		} else {
 			for _, ds := range dss {
 				if ds == name {
-					return nil, errors.Trace(err)
+					// Dataset exists, the error was legit after all
+					return nil, err
 				}
 			}
 			return nil, ErrNotFound
@@ -158,38 +130,20 @@ func ReceiveDataset(r io.Reader, name string, mounted bool) (*Dataset, error) {
 	} else {
 		args = []string{"-u", name}
 	}
-	if err := Receive(r, args...); err != nil {
-		return nil, errors.Trace(err)
+	if err := ZfsReceive(r, args...); err != nil {
+		return nil, err
 	}
 	return GetDataset(name)
 }
 
-func runZfsFields(cmd ...string) ([][]string, error) {
-	if out, err := RunCommandOutput("/sbin/zfs", cmd...); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		return fields(out), nil
-	}
-}
-
-func (ds *Dataset) Get(attr ...string) (map[string]string, error) {
-	cmd := []string{"get", "-Hp", "-oproperty,value"}
-
-	if len(attr) > 0 && strings.HasPrefix(attr[0], "-s") {
-		cmd = append(cmd, attr[0])
-		attr = attr[1:]
+func (ds *Dataset) GetMany(attr ...string) (map[string]string, error) {
+	attrArg := "all"
+	if len(attr) > 0 {
+		attrArg = strings.Join(attr, ",")
 	}
 
-	if len(attr) == 0 {
-		cmd = append(cmd, "all")
-	} else {
-		cmd = append(cmd, strings.Join(attr, ","))
-	}
-
-	cmd = append(cmd, ds.Name)
-
-	if lines, err := runZfsFields(cmd...); err != nil {
-		return nil, errors.Trace(err)
+	if lines, err := ds.ZfsFields("get", "-oproperty,value", attrArg); err != nil {
+		return nil, err
 	} else {
 		rv := make(map[string]string)
 		for _, line := range lines {
@@ -199,93 +153,102 @@ func (ds *Dataset) Get(attr ...string) (map[string]string, error) {
 	}
 }
 
-func (ds *Dataset) Get1(name string) (string, error) {
-	if props, err := ds.Get(name); err != nil {
-		return "", errors.Trace(err)
-	} else {
-		return props[name], nil
+func (ds *Dataset) Get(name string) (string, error) {
+	return ds.ZfsOutput("get", "-oproperty", name)
+}
+
+func firstError(err1, err2 error) error {
+	if err1 == nil {
+		return err2
 	}
+	return err1
 }
 
-func (ds *Dataset) Zfs(cmd ...string) error {
-	cmd = append(cmd, ds.Name)
-	return Zfs(cmd...)
-}
-
-func (ds *Dataset) Set(attr map[string]string) (err error) {
+func (ds *Dataset) SetMany(attr map[string]string) (err error) {
 	reload := false
-	cmd := make([]string, 1, len(attr)+2)
-	cmd[0] = "set"
+	args := make([]string, 0, len(attr))
 	for k, v := range attr {
 		if k == "mountpoint" {
 			reload = true
 		}
-		cmd = append(cmd, k+"="+v)
+		args = append(args, k+"="+v)
 	}
-	cmd = append(cmd, ds.Name)
 	if reload {
 		defer func() {
-			if err == nil {
-				err = errors.Trace(ds.load())
-			}
+			err = firstError(err, ds.load())
 		}()
 	}
-	return errors.Trace(Zfs(cmd...))
+	return ds.Zfs("set", args...)
 }
 
-func (ds *Dataset) Set1(name, value string) error {
-	return ds.Set(map[string]string{name: value})
+func (ds *Dataset) Set(name, value string) (err error) {
+	if name == "mountpoint" {
+		defer func() {
+			err = firstError(err, ds.load())
+		}()
+	}
+	return ds.Zfs("set", name+"="+value)
 }
 
 func (ds *Dataset) Snapshot(name string, args ...string) (*Dataset, error) {
 	snapName := ds.Name + "@" + name
-	if err := Zfs(append(append([]string{"snapshot"}, args...), snapName)...); err != nil {
-		return nil, errors.Trace(err)
+	if err := Zfs("snapshot", append(args, snapName)...); err != nil {
+		return nil, err
 	} else {
 		return GetDataset(snapName)
 	}
 }
 
+func (ds *Dataset) GetSnapshot(name string) (*Dataset, error) {
+	return GetDataset(ds.Name + "@" + name)
+}
+
+func (ds *Dataset) RollbackTo(name string, args ...string) error {
+	if snap, err := ds.GetSnapshot(name); err != nil {
+		return err
+	} else {
+		return snap.Rollback(args...)
+	}
+}
+
 func (ds *Dataset) Send(w io.Writer, args ...string) error {
 	if ds.Type != "snapshot" {
-		return errors.Errorf("Not a snapshot: %v", ds)
+		return fmt.Errorf("Not a snapshot: %v", ds)
 	}
-	return Send(w, append(args, ds.Name)...)
+	return ZfsSend(w, append(args, ds.Name)...)
 }
 
 func (ds *Dataset) Rollback(args ...string) error {
 	if ds.Type != "snapshot" {
-		return errors.Errorf("Not a snapshot: %v", ds)
+		return fmt.Errorf("Not a snapshot: %v", ds)
 	}
-	return ds.Zfs(append([]string{"rollback"}, args...)...)
+	return ds.Zfs("rollback", args...)
 }
 
-func (ds *Dataset) Mount() error {
-	if err := ds.Zfs("mount"); err != nil {
-		return errors.Trace(err)
-	} else {
-		return errors.Trace(ds.load())
-	}
+func (ds *Dataset) Mount() (err error) {
+	defer func() {
+		err = firstError(err, ds.load())
+	}()
+	return ds.Zfs("mount")
 }
 
 // depth: -1: self and all descendants (unlimited recursion); 0: only
 // all descendants (unlimited recursion); >0: set depth, not include
 // self
 func (ds *Dataset) Children(depth int, args ...string) ([]*Dataset, error) {
-	cmd := []string{"list", "-r", "-H", "-oname"}
+	args = append([]string{"-r", "-oname"}, args...)
 	if depth > 0 {
-		cmd[1] = fmt.Sprintf("-d%d", depth)
+		args[0] = fmt.Sprintf("-d%d", depth)
 	}
-	cmd = append(cmd, args...)
-	cmd = append(cmd, ds.Name)
-	if lines, err := runZfsFields(cmd...); err != nil {
-		return nil, errors.Trace(err)
+	if lines, err := ds.ZfsFields("list", args...); err != nil {
+		return nil, err
 	} else {
 		rv := make([]*Dataset, len(lines))
 		for i, ln := range lines {
-			// TODO: use "zfs get" to get all children at the same time and avoid I/O & forking
+			// TODO: use "zfs get" to get data of all children at the same
+			// time and excessive forking
 			if ds, err := GetDataset(ln[0]); err != nil {
-				return nil, errors.Trace(err)
+				return nil, err
 			} else {
 				rv[i] = ds
 			}
@@ -299,15 +262,6 @@ func (ds *Dataset) Children(depth int, args ...string) ([]*Dataset, error) {
 	}
 }
 
-func (ds *Dataset) GetSnapshot(name string) (*Dataset, error) {
-	return GetDataset(ds.Name + "@" + name)
-}
-
-func (ds *Dataset) Destroy(flags string) error {
-	args := []string{"destroy"}
-	if flags != "" {
-		args = append(args, flags)
-	}
-	args = append(args, ds.Name)
-	return Zfs(args...)
+func (ds *Dataset) Destroy(flags ...string) error {
+	return ds.Zfs("destroy", flags...)
 }

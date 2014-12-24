@@ -8,6 +8,7 @@ import "path/filepath"
 import "strings"
 import "testing"
 
+import "github.com/3ofcoins/jetpack/run"
 import "github.com/3ofcoins/jetpack/zfs"
 
 const datasetFile = "dataset.zfs"
@@ -24,7 +25,7 @@ func initDataset() error {
 		[]string{"make", "-C", "../images/freebsd-base"},
 		[]string{"make", "-C", "../images/example.showenv"},
 	} {
-		if err := zfs.RunCommand(cmd[0], cmd[1:]...); err != nil {
+		if err := run.Command(cmd[0], cmd[1:]...).Run(); err != nil {
 			return err
 		}
 	}
@@ -52,7 +53,7 @@ func restoreDataset() error {
 		if ds, err := zfs.ReceiveDataset(zstream, RootDatasetName, false); err != nil {
 			return err
 		} else {
-			if err := ds.Set1("mountpoint", RootDatadir); err != nil {
+			if err := ds.Set("mountpoint", RootDatadir); err != nil {
 				return err
 			}
 
@@ -196,21 +197,21 @@ func TestMain(m *testing.M) {
 func TestForSmoke(t *testing.T) {
 	RollbackDataset(t)
 
-	if out, err := zfs.RunCommandOutput("jetpack", "list"); err != nil {
+	if out, err := run.Command("jetpack", "list").OutputString(); err != nil {
 		t.Error(err)
 	} else {
-		t.Log("jetpack list =>\n", out)
-		if out != "No containers\n" {
+		t.Logf("jetpack list =>\n%v\n", out)
+		if out != "No containers" {
 			t.Fatalf("Expected no containers")
 		}
 	}
 
-	if out, err := zfs.RunCommandOutput("jetpack", "images"); err != nil {
+	if out, err := run.Command("jetpack", "images").OutputLines(); err != nil {
 		t.Error(err)
 	} else {
-		t.Log("jetpack images =>\n", out)
-		if ln := len(strings.Split(out, "\n")) - 1; ln != 4 {
-			t.Fatal("Expected four lines of output (header + 3 images), instead got", ln)
+		t.Logf("jetpack images =>\n%v\n", strings.Join(out, "\n"))
+		if len(out) != 4 {
+			t.Fatal("Expected four lines of output (header + 3 images), instead got", len(out))
 		}
 	}
 }
