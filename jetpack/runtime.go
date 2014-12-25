@@ -129,9 +129,9 @@ func NewRuntime(name string) (*Runtime, error) {
 	rt.AddCommand("init", "[--] CONFIG... -- initialize or configure host", rt.CmdInit)
 	rt.AddCommand("list", "-- list containers", rt.CmdList)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
-	rt.AddCommand("run", "[OPTIONS] UUID -- run container or image", rt.CmdRun)
+	rt.AddCommand("run", "[OPTIONS] IMAGE|CONTAINER  [--] [PARAMETERS...] -- run container or image", rt.CmdRun)
 	rt.AddCommand("kill", "UUID... -- kill running containers", rt.CmdKill)
-	rt.AddCommand("create", "IMAGE -- create container from image", rt.CmdCreate)
+	rt.AddCommand("create", "IMAGE [--] [PARAMETERS...] -- create container from image", rt.CmdCreate)
 
 	// Switches
 

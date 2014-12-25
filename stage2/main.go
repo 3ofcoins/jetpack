@@ -1,8 +1,10 @@
 package main
 
 import "flag"
-import "fmt"
+import "io/ioutil"
 import "os"
+import "strconv"
+import "strings"
 import "syscall"
 
 func JailAttach(jid int) error {
@@ -38,24 +40,70 @@ func main() {
 		panic(err)
 	}
 
-	user, err := getUserData(User)
-	if err != nil {
+	Uid := -1
+	Gid := -1
+	var Username, Home, Shell string
+
+	if bytes, err := ioutil.ReadFile("/etc/passwd"); err != nil {
 		panic(err)
-	} else if user == nil {
-		panic(fmt.Sprintf("User not found: %s", User))
+	} else {
+		for _, line := range strings.Split(string(bytes), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || line[0] == '#' {
+				continue
+			}
+			fields := strings.Split(line, ":")
+			if fields[0] == User || fields[2] == User {
+				if uid, err := strconv.Atoi(fields[2]); err != nil {
+					panic(err)
+				} else {
+					Uid = uid
+				}
+				if gid, err := strconv.Atoi(fields[3]); err != nil {
+					panic(err)
+				} else {
+					Gid = gid
+				}
+				Username = fields[0]
+				Home = fields[5]
+				Shell = fields[6]
+				break
+			}
+		}
 	}
 
-	var gid int
-	if Group == "" {
-		gid = user.gid
-	} else {
-		agid, err := getGid(Group)
-		if err != nil {
-			panic(err)
-		} else if agid < 0 {
-			panic(fmt.Sprintf("Group not found: %s", Group))
+	if Uid < 0 {
+		panic("User not found")
+	}
+
+	if Group != "" {
+		Gid = -1
+		if gid, err := strconv.Atoi(Group); err != nil {
+			if bytes, err := ioutil.ReadFile("/etc/group"); err != nil {
+				panic(err)
+			} else {
+				for _, line := range strings.Split(string(bytes), "\n") {
+					line = strings.TrimSpace(line)
+					if line == "" || line[0] == '#' {
+						continue
+					}
+					fields := strings.Split(line, ":")
+					if fields[0] == Group {
+						if gid, err := strconv.Atoi(fields[2]); err != nil {
+							panic(err)
+						} else {
+							Gid = gid
+						}
+						break
+					}
+				}
+			}
+		} else {
+			Gid = gid
 		}
-		gid = agid
+		if Gid < 0 {
+			panic("Group not found")
+		}
 	}
 
 	os.Clearenv()
@@ -65,10 +113,10 @@ func main() {
 
 	env := map[string]string{
 		"PATH":    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-		"USER":    user.username,
-		"LOGNAME": user.username,
-		"HOME":    user.home,
-		"SHELL":   user.shell,
+		"USER":    Username,
+		"LOGNAME": Username,
+		"HOME":    Home,
+		"SHELL":   Shell,
 	}
 
 	for k, v := range Environment {
@@ -87,11 +135,11 @@ func main() {
 		panic(err)
 	}
 
-	if err := syscall.Setregid(gid, gid); err != nil {
+	if err := syscall.Setregid(Gid, Gid); err != nil {
 		panic(err)
 	}
 
-	if err := syscall.Setreuid(user.uid, user.uid); err != nil {
+	if err := syscall.Setreuid(Uid, Uid); err != nil {
 		panic(err)
 	}
 

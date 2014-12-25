@@ -146,6 +146,13 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 				ReadOnly: mnt.ReadOnly,
 			})
 		}
+		if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
+			for _, dir := range []string{"sys", "proc", "lib/init/rw"} {
+				if err := os.MkdirAll(ds.Path("rootfs", dir), 0755); err != nil {
+					return nil, errors.Trace(err)
+				}
+			}
+		}
 	}
 
 	c, err := cmgr.newContainer(ds)

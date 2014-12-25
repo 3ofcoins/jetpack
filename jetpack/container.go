@@ -166,8 +166,9 @@ func (c *Container) Prep() error {
 		return errors.Trace(err)
 	}
 
+	var fstab []string
 	if app := img.Manifest.App; app != nil && len(app.MountPoints) > 0 {
-		fstab := make([]string, len(app.MountPoints))
+		appFstab := make([]string, len(app.MountPoints))
 		for i, mnt := range app.MountPoints {
 			if vol := c.findVolume(mnt.Name); vol == nil {
 				return errors.Errorf("No volume found for %v", mnt.Name)
@@ -176,13 +177,23 @@ func (c *Container) Prep() error {
 				if vol.ReadOnly {
 					opts = "ro"
 				}
-				fstab[i] = fmt.Sprintf("%v %v nullfs %v 0 0\n",
+				appFstab[i] = fmt.Sprintf("%v %v nullfs %v 0 0\n",
 					vol.Source,
 					c.Dataset.Path("rootfs", mnt.Path),
 					opts,
 				)
 			}
 		}
+		fstab = appFstab
+	}
+	if os, _ := img.Manifest.GetLabel("os"); os == "linux" {
+		fstab = append(fstab,
+			fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Dataset.Path("rootfs/sys")),
+			fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Dataset.Path("rootfs/proc")),
+			fmt.Sprintf("tmpfs %v tmpfs rw,mode=777 0 0\n", c.Dataset.Path("rootfs/lib/init/rw")),
+		)
+	}
+	if len(fstab) > 0 {
 		fstabPath := c.Dataset.Path("fstab")
 		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
 			return errors.Trace(err)
