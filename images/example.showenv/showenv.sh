@@ -12,8 +12,13 @@ Environment:
 EOF
 env | sort
 
+date > /opt/data/date.txt
+
 cat <<EOF
 
 Files:
 EOF
 ls -la . /opt/data/
+
+echo
+cat /opt/data/date.txt

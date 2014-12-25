@@ -132,5 +132,5 @@ func nextIP(ip net.IP) net.IP {
 			return ip
 		}
 	}
-	panic("RAN OUT OF IPS")
+	return nil
 }

@@ -1,20 +1,16 @@
 package jetpack
 
-import "encoding/json"
 import stderrors "errors"
-import "io/ioutil"
-import "log"
-import "os"
+import "fmt"
 import "strconv"
 import "strings"
 import "time"
 
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/jetpack/config"
 import "github.com/3ofcoins/jetpack/run"
 import "github.com/3ofcoins/jetpack/zfs"
-
-const DefaultMountpoint = "/srv/jetpack"
 
 var ErrNotFound = stderrors.New("Not found")
 var ErrManyFound = stderrors.New("Multiple results found")
@@ -26,80 +22,74 @@ type JailStatus struct {
 
 var NoJailStatus = JailStatus{}
 
+var DefaultConfig = config.Config{
+	"jail/interface":   "lo1",
+	"jail/name-prefix": "jetpack:",
+}
+
 type Host struct {
 	Dataset    *zfs.Dataset `json:"-"`
 	Images     ImageManager
 	Containers ContainerManager
 
+	Config config.Config
+
 	jailStatusTimestamp time.Time
 	jailStatusCache     map[string]JailStatus
 }
 
-var hostDefaults = Host{
-	Containers: defaultContainerManager,
+func newHost() *Host {
+	h := Host{Config: config.NewConfig()}
+	h.Images.Host = &h
+	h.Containers.Host = &h
+	h.Config.UpdateFrom(DefaultConfig, "")
+	return &h
 }
 
 func GetHost(rootDataset string) (*Host, error) {
-	ds, err := zfs.GetDataset(rootDataset)
-	if err != nil {
+	h := newHost()
+
+	if ds, err := zfs.GetDataset(rootDataset); err != nil {
 		return nil, errors.Trace(err)
-	}
-	h := hostDefaults
-	h.Dataset = ds
-
-	if config, err := ioutil.ReadFile(h.Dataset.Path("config")); err != nil {
-		if os.IsNotExist(err) {
-			if err = h.SaveConfig(); err != nil {
-				return nil, errors.Trace(err)
-			}
-			return &h, nil
-		} else {
-			return nil, errors.Trace(err)
-		}
 	} else {
-		err = json.Unmarshal(config, &h)
-		if err != nil {
-			return nil, err
-		}
+		h.Dataset = ds
 	}
 
-	h.Images.Host = &h
 	if ds, err := h.Dataset.GetDataset("images"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.Images.Dataset = ds
 	}
 
-	h.Containers.Host = &h
 	if ds, err := h.Dataset.GetDataset("containers"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.Containers.Dataset = ds
 	}
 
-	return &h, nil
-}
-
-func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
-	h := hostDefaults
-
-	// Create root dataset
-	if rootMountpoint == "" {
-		rootMountpoint = DefaultMountpoint
+	if err := h.Config.LoadOrSave(h.Dataset.Path("config"), 0600); err != nil {
+		return nil, errors.Trace(err)
 	}
 
-	log.Printf("Creating root ZFS dataset %#v at %v\n", rootDataset, rootMountpoint)
-	if ds, err := zfs.CreateDataset(rootDataset, "-omountpoint="+rootMountpoint); err != nil {
+	return h, nil
+}
+
+func CreateHost(rootDataset string, cfg config.Config) (*Host, error) {
+	zfsConfig := cfg.ExtractSubtree("zfs")
+	zfsOptions := make([]string, 0, len(zfsConfig))
+	for k, v := range zfsConfig {
+		zfsOptions = append(zfsOptions, fmt.Sprintf("-o%v=%v", k, v))
+	}
+
+	h := newHost()
+
+	if ds, err := zfs.CreateDataset(rootDataset, zfsOptions...); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.Dataset = ds
 	}
 
-	if ds, err := h.Dataset.CreateDataset("images",
-		"-oatime=off",
-		"-ocompress=lz4",
-		"-odedup=on",
-	); err != nil {
+	if ds, err := h.Dataset.CreateDataset("images", "-oatime=off", "-ocompress=lz4", "-odedup=on"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		h.Images.Dataset = ds
@@ -111,20 +101,16 @@ func CreateHost(rootDataset, rootMountpoint string) (*Host, error) {
 		h.Containers.Dataset = ds
 	}
 
-	// TODO: accept configuration
-	if err := h.SaveConfig(); err != nil {
+	if err := h.UpdateConfig(cfg); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	return &h, nil
+	return h, nil
 }
 
-func (h *Host) SaveConfig() error {
-	config, err := json.Marshal(h)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(h.Dataset.Path("config"), config, 0600)
+func (h *Host) UpdateConfig(c config.Config) error {
+	h.Config.UpdateFrom(c, "")
+	return errors.Trace(h.Config.SaveToFile(h.Dataset.Path("config"), 0600))
 }
 
 func (h *Host) GetJailStatus(name string, refresh bool) (JailStatus, error) {

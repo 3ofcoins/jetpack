@@ -9,6 +9,7 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/jetpack/config"
 import "github.com/3ofcoins/jetpack/ui"
 import "github.com/3ofcoins/jetpack/zfs"
 
@@ -65,6 +66,19 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 	case [][]string:
 		ui.Table(obj.([][]string))
 
+	case config.Config:
+		c := obj.(config.Config)
+		keys := make([]string, 0, len(c))
+		for k := range c {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		tbl := make([][]string, len(c))
+		for i, k := range keys {
+			tbl[i] = []string{k, c[k]}
+		}
+		return Show(ui, SectionTable{"Config", tbl})
+
 	case SectionTable:
 		if st := obj.(SectionTable); len(st.Contents) > 0 {
 			return ShowSection(ui, st.Name, st.Contents)
@@ -72,11 +86,7 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 
 	case *Host:
 		h := obj.(*Host)
-		return Show(ui,
-			h.Dataset,
-			SectionTable{"Configuration", [][]string{
-				[]string{"Interface", h.Containers.Interface},
-				[]string{"IP Pool", h.Containers.AddressPool}}})
+		return Show(ui, h.Dataset, h.Config)
 
 	case *zfs.Dataset:
 		ds := obj.(*zfs.Dataset)

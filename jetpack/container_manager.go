@@ -17,16 +17,6 @@ import "github.com/3ofcoins/jetpack/zfs"
 type ContainerManager struct {
 	Dataset *zfs.Dataset `json:"-"`
 	Host    *Host        `json:"-"`
-
-	Interface      string
-	AddressPool    string
-	JailNamePrefix string
-}
-
-var defaultContainerManager = ContainerManager{
-	Interface:      "lo1",
-	AddressPool:    "172.23.0.1/16",
-	JailNamePrefix: "jetpack:",
 }
 
 func (cmgr *ContainerManager) All() (ContainerSlice, error) {
@@ -87,7 +77,11 @@ func (cmgr *ContainerManager) newContainer(ds *zfs.Dataset) (*Container, error) 
 	c.Manifest.UUID = *uuid
 
 	// TODO: lock until saved?
-	c.Manifest.Annotations["ip-address"] = cmgr.NextIP().String()
+	if ip, err := cmgr.nextIP(); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		c.Manifest.Annotations["ip-address"] = ip.String()
+	}
 
 	return c, nil
 }
@@ -171,27 +165,38 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 	return c, nil
 }
 
-func (cmgr *ContainerManager) NextIP() net.IP {
-	ip, ipnet, err := net.ParseCIDR(cmgr.AddressPool)
-	if err != nil {
-		panic(err)
-	}
-
-	ips := make(map[string]bool)
-	if cc, err := cmgr.All(); err != nil {
-		panic(err)
+func (cmgr *ContainerManager) nextIP() (net.IP, error) {
+	if ifi, err := net.InterfaceByName(cmgr.Host.Config["jail/interface"]); err != nil {
+		return nil, errors.Trace(err)
 	} else {
-		for _, c := range cc {
-			ips[c.Manifest.Annotations["ip-address"]] = true
+		if addrs, err := ifi.Addrs(); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			if ip, ipnet, err := net.ParseCIDR(addrs[0].String()); err != nil {
+				return nil, errors.Trace(err)
+			} else {
+				ips := make(map[string]bool)
+				if cc, err := cmgr.All(); err != nil {
+					return nil, errors.Trace(err)
+				} else {
+					for _, c := range cc {
+						ips[c.Manifest.Annotations["ip-address"]] = true
+					}
+				}
+
+				for ip = nextIP(ip); ip != nil && ips[ip.String()]; ip = nextIP(ip) {
+				}
+
+				if ip == nil {
+					return nil, errors.New("Out of IPs")
+				}
+
+				if ipnet.Contains(ip) {
+					return ip, nil
+				} else {
+					return nil, errors.New("Out of IPs")
+				}
+			}
 		}
-	}
-
-	for ip = nextIP(ip); ips[ip.String()]; ip = nextIP(ip) {
-	}
-
-	if ipnet.Contains(ip) {
-		return ip
-	} else {
-		return nil
 	}
 }

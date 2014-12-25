@@ -28,7 +28,7 @@ func init() {
   exec.clean="true";
   host.hostname="{{(.GetAnnotation "hostname" .Manifest.UUID.String)}}";
   host.hostuuid="{{.Manifest.UUID}}";
-  interface="{{.Manager.Interface}}";
+  interface="{{index .Manager.Host.Config "jail/interface"}}";
   ip4.addr="{{(.GetAnnotation "ip-address" "CAN'T HAPPEN")}}";
   mount.devfs="true";
   persist="true";
@@ -267,7 +267,7 @@ func (c *Container) Destroy() error {
 }
 
 func (c *Container) JailName() string {
-	return c.Manager.JailNamePrefix + c.Manifest.UUID.String()
+	return c.Manager.Host.Config["jail/name-prefix"] + c.Manifest.UUID.String()
 }
 
 func (c *Container) GetJailStatus(refresh bool) (JailStatus, error) {

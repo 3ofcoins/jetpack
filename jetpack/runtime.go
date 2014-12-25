@@ -8,6 +8,7 @@ import "code.google.com/p/go-uuid/uuid"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
+import "github.com/3ofcoins/jetpack/config"
 import "github.com/3ofcoins/jetpack/ui"
 import "github.com/3ofcoins/jetpack/zfs"
 
@@ -59,6 +60,12 @@ func (rt *Runtime) ShiftUUID() uuid.UUID {
 		return uuid
 	}
 	return nil
+}
+
+func (rt *Runtime) Config() config.Config {
+	c := config.NewConfig()
+	c.LoadArguments(rt.Args...)
+	return c
 }
 
 func (rt *Runtime) Host() *Host {
@@ -119,11 +126,12 @@ func NewRuntime(name string) (*Runtime, error) {
 	rt.AddCommand("images", "[QUERY] -- list images", rt.CmdImages)
 	rt.AddCommand("import", "URI_OR_PATH [MANIFEST] -- import an image from ACI or rootfs tarball", rt.CmdImport)
 	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
-	rt.AddCommand("init", "[MOUNTPOINT] -- initialize or modify host (NFY)", rt.CmdInit)
+	rt.AddCommand("init", "[--] CONFIG... -- initialize or configure host", rt.CmdInit)
 	rt.AddCommand("list", "-- list containers", rt.CmdList)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
 	rt.AddCommand("run", "[OPTIONS] UUID -- run container or image", rt.CmdRun)
 	rt.AddCommand("kill", "UUID... -- kill running containers", rt.CmdKill)
+	rt.AddCommand("create", "IMAGE -- create container from image", rt.CmdCreate)
 
 	// Switches
 

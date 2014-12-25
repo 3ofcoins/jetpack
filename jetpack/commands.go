@@ -10,17 +10,27 @@ import "github.com/3ofcoins/jetpack/cli"
 import "github.com/3ofcoins/jetpack/run"
 
 func (rt *Runtime) CmdInit() error {
-	mountpoint := rt.Shift()
-	if len(rt.Args) != 0 {
-		return cli.ErrUsage
-	}
-
-	if host, err := CreateHost(rt.ZFSRoot, mountpoint); err != nil {
-		return errors.Trace(err)
+	cfg := rt.Config()
+	if host, err := GetHost(rt.ZFSRoot); err != nil {
+		rt.UI.Sayf("Got error getting host: %v; creating new one...", err)
+		if host, err := CreateHost(rt.ZFSRoot, rt.Config()); err != nil {
+			return errors.Trace(err)
+		} else {
+			return errors.Trace(rt.Show(host))
+		}
 	} else {
-		rt.host = host
+		if err := host.UpdateConfig(cfg); err != nil {
+			return errors.Trace(err)
+		}
+		return errors.Trace(rt.Show(host))
 	}
-	return rt.CmdInfo()
+}
+
+func (rt *Runtime) CmdSet() error {
+	if err := rt.Host().UpdateConfig(rt.Config()); err != nil {
+		return errors.Trace(err)
+	}
+	return errors.Trace(rt.Show(rt.Host()))
 }
 
 func (rt *Runtime) CmdImport() error {
@@ -107,6 +117,20 @@ func (rt *Runtime) CmdDestroy() error {
 		}
 	}
 	return nil
+}
+
+func (rt *Runtime) CmdCreate() error {
+	h := rt.Host()
+	name := rt.Shift()
+	if img, err := h.Images.Get(name); err != nil {
+		return errors.Trace(err)
+	} else {
+		if c, err := h.Containers.Clone(img); err != nil {
+			return errors.Trace(err)
+		} else {
+			return errors.Trace(rt.Show(c))
+		}
+	}
 }
 
 func (rt *Runtime) CmdKill() error {
