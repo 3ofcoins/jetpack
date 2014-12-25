@@ -86,6 +86,9 @@ func (c *Cmd) OutputLines() ([]string, error) {
 	if out, err := c.OutputString(); err != nil {
 		return nil, err
 	} else {
+		if out == "" {
+			return nil, nil
+		}
 		return strings.Split(out, "\n"), nil
 	}
 }

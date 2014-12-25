@@ -8,6 +8,7 @@ import "os"
 import "strconv"
 import "strings"
 import "text/template"
+import "time"
 
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
@@ -49,12 +50,14 @@ type ContainerStatus uint
 const (
 	ContainerStatusInvalid ContainerStatus = iota
 	ContainerStatusRunning
+	ContainerStatusDying
 	ContainerStatusStopped
 )
 
 var containerStatusNames = []string{
 	ContainerStatusInvalid: "invalid",
 	ContainerStatusRunning: "running",
+	ContainerStatusDying:   "dying",
 	ContainerStatusStopped: "stopped",
 }
 
@@ -212,18 +215,39 @@ func (c *Container) GetAnnotation(key, defval string) string {
 }
 
 func (c *Container) Status() ContainerStatus {
-	if c.Jid() > 0 {
-		return ContainerStatusRunning
+	if status, err := c.GetJailStatus(false); err != nil {
+		panic(err)
 	} else {
-		return ContainerStatusStopped
+		if status == NoJailStatus {
+			return ContainerStatusStopped
+		}
+		if status.Dying {
+			return ContainerStatusDying
+		}
+		return ContainerStatusRunning
 	}
 }
 
 func (c *Container) Kill() error {
-	if c.Jid() > 0 {
-		return errors.Trace(c.RunJail("-r"))
+	t0 := time.Now()
+retry:
+	switch status := c.Status(); status {
+	case ContainerStatusStopped:
+		// All's fine
+		return nil
+	case ContainerStatusRunning:
+		if err := c.RunJail("-r"); err != nil {
+			return errors.Trace(err)
+		}
+		goto retry
+	case ContainerStatusDying:
+		// TODO: UI? Log?
+		fmt.Printf("Container dying since %v, waiting...\n", time.Now().Sub(t0))
+		time.Sleep(2500 * time.Millisecond)
+		goto retry
+	default:
+		return errors.Errorf("Container is %v, I am confused", status)
 	}
-	return nil
 }
 
 func (c *Container) Destroy() error {
@@ -234,16 +258,15 @@ func (c *Container) JailName() string {
 	return c.Manager.JailNamePrefix + c.Manifest.UUID.String()
 }
 
+func (c *Container) GetJailStatus(refresh bool) (JailStatus, error) {
+	return c.Manager.Host.GetJailStatus(c.JailName(), refresh)
+}
+
 func (c *Container) Jid() int {
-	if out, err := run.Command("jls", "-j", c.JailName(), "jid").OutputString(); err != nil {
-		// FIXME: we assume that jail was not found. Should we do anything else here?
-		return 0
+	if status, err := c.GetJailStatus(false); err != nil {
+		panic(err) // do we need to?
 	} else {
-		if jid, err := strconv.Atoi(out); err != nil {
-			panic(err)
-		} else {
-			return jid
-		}
+		return status.Jid
 	}
 }
 
@@ -276,7 +299,7 @@ func (c *Container) Run(app *types.App) (err1 error) {
 		return errors.Trace(err)
 	}
 	defer func() {
-		if err := c.RunJail("-r"); err != nil {
+		if err := c.Kill(); err != nil {
 			if err1 != nil {
 				err1 = errors.Wrap(err1, errors.Trace(err))
 			} else {

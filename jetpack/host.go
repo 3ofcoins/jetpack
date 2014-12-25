@@ -5,9 +5,13 @@ import stderrors "errors"
 import "io/ioutil"
 import "log"
 import "os"
+import "strconv"
+import "strings"
+import "time"
 
 import "github.com/juju/errors"
 
+import "github.com/3ofcoins/jetpack/run"
 import "github.com/3ofcoins/jetpack/zfs"
 
 const DefaultMountpoint = "/srv/jetpack"
@@ -15,10 +19,20 @@ const DefaultMountpoint = "/srv/jetpack"
 var ErrNotFound = stderrors.New("Not found")
 var ErrManyFound = stderrors.New("Multiple results found")
 
+type JailStatus struct {
+	Jid   int
+	Dying bool
+}
+
+var NoJailStatus = JailStatus{}
+
 type Host struct {
 	Dataset    *zfs.Dataset `json:"-"`
 	Images     ImageManager
 	Containers ContainerManager
+
+	jailStatusTimestamp time.Time
+	jailStatusCache     map[string]JailStatus
 }
 
 var hostDefaults = Host{
@@ -111,4 +125,38 @@ func (h *Host) SaveConfig() error {
 		return err
 	}
 	return ioutil.WriteFile(h.Dataset.Path("config"), config, 0600)
+}
+
+func (h *Host) GetJailStatus(name string, refresh bool) (JailStatus, error) {
+	if refresh || h.jailStatusCache == nil || time.Now().Sub(h.jailStatusTimestamp) > (2*time.Second) {
+		// FIXME: nicer cache/expiry implementation?
+		if lines, err := run.Command("/usr/sbin/jls", "-d", "jid", "dying", "name").OutputLines(); err != nil {
+			return NoJailStatus, errors.Trace(err)
+		} else {
+			stat := make(map[string]JailStatus)
+			for _, line := range lines {
+				fields := strings.SplitN(line, " ", 3)
+				status := NoJailStatus
+				if len(fields) != 3 {
+					return NoJailStatus, errors.Errorf("Cannot parse jls line %#v", line)
+				}
+
+				if jid, err := strconv.Atoi(fields[0]); err != nil {
+					return NoJailStatus, errors.Annotatef(err, "Cannot parse jls line %#v", line)
+				} else {
+					status.Jid = jid
+				}
+
+				if dying, err := strconv.Atoi(fields[1]); err != nil {
+					return NoJailStatus, errors.Annotatef(err, "Cannot parse jls line %#v", line)
+				} else {
+					status.Dying = (dying != 0)
+				}
+
+				stat[fields[2]] = status
+			}
+			h.jailStatusCache = stat
+		}
+	}
+	return h.jailStatusCache[name], nil
 }

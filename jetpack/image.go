@@ -8,7 +8,6 @@ import "os"
 import "path"
 import "path/filepath"
 import "strings"
-import "syscall"
 import "time"
 
 import "code.google.com/p/go-uuid/uuid"
@@ -279,11 +278,6 @@ func (img *Image) Build(buildDir string, buildExec []string) (*Image, error) {
 	if err := os.Remove(filepath.Join(destroot, "/etc/resolv.conf")); err != nil {
 		return nil, errors.Trace(err)
 	}
-
-	// Sync buffers to avoid "Cannot unmount …: device is busy" on
-	// rename, which seems to be caused by buffers still being written
-	// to the disk
-	syscall.Sync()
 
 	// Pivot container into an image
 	uuid := path.Base(buildContainer.Dataset.Name)
