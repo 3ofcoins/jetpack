@@ -5,6 +5,7 @@ import "encoding/json"
 import "fmt"
 import "io/ioutil"
 import "os"
+import "path"
 import "strconv"
 import "strings"
 import "text/template"
@@ -228,6 +229,17 @@ func (c *Container) Status() ContainerStatus {
 	}
 }
 
+func (c *Container) runJail(op string) error {
+	if err := c.Prep(); err != nil {
+		return err
+	}
+	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), "-v", op, c.JailName()).Run()
+}
+
+func (c *Container) Spawn() error {
+	return errors.Trace(c.runJail("-c"))
+}
+
 func (c *Container) Kill() error {
 	t0 := time.Now()
 retry:
@@ -236,7 +248,7 @@ retry:
 		// All's fine
 		return nil
 	case ContainerStatusRunning:
-		if err := c.RunJail("-r"); err != nil {
+		if err := c.runJail("-r"); err != nil {
 			return errors.Trace(err)
 		}
 		goto retry
@@ -270,22 +282,13 @@ func (c *Container) Jid() int {
 	}
 }
 
-func (c *Container) RunJail(op string) error {
-	if err := c.Prep(); err != nil {
-		return err
-	}
-	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), "-v", op, c.JailName()).Run()
+func (c *Container) imageUUID() string {
+	return strings.Split(path.Base(c.Dataset.Origin), "@")[0]
 }
 
 func (c *Container) GetImage() (*Image, error) {
 	if c.image == nil {
-		hash := c.Manifest.Apps[0].ImageID.Val
-		if !strings.HasPrefix(hash, "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000") {
-			return nil, errors.New("FIXME: sha512 is a real checksum, not wrapped UUID, and I am confused now.")
-		}
-		hash = hash[128-32:]
-		uuid := strings.Join([]string{hash[:8], hash[8:12], hash[12:16], hash[16:20], hash[20:]}, "-")
-		if img, err := c.Manager.Host.Images.Get(uuid); err != nil {
+		if img, err := c.Manager.Host.Images.Get(c.imageUUID()); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			c.image = img
@@ -295,7 +298,7 @@ func (c *Container) GetImage() (*Image, error) {
 }
 
 func (c *Container) Run(app *types.App) (err1 error) {
-	if err := c.RunJail("-c"); err != nil {
+	if err := c.Spawn(); err != nil {
 		return errors.Trace(err)
 	}
 	defer func() {
