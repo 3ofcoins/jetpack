@@ -1,6 +1,6 @@
-all: bin/jetpack bin/stage2
+all: bin/jetpack bin/stage2 bin/test.integration
 
-.PHONY: bin/jetpack clean distclean
+.PHONY: bin/jetpack bin/test.integration vendor.refetch clean
 
 CC=clang
 GOPATH=$(.CURDIR)/vendor
@@ -11,6 +11,9 @@ bin/jetpack:
 
 bin/stage2: stage2/*.go
 	cd stage2 && go build -o ../bin/stage2
+
+bin/test.integration:
+	cd integration && go test -c -o ../bin/test.integration
 
 vendor.refetch:
 	rm -rf vendor
@@ -30,3 +33,6 @@ vendor.refetch:
 	        echo "$$d $$(cd $$d; git log -n 1 --oneline)" >> $(.CURDIR)/vendor/manifest.txt ; \
 	        rm -rf $$d/.git ; \
             done
+
+clean:
+	rm -rf bin
