@@ -1,9 +1,10 @@
 all: bin/jetpack bin/stage2
 
-.PHONY: bin/jetpack clean distclean sys.destroy sys.init sys.recycle
+.PHONY: bin/jetpack clean distclean
 
 CC=clang
-.export CC
+GOPATH=$(.CURDIR)/vendor
+.export CC GOPATH
 
 bin/jetpack:
 	go build -o $@
@@ -11,25 +12,21 @@ bin/jetpack:
 bin/stage2: stage2/*.go
 	cd stage2 && go build -o ../bin/stage2
 
-clean:
-	rm -rf bin/ *.aci
-
-distclean: clean
-	rm -rf tmp/ cache/
-
-cache/base.txz:
-	mkdir -p cache
-	fetch -o ${@} ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/base.txz
-
-freebsd-base-current.aci: ./scripts/freebsd-baseimage.sh cache/base.txz
-	sudo ./scripts/freebsd-baseimage.sh -u -b $$(pwd)/cache/base.txz
-	sudo chown $$(id -u):$$(id -g) *.aci
-
-sys.destroy:
-	sudo zfs destroy -R zroot/jetpack
-
-sys.init: bin/jetpack freebsd-base-current.aci
-	sudo ./bin/jetpack init
-	sudo ./bin/jetpack import ./freebsd-base-current.aci
-
-sys.recycle: sys.destroy sys.init
+vendor.refetch:
+	rm -rf vendor
+	mkdir -p vendor/src/github.com/3ofcoins
+	ln -s ../../../.. vendor/src/github.com/3ofcoins/jetpack
+	go get -d
+	set -e ; \
+	    cd vendor/src ; \
+	    for d in code.google.com/p/* ; do \
+	        echo "$$d $$(cd $$d ; hg log -l 1 --template '{node|short} {desc|firstline}')" >> $(.CURDIR)/vendor/manifest.txt ; \
+	        rm -rf $$d/.hg ; \
+	    done ; \
+	    for d in github.com/*/* ; do \
+	        if test -L $$d ; then \
+	            continue ; \
+	        fi ; \
+	        echo "$$d $$(cd $$d; git log -n 1 --oneline)" >> $(.CURDIR)/vendor/manifest.txt ; \
+	        rm -rf $$d/.git ; \
+            done

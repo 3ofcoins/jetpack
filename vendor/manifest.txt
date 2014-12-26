@@ -1,0 +1,3 @@
+code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUIDs
+github.com/appc/spec 4f62d21 Merge pull request #61 from sgotti/discoveryvalidtemplate
+github.com/juju/errors 7a74894 Merge pull request #14 from aznashwan/user-not-found

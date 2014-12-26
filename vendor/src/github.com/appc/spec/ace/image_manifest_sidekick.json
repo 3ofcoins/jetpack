@@ -1,0 +1,24 @@
+{
+    "acVersion": "0.1.1",
+    "acKind": "ImageManifest",
+    "name": "coreos.com/ace-validator-sidekick",
+    "labels": [
+        { "name": "version", "val": "0.1.1" },
+        { "name": "os", "val": "linux" },
+        { "name": "arch", "val": "amd64" }
+    ],
+    "app": {
+        "exec": [
+            "/ace-validator", "sidekick"
+        ],
+        "user": "0",
+        "group": "0",
+        "mountPoints": [
+            {
+                "name": "database",
+                "path": "/db",
+                "readOnly": false
+            }
+        ]
+    }
+}
