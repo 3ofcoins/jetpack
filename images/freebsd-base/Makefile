@@ -1,21 +1,12 @@
-RELEASE_LABELS = 
-JETPACK = jetpack
+.MAKEFLAGS: -I${../../share:L:tA}
 
-build_params =
-.ifdef http_proxy
-build_params += http_proxy=$(http_proxy)
-.endif
+PARENT_IMAGE = freebsd-base/release$(RELEASE)
+CLEAN_FILES  = entropy manifest.json
+BUILD_VARS   = http_proxy
 
-all: prepare
-	$(JETPACK) build \
-	    freebsd-base/release$(RELEASE_LABELS) \
-	    . \
-	    make build $(build_params)
+prepare: entropy
 
-clean:
-	rm -vf entropy manifest.json
-
-prepare:
+entropy:
 	dd if=/dev/random of=entropy bs=4096 count=1
 
 build:
@@ -25,4 +16,8 @@ build:
 	install -v -m 0600 entropy /entropy
 	PAGER=cat freebsd-update -s update6.freebsd.org fetch install
 	rm -rf /var/db/freebsd-update/* /etc/resolv.conf
-	./manifest.json.sh > manifest.json
+
+manifest.json:
+	./manifest.json.sh > $@
+
+.include "jetpack.image.mk"

@@ -1,19 +1,13 @@
-JETPACK = jetpack
-DEVEL =
+.MAKEFLAGS: -I${../../share:L:tA}
 
-all:
-	$(JETPACK) build -from=freebsd-base . $(MAKE) build DEVEL=$(DEVEL) http_proxy=172.23.0.1:3128
-
-ASSUME_ALWAYS_YES=YES
-.export ASSUME_ALWAYS_YES
-
-.if x$(DEVEL) == x
-PACKAGE = nginx
-.else
-PACKAGE = nginx-devel
-.endif
+PARENT_IMAGE = freebsd-base
+BUILD_VARS = DEVEL http_proxy
 
 build:
-	pkg install $(PACKAGE)
+	env ASSUME_ALWAYS_YES=YES pkg install nginx${DEVEL:D-devel}
 	install -v -m 0640 -o root -g www nginx.conf /usr/local/etc/nginx.conf
-	./manifest.json.sh > manifest.json
+
+manifest.json:
+	./manifest.json.sh > $@
+
+.include "jetpack.image.mk"
