@@ -1,6 +1,6 @@
 all: bin/jetpack bin/stage2 bin/test.integration
 
-.PHONY: bin/jetpack bin/test.integration vendor.refetch clean
+.PHONY: bin/jetpack bin/test.integration vendor.refetch dist jetpack.txz clean
 
 CC=clang
 GOPATH=$(.CURDIR)/vendor
@@ -34,5 +34,9 @@ vendor.refetch:
 	        rm -rf $$d/.git ; \
             done
 
+dist: jetpack.txz
+jetpack.txz:
+	git archive --format=tar --prefix=jetpack/ HEAD | xz > $@
+
 clean:
-	rm -rf bin
+	rm -rf bin tmp jetpack.txz
