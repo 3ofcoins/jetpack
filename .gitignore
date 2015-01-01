@@ -1,3 +1,4 @@
 /bin
 .fuse*
 /tmp
+.prefix
