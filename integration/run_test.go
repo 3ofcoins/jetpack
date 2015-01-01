@@ -1,4 +1,4 @@
-package jetpack_test
+package jetpack_integration
 
 import "fmt"
 import "io/ioutil"
@@ -21,9 +21,9 @@ var Flags = make(map[string]bool)
 func initDataset() error {
 	for _, cmd := range [][]string{
 		[]string{"jetpack", "init", RootDatadir},
-		[]string{"make", "-C", "../images/freebsd-base.release"},
-		[]string{"make", "-C", "../images/freebsd-base"},
-		[]string{"make", "-C", "../images/example.showenv"},
+		[]string{"make", "-C", filepath.Join(ImagesPath, "freebsd-base.release")},
+		[]string{"make", "-C", filepath.Join(ImagesPath, "freebsd-base")},
+		[]string{"make", "-C", filepath.Join(ImagesPath, "example.showenv")},
 	} {
 		cmd := run.Command(cmd[0], cmd[1:]...)
 		if Flags["verbose"] {
@@ -131,21 +131,7 @@ func doRun(m *testing.M) int {
 		}
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR:", err)
-		return 2
-	}
-
-	// Add ../bin to $PATH (FIXME: test could be actually compiled and
-	// shipped with the binary, and $PATH setting would be up to the
-	// caller; OTOH, this would require shipping also images/)
-	if err = os.Setenv("PATH",
-		strings.Join(
-			[]string{
-				filepath.Clean(filepath.Join(cwd, "..", "bin")),
-				os.Getenv("PATH"),
-			}, ":")); err != nil {
+	if err := os.Setenv("PATH", strings.Join([]string{BinPath, os.Getenv("PATH")}, ":")); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
 	}
 
@@ -163,10 +149,11 @@ func doRun(m *testing.M) int {
 		}
 	}
 
-	RootDatadir, err = ioutil.TempDir(parentDataset.Mountpoint, "jetpack.")
-	if err != nil {
+	if datadir, err := ioutil.TempDir(parentDataset.Mountpoint, "jetpack."); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		return 2
+	} else {
+		RootDatadir = datadir
 	}
 
 	if !Flags["keepfs"] {

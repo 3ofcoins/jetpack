@@ -1,28 +1,49 @@
-PREFIX      ?= /usr/local
+.ifdef PREFIX
 bindir      ?= $(PREFIX)/bin
 libexecdir  ?= $(PREFIX)/libexec/jetpack
 sharedir    ?= $(PREFIX)/share/jetpack
 sharedir.mk ?= $(sharedir)/mk
 examplesdir ?= $(PREFIX)/share/examples/jetpack
+.else
+bindir      ?= ${.CURDIR}/bin
+libexecdir  ?= ${bindir}
+sharedir    ?= ${.CURDIR}/share
+sharedir.mk ?= ${sharedir}
+examplesdir ?= ${.CURDIR}/images
+.endif
 
-all: bin/jetpack bin/stage2 bin/test.integration
+all: bin/jetpack bin/stage2 bin/test.integration .prefix
 
-.PHONY: bin/jetpack bin/test.integration vendor.refetch dist jetpack.txz clean
+.prefix: .PHONY
+	echo "${PREFIX:Uin-place usage}" > $@
+.if exists(.prefix)
+.prefix := ${cat .prefix:L:sh}
+.else
+.prefix := (no prefix saved)
+.endif
 
 CC=clang
 GOPATH=$(.CURDIR)/vendor
 .export CC GOPATH
 
-bin/jetpack:
+bin/jetpack: .PHONY jetpack/const.go integration/const.go
 	go build -o $@
 
 bin/stage2: stage2/*.go
 	cd stage2 && go build -o ../bin/stage2
 
-bin/test.integration:
+bin/test.integration: .PHONY jetpack/const.go
 	cd integration && go test -c -o ../bin/test.integration
 
-vendor.refetch:
+jetpack/const.go: .PHONY
+	echo 'package jetpack; const LibexecPath="$(libexecdir)"; const JetpackImageMkPath="$(sharedir.mk)/jetpack.image.mk"; const Version="'"$$(cat VERSION)"'"; const IsDevelopment=${PREFIX:Dfalse:Utrue}; const BuildTimestamp="'"$$(date -u +%FT%TZ)"'"' \
+	    | gofmt > $@
+
+integration/const.go: .PHONY
+	echo 'package jetpack_integration; const BinPath="$(bindir)"; const ImagesPath="$(examplesdir)"' \
+	    | gofmt > $@
+
+vendor.refetch: .PHONY
 	rm -rf vendor
 	mkdir -p vendor/src/github.com/3ofcoins
 	ln -s ../../../.. vendor/src/github.com/3ofcoins/jetpack
@@ -41,23 +62,25 @@ vendor.refetch:
 	        rm -rf $$d/.git ; \
             done
 
-dist: jetpack.txz
-jetpack.txz:
-	git archive --format=tar --prefix=jetpack/ HEAD | xz > $@
-
-install: all
+.ifdef PREFIX
+install: .PHONY
+.if "${.prefix}" != "${PREFIX}"
+	@echo 'Cannot install to ${PREFIX}, source was built for ${.prefix}' ; false
+.else
 	install -m 0755 -d $(DESTDIR)$(bindir) $(DESTDIR)$(libexecdir) $(DESTDIR)$(sharedir.mk) $(DESTDIR)$(examplesdir)
 	install -m 0755 -s bin/jetpack $(DESTDIR)$(bindir)/jetpack
 	install -m 0755 -s bin/stage2 bin/test.integration $(DESTDIR)$(libexecdir)
 	install -m 0644 share/jetpack.image.mk $(DESTDIR)$(sharedir.mk)
 	cp -R images/ $(DESTDIR)$(examplesdir)
 	sed -i '' -e 's!^\.MAKEFLAGS: *-I.*!.MAKEFLAGS: -I$(sharedir.mk)!' $(DESTDIR)$(examplesdir)/*/Makefile
+.endif
 
-uninstall:
+uninstall: .PHONY
 	rm -rf $(bindir)/jetpack $(libexecdir) $(sharedir) $(examplesdir)
 
 
-reinstall: uninstall .WAIT install
+reinstall: .PHONY uninstall .WAIT install
+.endif
 
-clean:
-	rm -rf bin tmp jetpack.txz
+clean: .PHONY
+	rm -rf bin tmp .prefix jetpack/const.go integration/const.go
