@@ -14,9 +14,14 @@ import "github.com/3ofcoins/jetpack/zfs"
 const datasetFile = "dataset.zfs"
 const snapshotName = "initialized"
 
-var RootDatadir, RootDatasetName string
+var RootDatadir, RootDatasetName, ConfigPath string
 var RootDataset, RootDatasetSnapshot *zfs.Dataset
-var Flags = make(map[string]bool)
+var Params = make(map[string]string)
+
+func HasParam(name string) bool {
+	_, ok := Params[name]
+	return ok
+}
 
 func initDataset() error {
 	for _, cmd := range [][]string{
@@ -26,7 +31,7 @@ func initDataset() error {
 		[]string{"make", "-C", filepath.Join(ImagesPath, "example.showenv")},
 	} {
 		cmd := run.Command(cmd[0], cmd[1:]...)
-		if Flags["verbose"] {
+		if HasParam("verbose") {
 			fmt.Println(cmd)
 		}
 		if err := cmd.Run(); err != nil {
@@ -98,13 +103,13 @@ func RollbackDataset(t *testing.T) {
 }
 
 func prepareDataset() error {
-	if Flags["quick"] {
+	if HasParam("quick") {
 		return restoreDataset()
 	} else {
 		if err := initDataset(); err != nil {
 			return err
 		}
-		if Flags["save"] {
+		if HasParam("save") {
 			return saveDataset()
 		} else {
 			return nil
@@ -122,12 +127,9 @@ func doRun(m *testing.M) int {
 			continue
 		}
 		if elts := strings.SplitN(arg, "=", 2); len(elts) == 1 {
-			Flags[elts[0]] = true
+			Params[elts[0]] = ""
 		} else {
-			if err := os.Setenv(elts[0], elts[1]); err != nil {
-				fmt.Fprintln(os.Stderr, "ERROR:", err)
-				return 2
-			}
+			Params[elts[0]] = elts[1]
 		}
 	}
 
@@ -137,8 +139,8 @@ func doRun(m *testing.M) int {
 
 	var parentDataset *zfs.Dataset
 
-	if parentName := os.Getenv("DATASET"); parentName == "" {
-		fmt.Fprintln(os.Stderr, "ERROR: DATASET environment variable is not set")
+	if parentName, ok := Params["dataset"]; !ok {
+		fmt.Fprintln(os.Stderr, "ERROR: dataset parameter is not set")
 		return 2
 	} else {
 		if ds, err := zfs.GetDataset(parentName); err != nil {
@@ -149,20 +151,30 @@ func doRun(m *testing.M) int {
 		}
 	}
 
-	if datadir, err := ioutil.TempDir(parentDataset.Mountpoint, "jetpack."); err != nil {
+	if datadir, err := ioutil.TempDir(parentDataset.Mountpoint, "test."); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		return 2
 	} else {
 		RootDatadir = datadir
 	}
 
-	if !Flags["keepfs"] {
-		defer os.RemoveAll(RootDatadir)
-	}
-
+	ConfigPath = RootDatadir + ".conf"
 	RootDatasetName = path.Join(parentDataset.Name, path.Base(RootDatadir))
 
-	if err := os.Setenv("JETPACK_ROOT", RootDatasetName); err != nil {
+	if !HasParam("keepfs") {
+		defer os.RemoveAll(RootDatadir)
+		defer os.Remove(ConfigPath)
+	}
+
+	if err := ioutil.WriteFile(ConfigPath,
+		[]byte(fmt.Sprintf("root.zfs=%v\nroot.zfs.mountpoint=%v\n", RootDatasetName, RootDatadir)),
+		0644,
+	); err != nil {
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
+		return 2
+	}
+
+	if err := os.Setenv("JETPACK_CONF", ConfigPath); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		return 2
 	}
@@ -176,7 +188,7 @@ func doRun(m *testing.M) int {
 				RootDataset = ds
 			}
 		}
-		if !Flags["keepfs"] {
+		if !HasParam("keepfs") {
 			if err := RootDataset.Destroy("-r"); err != nil {
 				fmt.Fprintln(os.Stderr, "ERROR:", err)
 			}
@@ -189,7 +201,7 @@ func doRun(m *testing.M) int {
 	if err := prepareDataset(); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		return 2
-	} else if Flags["verbose"] {
+	} else if HasParam("verbose") {
 		RootDataset.Zfs("list", "-r", "-tall", "-oname,mounted,mountpoint")
 	}
 

@@ -1,5 +1,6 @@
 package jetpack
 
+import "path/filepath"
 import "sort"
 import "strconv"
 
@@ -188,4 +189,10 @@ func (rt *Runtime) CmdBuild() error {
 			return errors.Trace(rt.Show(childImg))
 		}
 	}
+}
+
+func (rt *Runtime) CmdTest() error {
+	return errors.Trace(
+		run.Command(filepath.Join(LibexecPath, "test.integration"),
+			append(rt.Args, "dataset="+rt.Host.Dataset.Name)...).Run())
 }

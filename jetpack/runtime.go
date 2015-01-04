@@ -101,12 +101,17 @@ func (rt *Runtime) Show(obj ...interface{}) error {
 
 func NewRuntime(name string) (*Runtime, error) {
 	rt := &Runtime{
-		Cli: cli.NewCli(name),
-		UI:  ui.NewUI(os.Stdout),
+		Cli:        cli.NewCli(name),
+		UI:         ui.NewUI(os.Stdout),
+		configPath: ConfigPath,
+	}
+
+	if cfg := os.Getenv("JETPACK_CONF"); cfg != "" {
+		rt.configPath = cfg
 	}
 
 	// Global flags
-	rt.StringVar(&rt.configPath, "config", ConfigPath, "Path to the configuration file")
+	rt.StringVar(&rt.configPath, "config", rt.configPath, "Path to the configuration file")
 
 	// Commands
 	rt.AddCommand("build", "[-cp PATH...] IMAGE BUILD-DIR COMMAND...", rt.CmdBuild)
@@ -120,6 +125,7 @@ func NewRuntime(name string) (*Runtime, error) {
 	rt.AddCommand("run", "[OPTIONS] IMAGE|CONTAINER  [--] [PARAMETERS...] -- run container or image", rt.CmdRun)
 	rt.AddCommand("kill", "UUID... -- kill running containers", rt.CmdKill)
 	rt.AddCommand("create", "IMAGE [--] [PARAMETERS...] -- create container from image", rt.CmdCreate)
+	rt.AddCommand("test", "[...] -- run integration tests", rt.CmdTest)
 
 	// Switches
 
