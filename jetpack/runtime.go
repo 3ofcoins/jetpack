@@ -1,5 +1,6 @@
 package jetpack
 
+import "fmt"
 import "os"
 
 import "code.google.com/p/go-uuid/uuid"
@@ -7,6 +8,17 @@ import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
 import "github.com/3ofcoins/jetpack/ui"
+
+type multiFlag []string
+
+func (mf *multiFlag) String() string {
+	return fmt.Sprintf("%v", *mf)
+}
+
+func (mf *multiFlag) Set(v string) error {
+	*mf = append(*mf, v)
+	return nil
+}
 
 type Runtime struct {
 	// CLI stuff
@@ -21,6 +33,7 @@ type Runtime struct {
 	Verbose       bool
 	User          string
 	Console, Keep bool
+	CopyFiles     multiFlag
 
 	// Global runtime state
 	Host *Host
@@ -96,7 +109,7 @@ func NewRuntime(name string) (*Runtime, error) {
 	rt.StringVar(&rt.configPath, "config", ConfigPath, "Path to the configuration file")
 
 	// Commands
-	rt.AddCommand("build", "IMAGE BUILD-DIR COMMAND...", rt.CmdBuild)
+	rt.AddCommand("build", "[-cp PATH...] IMAGE BUILD-DIR COMMAND...", rt.CmdBuild)
 	rt.AddCommand("destroy", "UUID ... -- destroy images or containers", rt.CmdDestroy)
 	rt.AddCommand("images", "[QUERY] -- list images", rt.CmdImages)
 	rt.AddCommand("import", "URI_OR_PATH [MANIFEST] -- import an image from ACI or rootfs tarball", rt.CmdImport)
@@ -110,6 +123,7 @@ func NewRuntime(name string) (*Runtime, error) {
 
 	// Switches
 
+	rt.Commands["build"].Var(&rt.CopyFiles, "cp", "Copy additional files to build dir")
 	rt.Commands["run"].BoolVar(&rt.Console, "console", false, "Run console, not image's app")
 	rt.Commands["run"].BoolVar(&rt.Keep, "keep", false, "Keep container after command finishes")
 

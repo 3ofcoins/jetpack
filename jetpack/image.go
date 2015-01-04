@@ -228,7 +228,7 @@ func (img *Image) Run(app *types.App, keep bool) (err1 error) {
 	return c.Run(app)
 }
 
-func (img *Image) Build(buildDir string, buildExec []string) (*Image, error) {
+func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
 	var buildContainer *Container
 	if c, err := img.Manager.Host.Containers.Clone(img); err != nil {
 		return nil, errors.Trace(err)
@@ -247,7 +247,17 @@ func (img *Image) Build(buildDir string, buildExec []string) (*Image, error) {
 		return nil, errors.Trace(err)
 	}
 
-	if err := run.Command("cp", "-R", buildDir, workDir).Run(); err != nil {
+	if buildDir[len(buildDir)-1] != '/' {
+		buildDir += "/"
+	}
+
+	cpArgs := []string{"-R", buildDir}
+	if addFiles != nil {
+		cpArgs = append(cpArgs, addFiles...)
+	}
+	cpArgs = append(cpArgs, workDir)
+
+	if err := run.Command("cp", cpArgs...).Run(); err != nil {
 		return nil, errors.Trace(err)
 	}
 

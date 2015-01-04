@@ -2,9 +2,9 @@
 
 PARENT_IMAGE = freebsd-base
 BUILD_VARS = DEVEL http_proxy
+PKG_INSTALL = nginx${DEVEL:D-devel}
 
 build:
-	env ASSUME_ALWAYS_YES=YES pkg install nginx${DEVEL:D-devel}
 	install -v -m 0640 -o root -g www nginx.conf /usr/local/etc/nginx.conf
 
 manifest.json:

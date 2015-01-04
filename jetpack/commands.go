@@ -182,7 +182,7 @@ func (rt *Runtime) CmdBuild() error {
 		return errors.Trace(err)
 	} else {
 		buildDir := rt.Shift()
-		if childImg, err := parentImg.Build(buildDir, rt.Args); err != nil {
+		if childImg, err := parentImg.Build(buildDir, rt.CopyFiles, rt.Args); err != nil {
 			return errors.Trace(err)
 		} else {
 			return errors.Trace(rt.Show(childImg))

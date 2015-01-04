@@ -6,6 +6,8 @@ CLEAN_FILES ?=
 # IMPORT_URL
 # IMPORT_SHA256
 # IMPORT_MANIFEST
+BUILD_CP ?=
+BUILD_CP_JETPACK_IMAGE_MK ?= yes
 
 .MAIN: image
 
@@ -28,24 +30,21 @@ $(IMPORT_FILE):
 	fetch -o $@ $(IMPORT_URL)
 .endif
 
-COPY_JETPACK_IMAGE_MK ?= yes
-.if ${COPY_JETPACK_IMAGE_MK:tl} == yes
-.jetpack.image.mk.name := $(.PARSEFILE)
 .jetpack.image.mk.path := $(.PARSEDIR)/$(.PARSEFILE)
-CLEAN_FILES += $(.jetpack.image.mk.name)
+.if ${BUILD_CP_JETPACK_IMAGE_MK} == yes
+BUILD_CP += ${.jetpack.image.mk.path}
 .endif
 
 image: .PHONY prepare
 .ifdef IMPORT_FILE
 	$(JETPACK) import $(IMPORT_FILE) $(IMPORT_MANIFEST)
 .else
-.if ${COPY_JETPACK_IMAGE_MK:tl} == yes
-	cp $(.jetpack.image.mk.path) $(.jetpack.image.mk.name)
+	$(JETPACK) build ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} $(PARENT_IMAGE) $(BUILD_DIR) $(BUILD_COMMAND) $(BUILD_ARGS)
 .endif
-	$(JETPACK) build $(PARENT_IMAGE) $(BUILD_DIR) $(BUILD_COMMAND) $(BUILD_ARGS)
-.if ${COPY_JETPACK_IMAGE_MK:tl} == yes
-	rm $(.jetpack.image.mk.name)
-.endif
+
+.ifdef PKG_INSTALL
+build.pkg-install: .PHONY
+	env ASSUME_ALWAYS_YES=YES pkg install ${PKG_INSTALL}
 .endif
 
 .if !empty(CLEAN_FILES)
