@@ -2,20 +2,41 @@
 bindir      ?= $(PREFIX)/bin
 libexecdir  ?= $(PREFIX)/libexec/jetpack
 sharedir    ?= $(PREFIX)/share/jetpack
-sharedir.mk ?= $(sharedir)/mk
 examplesdir ?= $(PREFIX)/share/examples/jetpack
+sysconfdir  ?= $(PREFIX)/etc
 .else
 bindir      ?= ${.CURDIR}/bin
 libexecdir  ?= ${bindir}
 sharedir    ?= ${.CURDIR}/share
-sharedir.mk ?= ${sharedir}
 examplesdir ?= ${.CURDIR}/images
+sysconfdir  ?= ${.CURDIR}
 .endif
+
+version := ${cat VERSION:L:sh}
+
+.if exists(.git)
+revision := ${git describe --always --long --dirty='*':L:sh}
+.else
+revision := (unknown)
+.endif
+
+const.jetpack = \
+	LibexecPath="${libexecdir}" \
+	ConfigPath="${sysconfdir}/jetpack.conf" \
+	SharedPath="${sharedir}" \
+	Version="${version}" \
+	IsDevelopment=${PREFIX:Dfalse:Utrue} \
+	BuildTimestamp="${%FT%TZ:L:gmtime}" \
+	Revision="${revision}"
+
+const.integration = \
+	BinPath="${bindir}" \
+	ImagesPath="${examplesdir}"
 
 all: bin/jetpack bin/stage2 bin/test.integration .prefix
 
 .prefix: .PHONY
-	echo "${PREFIX:Uin-place usage}" > $@
+	echo "${PREFIX:Udevelopment}" > $@
 .if exists(.prefix)
 .prefix := ${cat .prefix:L:sh}
 .else
@@ -36,12 +57,10 @@ bin/test.integration: .PHONY jetpack/const.go
 	cd integration && go test -c -o ../bin/test.integration
 
 jetpack/const.go: .PHONY
-	echo 'package jetpack; const LibexecPath="$(libexecdir)"; const JetpackImageMkPath="$(sharedir.mk)/jetpack.image.mk"; const Version="'"$$(cat VERSION)"'"; const IsDevelopment=${PREFIX:Dfalse:Utrue}; const BuildTimestamp="'"$$(date -u +%FT%TZ)"'"' \
-	    | gofmt > $@
+	echo 'package jetpack ${const.jetpack:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
 
 integration/const.go: .PHONY
-	echo 'package jetpack_integration; const BinPath="$(bindir)"; const ImagesPath="$(examplesdir)"' \
-	    | gofmt > $@
+	echo 'package jetpack_integration ${const.integration:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
 
 vendor.refetch: .PHONY
 	rm -rf vendor
@@ -67,17 +86,22 @@ install: .PHONY
 .if "${.prefix}" != "${PREFIX}"
 	@echo 'Cannot install to ${PREFIX}, source was built for ${.prefix}' ; false
 .else
-	install -m 0755 -d $(DESTDIR)$(bindir) $(DESTDIR)$(libexecdir) $(DESTDIR)$(sharedir.mk) $(DESTDIR)$(examplesdir)
+	install -m 0755 -d $(DESTDIR)$(bindir) $(DESTDIR)$(libexecdir) $(DESTDIR)$(sharedir) $(DESTDIR)$(examplesdir)
 	install -m 0755 -s bin/jetpack $(DESTDIR)$(bindir)/jetpack
 	install -m 0755 -s bin/stage2 bin/test.integration $(DESTDIR)$(libexecdir)
-	install -m 0644 share/jetpack.image.mk $(DESTDIR)$(sharedir.mk)
+	install -m 0644 share/* $(DESTDIR)$(sharedir)
+	install -m 0644 jetpack.conf.sample $(DESTDIR)$(sysconfdir)/jetpack.conf.sample
 	cp -R images/ $(DESTDIR)$(examplesdir)
-	sed -i '' -e 's!^\.MAKEFLAGS: *-I.*!.MAKEFLAGS: -I$(sharedir.mk)!' $(DESTDIR)$(examplesdir)/*/Makefile
+	sed -i '' -e 's!^\.MAKEFLAGS: *-I.*!.MAKEFLAGS: -I$(sharedir)!' $(DESTDIR)$(examplesdir)/*/Makefile
 .endif
 
 uninstall: .PHONY
-	rm -rf $(bindir)/jetpack $(libexecdir) $(sharedir) $(examplesdir)
-
+	rm -rf \
+	    $(DESTDIR)$(bindir)/jetpack \
+	    $(DESTDIR)$(libexecdir) \
+	    $(DESTDIR)$(sharedir) \
+	    $(DESTDIR)$(examplesdir) \
+	    $(DESTDIR)$(sysconfdir)/jetpack.conf.sample
 
 reinstall: .PHONY uninstall .WAIT install
 .endif

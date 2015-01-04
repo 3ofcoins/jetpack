@@ -173,7 +173,7 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 }
 
 func (cmgr *ContainerManager) nextIP() (net.IP, error) {
-	if ifi, err := net.InterfaceByName(cmgr.Host.Config["jail/interface"]); err != nil {
+	if ifi, err := net.InterfaceByName(cmgr.Host.Properties.MustGetString("jail.interface")); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		if addrs, err := ifi.Addrs(); err != nil {

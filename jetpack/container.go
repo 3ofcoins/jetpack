@@ -6,9 +6,9 @@ import "fmt"
 import "io/ioutil"
 import "os"
 import "path"
+import "sort"
 import "strconv"
 import "strings"
-import "text/template"
 import "time"
 
 import "github.com/appc/spec/schema"
@@ -17,32 +17,6 @@ import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/run"
 import "github.com/3ofcoins/jetpack/zfs"
-
-var jailConfTmpl *template.Template
-
-func init() {
-	tmpl, err := template.New("jail.conf").Parse(
-		`"{{.JailName}}" {
-  path = "{{.Dataset.Mountpoint}}/rootfs";
-  devfs_ruleset="4";
-  exec.clean="true";
-  host.hostname="{{(.GetAnnotation "hostname" .Manifest.UUID.String)}}";
-  host.hostuuid="{{.Manifest.UUID}}";
-  interface="{{index .Manager.Host.Config "jail/interface"}}";
-  ip4.addr="{{(.GetAnnotation "ip-address" "CAN'T HAPPEN")}}";
-  mount.devfs="true";
-  persist="true";
-{{ range $param, $value := .JailParameters }}
-  {{$param}} = "{{$value}}";
-{{ end }}
-}
-`)
-	if err != nil {
-		panic(err)
-	} else {
-		jailConfTmpl = tmpl
-	}
-}
 
 var ErrContainerIsEmpty = errors.New("Container is empty")
 
@@ -74,13 +48,11 @@ type Container struct {
 	Manifest schema.ContainerRuntimeManifest `json:"-"`
 	Manager  *ContainerManager               `json:"-"`
 
-	JailParameters map[string]string
-
 	image *Image
 }
 
 func NewContainer(ds *zfs.Dataset, mgr *ContainerManager) *Container {
-	return &Container{Dataset: ds, Manager: mgr, JailParameters: make(map[string]string)}
+	return &Container{Dataset: ds, Manager: mgr}
 }
 
 func GetContainer(ds *zfs.Dataset, mgr *ContainerManager) (*Container, error) {
@@ -160,6 +132,44 @@ func (c *Container) findVolume(name types.ACName) *types.Volume {
 	return nil
 }
 
+func (c *Container) jailConf() string {
+	parameters := map[string]string{
+		"devfs_ruleset": "4",
+		"exec.clean":    "true",
+		"host.hostuuid": c.Manifest.UUID.String(),
+		"interface":     c.Manager.Host.Properties.MustGetString("jail.interface"),
+		"mount.devfs":   "true",
+		"path":          c.Dataset.Path("rootfs"),
+		"persist":       "true",
+	}
+
+	if hostname, ok := c.Manifest.Annotations["hostname"]; ok {
+		parameters["host.hostname"] = hostname
+	} else {
+		parameters["host.hostname"] = parameters["host.hostuuid"]
+	}
+
+	if ip, ok := c.Manifest.Annotations["ip-address"]; ok {
+		parameters["ip4.addr"] = ip
+	} else {
+		panic(fmt.Sprintf("No IP address for container %v", c.Manifest.UUID))
+	}
+
+	for k, v := range c.Manifest.Annotations {
+		if strings.HasPrefix(string(k), "jetpack/jail.conf/") {
+			parameters[string(k)[len("jetpack/jail.conf/"):]] = v
+		}
+	}
+
+	lines := make([]string, 0, len(parameters))
+	for k, v := range parameters {
+		lines = append(lines, fmt.Sprintf("  %v=%#v;", k, v))
+	}
+	sort.Strings(lines)
+
+	return fmt.Sprintf("%#v {\n%v\n}\n", c.JailName(), strings.Join(lines, "\n"))
+}
+
 func (c *Container) Prep() error {
 	img, err := c.GetImage()
 	if err != nil {
@@ -198,7 +208,7 @@ func (c *Container) Prep() error {
 		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
 			return errors.Trace(err)
 		}
-		c.JailParameters["mount.fstab"] = fstabPath
+		c.Manifest.Annotations["jetpack/jail.conf/mount.fstab"] = fstabPath
 	}
 
 	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
@@ -209,13 +219,8 @@ func (c *Container) Prep() error {
 		}
 	}
 
-	jc, err := os.OpenFile(c.Dataset.Path("jail.conf"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	defer jc.Close()
-
-	return errors.Trace(jailConfTmpl.Execute(jc, c))
+	return errors.Trace(
+		ioutil.WriteFile(c.Dataset.Path("jail.conf"), []byte(c.jailConf()), 0400))
 }
 
 func (c *Container) GetAnnotation(key, defval string) string {
@@ -278,7 +283,7 @@ func (c *Container) Destroy() error {
 }
 
 func (c *Container) JailName() string {
-	return c.Manager.Host.Config["jail/name-prefix"] + c.Manifest.UUID.String()
+	return c.Manager.Host.Properties.MustGetString("jail.namePrefix") + c.Manifest.UUID.String()
 }
 
 func (c *Container) GetJailStatus(refresh bool) (JailStatus, error) {

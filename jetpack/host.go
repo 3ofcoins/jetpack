@@ -1,14 +1,15 @@
 package jetpack
 
 import stderrors "errors"
-import "fmt"
+import "os"
+import "path/filepath"
 import "strconv"
 import "strings"
 import "time"
 
 import "github.com/juju/errors"
+import "github.com/magiconair/properties"
 
-import "github.com/3ofcoins/jetpack/config"
 import "github.com/3ofcoins/jetpack/run"
 import "github.com/3ofcoins/jetpack/zfs"
 
@@ -22,95 +23,96 @@ type JailStatus struct {
 
 var NoJailStatus = JailStatus{}
 
-var DefaultConfig = config.Config{
-	"jail/interface":   "lo1",
-	"jail/name-prefix": "jetpack:",
-}
-
 type Host struct {
 	Dataset    *zfs.Dataset `json:"-"`
 	Images     ImageManager
 	Containers ContainerManager
 
-	Config config.Config
+	Properties *properties.Properties
 
 	jailStatusTimestamp time.Time
 	jailStatusCache     map[string]JailStatus
 }
 
-func newHost() *Host {
-	h := Host{Config: config.NewConfig()}
+func NewHost(configPath string) (*Host, error) {
+	h := Host{}
 	h.Images.Host = &h
 	h.Containers.Host = &h
-	h.Config.UpdateFrom(DefaultConfig, "")
-	return &h
-}
+	h.Properties = properties.MustLoadFiles(
+		[]string{
+			filepath.Join(SharedPath, "jetpack.conf.defaults"),
+			configPath,
+		},
+		properties.UTF8,
+		true)
 
-func GetHost(rootDataset string) (*Host, error) {
-	h := newHost()
-
-	if ds, err := zfs.GetDataset(rootDataset); err != nil {
-		return nil, errors.Trace(err)
+	if ds, err := zfs.GetDataset(h.Properties.MustGetString("root.zfs")); err != nil {
+		if err == zfs.ErrNotFound {
+			return &h, nil
+		}
+		return nil, err
 	} else {
 		h.Dataset = ds
 	}
 
 	if ds, err := h.Dataset.GetDataset("images"); err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	} else {
 		h.Images.Dataset = ds
 	}
 
 	if ds, err := h.Dataset.GetDataset("containers"); err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	} else {
 		h.Containers.Dataset = ds
 	}
 
-	if err := h.Config.LoadOrSave(h.Dataset.Path("config"), 0600); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return h, nil
+	return &h, nil
 }
 
-func CreateHost(rootDataset string, cfg config.Config) (*Host, error) {
-	zfsConfig := cfg.ExtractSubtree("zfs")
-	zfsOptions := make([]string, 0, len(zfsConfig))
-	for k, v := range zfsConfig {
-		zfsOptions = append(zfsOptions, fmt.Sprintf("-o%v=%v", k, v))
+func (h *Host) zfsOptions(prefix string, opts ...string) []string {
+	l := len(prefix)
+	p := h.Properties.FilterPrefix(prefix)
+	for _, k := range p.Keys() {
+		if v, ok := p.Get(k); ok && v != "" {
+			opts = append(opts, strings.Join([]string{"-o", k[l:], "=", v}, ""))
+		}
+	}
+	return opts
+}
+
+func (h *Host) Initialize() error {
+	if h.Dataset != nil {
+		return errors.New("Host already initialized")
 	}
 
-	h := newHost()
+	// We use GetString, as user can specify "root.zfs.mountpoint=" (set
+	// to empty string) in config to unset property
+	if mntpnt := h.Properties.GetString("root.zfs.mountpoint", ""); mntpnt != "" {
+		if err := os.MkdirAll(mntpnt, 0755); err != nil {
+			return errors.Trace(err)
+		}
+	}
 
-	if ds, err := zfs.CreateDataset(rootDataset, zfsOptions...); err != nil {
-		return nil, errors.Trace(err)
+	if ds, err := zfs.CreateDataset(h.Properties.MustGetString("root.zfs"), h.zfsOptions("root.zfs.", "-p")...); err != nil {
+		return errors.Trace(err)
 	} else {
 		h.Dataset = ds
 	}
 
-	if ds, err := h.Dataset.CreateDataset("images", "-oatime=off", "-ocompress=lz4", "-odedup=on"); err != nil {
-		return nil, errors.Trace(err)
+	if ds, err := h.Dataset.CreateDataset("images", h.zfsOptions("images.zfs.")...); err != nil {
+		return errors.Trace(err)
 	} else {
 		h.Images.Dataset = ds
 	}
 
-	if ds, err := h.Dataset.CreateDataset("containers"); err != nil {
-		return nil, errors.Trace(err)
+	if ds, err := h.Dataset.CreateDataset("containers", h.zfsOptions("containers.zfs.")...); err != nil {
+		return errors.Trace(err)
 	} else {
 		h.Containers.Dataset = ds
 	}
 
-	if err := h.UpdateConfig(cfg); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return h, nil
-}
-
-func (h *Host) UpdateConfig(c config.Config) error {
-	h.Config.UpdateFrom(c, "")
-	return errors.Trace(h.Config.SaveToFile(h.Dataset.Path("config"), 0600))
+	return nil
 }
 
 func (h *Host) GetJailStatus(name string, refresh bool) (JailStatus, error) {

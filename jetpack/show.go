@@ -8,8 +8,8 @@ import "strings"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
+import "github.com/magiconair/properties"
 
-import "github.com/3ofcoins/jetpack/config"
 import "github.com/3ofcoins/jetpack/ui"
 import "github.com/3ofcoins/jetpack/zfs"
 
@@ -66,18 +66,14 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 	case [][]string:
 		ui.Table(obj.([][]string))
 
-	case config.Config:
-		c := obj.(config.Config)
-		keys := make([]string, 0, len(c))
-		for k := range c {
-			keys = append(keys, k)
+	case *properties.Properties:
+		p := obj.(*properties.Properties)
+		tbl := make([][]string, p.Len())
+		for i, k := range p.Keys() {
+			v, _ := p.Get(k)
+			tbl[i] = []string{k, v}
 		}
-		sort.Strings(keys)
-		tbl := make([][]string, len(c))
-		for i, k := range keys {
-			tbl[i] = []string{k, c[k]}
-		}
-		return Show(ui, SectionTable{"Config", tbl})
+		return Show(ui, SectionTable{"Configuration", tbl})
 
 	case SectionTable:
 		if st := obj.(SectionTable); len(st.Contents) > 0 {
@@ -86,7 +82,12 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 
 	case *Host:
 		h := obj.(*Host)
-		return Show(ui, h.Dataset, h.Config)
+		isdev := ""
+		if IsDevelopment {
+			isdev = " (development)"
+		}
+		ui.Sayf("JetPack %v (%v), compiled on %v%v", Version, Revision, BuildTimestamp, isdev)
+		return Show(ui, h.Dataset, h.Properties)
 
 	case *zfs.Dataset:
 		ds := obj.(*zfs.Dataset)

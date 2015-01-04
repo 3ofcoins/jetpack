@@ -10,27 +10,10 @@ import "github.com/3ofcoins/jetpack/cli"
 import "github.com/3ofcoins/jetpack/run"
 
 func (rt *Runtime) CmdInit() error {
-	cfg := rt.Config()
-	if host, err := GetHost(rt.ZFSRoot); err != nil {
-		rt.UI.Sayf("Got error getting host: %v; creating new one...", err)
-		if host, err := CreateHost(rt.ZFSRoot, rt.Config()); err != nil {
-			return errors.Trace(err)
-		} else {
-			return errors.Trace(rt.Show(host))
-		}
-	} else {
-		if err := host.UpdateConfig(cfg); err != nil {
-			return errors.Trace(err)
-		}
-		return errors.Trace(rt.Show(host))
-	}
-}
-
-func (rt *Runtime) CmdSet() error {
-	if err := rt.Host().UpdateConfig(rt.Config()); err != nil {
+	if err := rt.Host.Initialize(); err != nil {
 		return errors.Trace(err)
 	}
-	return errors.Trace(rt.Show(rt.Host()))
+	return errors.Trace(rt.Show(rt.Host))
 }
 
 func (rt *Runtime) CmdImport() error {
@@ -44,7 +27,7 @@ func (rt *Runtime) CmdImport() error {
 		manifestUri = rt.Args[1]
 	}
 
-	if img, err := rt.Host().Images.Import(imageUri, manifestUri); err != nil {
+	if img, err := rt.Host.Images.Import(imageUri, manifestUri); err != nil {
 		return errors.Trace(err)
 	} else {
 		return errors.Trace(rt.Show(img))
@@ -57,7 +40,7 @@ func (rt *Runtime) CmdImages() error {
 		return cli.ErrUsage
 	}
 
-	switch imgs, err := rt.Host().Images.Find(q); err {
+	switch imgs, err := rt.Host.Images.Find(q); err {
 	case nil:
 		sort.Sort(imgs)
 		rt.UI.Table(imgs.Table())
@@ -74,7 +57,7 @@ func (rt *Runtime) CmdList() error {
 	if len(rt.Args) > 0 {
 		return cli.ErrUsage
 	}
-	cc, err := rt.Host().Containers.All()
+	cc, err := rt.Host.Containers.All()
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -93,7 +76,7 @@ func (rt *Runtime) byUUID(
 	handleContainer func(*Container) error,
 	handleImage func(*Image) error,
 ) error {
-	h := rt.Host()
+	h := rt.Host
 
 	// TODO: distinguish "not found" from actual errors
 	if c, err := h.Containers.Get(uuid); err == nil {
@@ -120,7 +103,7 @@ func (rt *Runtime) CmdDestroy() error {
 }
 
 func (rt *Runtime) CmdCreate() error {
-	h := rt.Host()
+	h := rt.Host
 	name := rt.Shift()
 	if img, err := h.Images.Get(name); err != nil {
 		return errors.Trace(err)
@@ -148,7 +131,7 @@ func (rt *Runtime) CmdKill() error {
 func (rt *Runtime) CmdInfo() error {
 	switch len(rt.Args) {
 	case 0: // host info
-		return errors.Trace(rt.Show(rt.Host()))
+		return errors.Trace(rt.Show(rt.Host))
 	case 1: // UUID
 		return rt.byUUID(rt.Args[0],
 			func(c *Container) error { return errors.Trace(rt.Show(c)) },
@@ -177,7 +160,7 @@ func (rt *Runtime) CmdRun() (err1 error) {
 }
 
 func (rt *Runtime) CmdPs() error {
-	c, err := rt.Host().Containers.Get(rt.Shift())
+	c, err := rt.Host.Containers.Get(rt.Shift())
 	if err != nil {
 		return err
 	}
@@ -193,7 +176,7 @@ func (rt *Runtime) CmdBuild() error {
 		return cli.ErrUsage
 	}
 
-	h := rt.Host()
+	h := rt.Host
 
 	if parentImg, err := h.Images.Find1(rt.Shift()); err != nil {
 		return errors.Trace(err)

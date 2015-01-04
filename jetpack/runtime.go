@@ -1,16 +1,12 @@
 package jetpack
 
-import "log"
 import "os"
-import "path"
 
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/juju/errors"
 
 import "github.com/3ofcoins/jetpack/cli"
-import "github.com/3ofcoins/jetpack/config"
 import "github.com/3ofcoins/jetpack/ui"
-import "github.com/3ofcoins/jetpack/zfs"
 
 type Runtime struct {
 	// CLI stuff
@@ -19,7 +15,7 @@ type Runtime struct {
 	Args    []string
 
 	// Global switches
-	ZFSRoot string
+	configPath string
 
 	// Per-command switches
 	Verbose       bool
@@ -27,17 +23,41 @@ type Runtime struct {
 	Console, Keep bool
 
 	// Global runtime state
-	host *Host
+	Host *Host
 	UI   *ui.UI
 }
 
-func (rt *Runtime) AddCommand(name, synopsis string, runner func() error) {
+type CommandFlag uint32
+
+const (
+	_                              CommandFlag = iota
+	CommandAcceptUninitializedHost             = 1 << iota
+)
+
+func (rt *Runtime) AddCommand(name, synopsis string, runner func() error, flags ...CommandFlag) {
+	fl := CommandFlag(0)
+	for _, flag := range flags {
+		fl |= flag
+	}
 	rt.Cli.AddCommand(name, synopsis,
 		func(command string, args []string) error {
+			if fl&CommandAcceptUninitializedHost == 0 && rt.Host.Dataset == nil {
+				return errors.New("Host is not initialized")
+			}
 			rt.Command = command
 			rt.Args = args
 			return runner()
 		})
+}
+
+func (rt *Runtime) Parse(args []string) error {
+	rt.Cli.Parse(args)
+	if host, err := NewHost(rt.configPath); err != nil {
+		return errors.Trace(err)
+	} else {
+		rt.Host = host
+	}
+	return nil
 }
 
 // Command helpers
@@ -62,42 +82,8 @@ func (rt *Runtime) ShiftUUID() uuid.UUID {
 	return nil
 }
 
-func (rt *Runtime) Config() config.Config {
-	c := config.NewConfig()
-	c.LoadArguments(rt.Args...)
-	return c
-}
-
-func (rt *Runtime) Host() *Host {
-	if rt.host == nil {
-		if host, err := GetHost(rt.ZFSRoot); err != nil {
-			log.Printf("Root ZFS dataset %v does not seem to exist (%#v)\n", rt.ZFSRoot, err.Error())
-			log.Printf("Run `%v init' to create data set\n", rt.Name)
-			os.Exit(1)
-		} else {
-			rt.host = host
-		}
-	}
-	return rt.host
-}
-
 func (rt *Runtime) Show(obj ...interface{}) error {
 	return Show(rt.UI, obj...)
-}
-
-func guessRoot() (string, error) {
-	if pools, err := zfs.ZPools(); err != nil {
-		return "", err
-	} else {
-		switch len(pools) {
-		case 0:
-			return "", errors.New("No ZFS pools found")
-		case 1:
-			return path.Join(pools[0], "jetpack"), nil
-		default:
-			return "", errors.New("Multiple ZFS pools found, I don't dare guess")
-		}
-	}
 }
 
 func NewRuntime(name string) (*Runtime, error) {
@@ -106,19 +92,8 @@ func NewRuntime(name string) (*Runtime, error) {
 		UI:  ui.NewUI(os.Stdout),
 	}
 
-	rt.ZFSRoot = os.Getenv("JETPACK_ROOT")
-
-	if rt.ZFSRoot == "" {
-
-		if root, err := guessRoot(); err != nil {
-			return nil, errors.Maskf(err, "Can't guess default ZFS filesystem; please set JETPACK_ROOT environment variable or use -root flag")
-		} else {
-			rt.ZFSRoot = root
-		}
-	}
-
 	// Global flags
-	rt.StringVar(&rt.ZFSRoot, "root", rt.ZFSRoot, "Root ZFS filesystem")
+	rt.StringVar(&rt.configPath, "config", ConfigPath, "Path to the configuration file")
 
 	// Commands
 	rt.AddCommand("build", "IMAGE BUILD-DIR COMMAND...", rt.CmdBuild)
@@ -126,7 +101,7 @@ func NewRuntime(name string) (*Runtime, error) {
 	rt.AddCommand("images", "[QUERY] -- list images", rt.CmdImages)
 	rt.AddCommand("import", "URI_OR_PATH [MANIFEST] -- import an image from ACI or rootfs tarball", rt.CmdImport)
 	rt.AddCommand("info", "[UUID] -- show global info or image/container details", rt.CmdInfo)
-	rt.AddCommand("init", "[--] CONFIG... -- initialize or configure host", rt.CmdInit)
+	rt.AddCommand("init", "-- initialize host", rt.CmdInit, CommandAcceptUninitializedHost)
 	rt.AddCommand("list", "-- list containers", rt.CmdList)
 	rt.AddCommand("ps", "CONTAINER [ps options...] -- show list of jail's processes", rt.CmdPs)
 	rt.AddCommand("run", "[OPTIONS] IMAGE|CONTAINER  [--] [PARAMETERS...] -- run container or image", rt.CmdRun)
@@ -145,7 +120,9 @@ func Run(name string, args []string) error {
 	if rt, err := NewRuntime(name); err != nil {
 		return err
 	} else {
-		rt.Parse(args)
+		if err := rt.Parse(args); err != nil {
+			return err
+		}
 		return rt.Run()
 	}
 }

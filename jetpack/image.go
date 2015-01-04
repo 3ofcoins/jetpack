@@ -238,7 +238,7 @@ func (img *Image) Build(buildDir string, buildExec []string) (*Image, error) {
 
 	// This is needed by freebsd-update at least, should be okay to
 	// allow this in builders.
-	buildContainer.JailParameters["allow.chflags"] = "true"
+	buildContainer.Manifest.Annotations["jetpack/jail.conf/allow.chflags"] = "true"
 
 	destroot := buildContainer.Dataset.Path("rootfs")
 

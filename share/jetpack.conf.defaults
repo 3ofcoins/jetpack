@@ -1,0 +1,10 @@
+# -*- conf -*-
+
+root.zfs = zroot/jetpack
+root.zfs.mountpoint = /srv/jetpack
+images.zfs.atime=off
+images.zfs.compress=lz4
+images.zfs.dedup=on
+jail.interface = lo1
+jail.namePrefix = jetpack:
+

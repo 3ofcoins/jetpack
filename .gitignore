@@ -1,4 +1,5 @@
 /bin
 .fuse*
 /tmp
-.prefix
+/.prefix
+/jetpack.conf

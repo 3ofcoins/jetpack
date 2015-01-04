@@ -1,0 +1,25 @@
+# Root ZFS dataset 
+#root.zfs = zroot/jetpack
+
+# Root mountpoint
+#root.zfs.mountpoint = /srv/jetpack
+
+# Optionally set other ZFS parameters for root dataset:
+#root.zfs.PARAMETER = VALUE ...
+
+# Default ZFS parameters for images dataset. You can add other
+# parameters, change the defaults, or unset some of the defaults by
+# setting them to an empty string.
+#images.zfs.atime=off
+#images.zfs.compress=lz4
+#images.zfs.dedup=on
+
+# ZFS parameters for containers dataset (none by default)
+#containers.zfs.PARAMETER = VALUE ...
+
+# Interface to use for jails (it has to be created before jetpack is used)
+#jail.interface = lo1
+
+# Prefix for jail names. Jail name will be ${PREFIX}${UUID}.
+#jail.namePrefix = jetpack:
+
