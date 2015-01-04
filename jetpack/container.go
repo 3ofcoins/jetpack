@@ -6,6 +6,7 @@ import "fmt"
 import "io/ioutil"
 import "os"
 import "path"
+import "path/filepath"
 import "sort"
 import "strconv"
 import "strings"
@@ -362,8 +363,7 @@ func (c *Container) Stage2(app *types.App) error {
 
 	args = append(args, app.Exec...)
 
-	// FIXME:libexec
-	return run.Command("/home/japhy/Go/src/github.com/3ofcoins/jetpack/bin/stage2", args...).Run()
+	return run.Command(filepath.Join(LibexecPath, "stage2"), args...).Run()
 }
 
 type ContainerSlice []*Container
