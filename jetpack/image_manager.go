@@ -167,7 +167,7 @@ func (imgr *ImageManager) Import(imageUri, manifestUri string) (*Image, error) {
 	img.Timestamp = time.Now()
 
 	if manifestUri == "" {
-		if hash, err := UnpackImage(imageUri, img.Dataset.Mountpoint); err != nil {
+		if hash, err := UnpackImage(imageUri, img.Dataset.Mountpoint, img.Dataset.Path("ami")); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			img.Hash = &hash
@@ -179,7 +179,7 @@ func (imgr *ImageManager) Import(imageUri, manifestUri string) (*Image, error) {
 		if err := os.Mkdir(rootfsPath, 0755); err != nil {
 			return nil, errors.Trace(err)
 		}
-		if hash, err := UnpackImage(imageUri, rootfsPath); err != nil {
+		if hash, err := UnpackImage(imageUri, rootfsPath, ""); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			img.Hash = &hash

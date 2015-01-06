@@ -8,6 +8,7 @@ import "crypto/sha512"
 import "fmt"
 import "io"
 import "net"
+import "os"
 
 import "github.com/appc/spec/aci"
 import "github.com/appc/spec/schema/types"
@@ -58,12 +59,23 @@ func DecompressingReader(rd io.Reader) (io.Reader, error) {
 	return r, nil
 }
 
-func UnpackImage(uri, path string) (types.Hash, error) {
+func UnpackImage(uri, path, saveAmiPath string) (types.Hash, error) {
 	// use fetch(1) to avoid worrying about protocols, proxies and such
 	fetchCmd := run.Command("fetch", "-o", "-", uri)
 	fetch, err := fetchCmd.StdoutPipe()
 	if err != nil {
 		return types.Hash{}, errors.Trace(err)
+	}
+
+	fetchRd := fetch.(io.Reader)
+
+	if saveAmiPath != "" {
+		if ami, err := os.OpenFile(saveAmiPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400); err != nil {
+			return types.Hash{}, errors.Trace(err)
+		} else {
+			defer ami.Close()
+			fetchRd = io.TeeReader(fetch, ami)
+		}
 	}
 
 	// We trust system's tar, no need to roll our own
@@ -83,7 +95,7 @@ func UnpackImage(uri, path string) (types.Hash, error) {
 	}
 	// FIXME: defer killing process if survived
 
-	aci, err := DecompressingReader(fetch)
+	aci, err := DecompressingReader(fetchRd)
 	if err != nil {
 		return types.Hash{}, errors.Trace(err)
 	}

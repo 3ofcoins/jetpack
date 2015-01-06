@@ -1,8 +1,10 @@
 package jetpack
 
 import "bytes"
+import "crypto/sha512"
 import "encoding/json"
 import "fmt"
+import "io"
 import "io/ioutil"
 import "os"
 import "path"
@@ -105,6 +107,54 @@ func (img *Image) Seal() error {
 		}
 	}
 
+	if img.Hash == nil {
+		// Save AMI, acquire hash.
+		// TODO: separate dir/volume for AMIs, only symlink from image dir?
+		tarCmd := run.Command("tar", "-C", img.Dataset.Mountpoint, "-c", "-f", "-", "manifest", "rootfs")
+		if tarOut, err := tarCmd.StdoutPipe(); err != nil {
+			return errors.Trace(err)
+		} else {
+			hash := sha512.New()
+			if err := tarCmd.Start(); err != nil {
+				return errors.Trace(err)
+			}
+			if img.Manager.Host.Properties.GetBool("images.ami.store", false) {
+				if amiFile, err := os.OpenFile(img.Dataset.Path("ami"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400); err != nil {
+					return errors.Trace(err)
+				} else {
+					defer amiFile.Close()
+					xzCmd := run.Command("xz", "-z")
+					xzCmd.Cmd.Stdout = amiFile
+					if xzIn, err := xzCmd.StdinPipe(); err != nil {
+						return errors.Trace(err)
+					} else {
+						if err := xzCmd.Start(); err != nil {
+							return errors.Trace(err)
+						}
+						if _, err := io.Copy(xzIn, io.TeeReader(tarOut, hash)); err != nil {
+							return errors.Trace(err)
+						}
+					}
+				}
+			} else {
+				if _, err := io.Copy(hash, tarOut); err != nil {
+					return errors.Trace(err)
+				}
+			}
+
+			if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
+				// CAN'T HAPPEN, srsly
+				return errors.Trace(err)
+			} else {
+				img.Hash = hash
+			}
+		}
+	}
+
+	if err := os.Symlink(path.Base(img.Dataset.Name), img.Manager.Dataset.Path(img.Hash.String())); err != nil {
+		return errors.Trace(err)
+	}
+
 	if _, err := img.Dataset.Snapshot("seal"); err != nil {
 		return errors.Trace(err)
 	}
@@ -144,7 +194,15 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 }
 
 func (img *Image) Destroy() error {
-	return img.Dataset.Destroy("-r")
+	err1 := img.Dataset.Destroy("-r")
+	mgr := img.Manager
+	hsh := img.Hash.String()
+	err2 := os.Remove(mgr.Dataset.Path(hsh))
+	if err1 != nil {
+		// if both err, this one is more important
+		return errors.Trace(err1)
+	}
+	return errors.Trace(err2)
 }
 
 type imageLabels []string
