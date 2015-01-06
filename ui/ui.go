@@ -1,8 +1,10 @@
 package ui
 
+import "bytes"
 import "fmt"
 import "io"
 import "strings"
+import "text/tabwriter"
 
 // import "github.com/mgutz/ansi"
 
@@ -57,36 +59,24 @@ func (ui *UI) Table(data [][]string) {
 	if len(data) == 0 {
 		return
 	}
-	ncol := 0
-	for _, row := range data {
-		if ncol < len(row) {
-			ncol = len(row)
-		}
-	}
-	widths := make([]int, ncol)
 
-	for _, row := range data {
-		for j, elt := range row {
-			if widths[j] < len(elt) {
-				widths[j] = len(elt)
-			}
-		}
+	buf := new(bytes.Buffer)
+	w := tabwriter.NewWriter(buf, 2, 8, 2, ' ', 0)
+
+	lines := make([]string, len(data))
+	for i, ln := range data {
+		lines[i] = strings.Join(ln, "\t")
 	}
 
-	formatPieces := make([]string, ncol)
-	for i, width := range widths {
-		formatPieces[i] = fmt.Sprintf("%%-%ds", width)
+	if _, err := w.Write([]byte(strings.Join(lines, "\n"))); err != nil {
+		panic(err)
 	}
-	format := strings.Join(formatPieces, "  ")
 
-	irow := make([]interface{}, ncol)
-	for _, row := range data {
-		for i, s := range row {
-			irow[i] = s
-		}
-		for i := len(row); i < ncol; i++ {
-			irow[i] = ""
-		}
-		ui.Say(strings.TrimRight(fmt.Sprintf(format, irow...), " "))
+	if err := w.Flush(); err != nil {
+		panic(err)
+	}
+
+	for _, ln := range strings.Split(buf.String(), "\n") {
+		ui.Say(ln)
 	}
 }
