@@ -148,3 +148,18 @@ func (h *Host) GetJailStatus(name string, refresh bool) (JailStatus, error) {
 	}
 	return h.jailStatusCache[name], nil
 }
+
+func (h *Host) Get(spec interface{}) (interface{}, error) {
+	switch c, err := h.Containers.Get(spec); err {
+	case nil:
+		return c, nil
+	case ErrNotFound:
+		return h.Images.Get(spec)
+	default:
+		return nil, err
+	}
+}
+
+type Destroyable interface {
+	Destroy() error
+}

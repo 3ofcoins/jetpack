@@ -41,11 +41,47 @@ func (cmgr *ContainerManager) All() (ContainerSlice, error) {
 	}
 }
 
-func (cmgr *ContainerManager) Get(uuid string) (*Container, error) {
-	if ds, err := cmgr.Dataset.GetDataset(uuid); err != nil {
-		return nil, err
-	} else {
-		return GetContainer(ds, cmgr)
+func (cmgr *ContainerManager) Get(spec interface{}) (*Container, error) {
+	switch spec.(type) {
+
+	case *zfs.Dataset:
+		return GetContainer(spec.(*zfs.Dataset), cmgr)
+
+	case uuid.UUID:
+		id := spec.(uuid.UUID)
+		// Go through list of children to avoid ugly error messages
+		if lines, err := cmgr.Dataset.ZfsFields("list", "-tfilesystem", "-d1", "-oname"); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			for _, ln := range lines {
+				if uuid.Equal(id, uuid.Parse(path.Base(ln[0]))) {
+					if ds, err := zfs.GetDataset(ln[0]); err != nil {
+						return nil, errors.Trace(err)
+					} else {
+						return cmgr.Get(ds)
+					}
+				}
+			}
+		}
+		return nil, ErrNotFound
+
+	case string:
+		q := spec.(string)
+
+		if uuid := uuid.Parse(q); uuid != nil {
+			return cmgr.Get(uuid)
+		}
+
+		return nil, ErrNotFound
+
+	case *Image:
+		return cmgr.Clone(spec.(*Image))
+
+	case types.Hash, *types.Hash:
+		return nil, ErrNotFound
+
+	default:
+		return nil, errors.Errorf("Invalid container spec: %#v", spec)
 	}
 }
 
@@ -81,24 +117,6 @@ func (cmgr *ContainerManager) newContainer(ds *zfs.Dataset) (*Container, error) 
 		return nil, errors.Trace(err)
 	} else {
 		c.Manifest.Annotations["ip-address"] = ip.String()
-	}
-
-	return c, nil
-}
-
-func (cmgr *ContainerManager) Create() (*Container, error) {
-	ds, err := cmgr.Dataset.CreateDataset(uuid.NewRandom().String())
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	c, err := cmgr.newContainer(ds)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	if err := c.Save(); err != nil {
-		return nil, errors.Trace(err)
 	}
 
 	return c, nil

@@ -59,19 +59,19 @@ func DecompressingReader(rd io.Reader) (io.Reader, error) {
 	return r, nil
 }
 
-func UnpackImage(uri, path, saveAmiPath string) (types.Hash, error) {
+func UnpackImage(uri, path, saveAmiPath string) (hsh *types.Hash, err error) {
 	// use fetch(1) to avoid worrying about protocols, proxies and such
 	fetchCmd := run.Command("fetch", "-o", "-", uri)
 	fetch, err := fetchCmd.StdoutPipe()
 	if err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	fetchRd := fetch.(io.Reader)
 
 	if saveAmiPath != "" {
 		if ami, err := os.OpenFile(saveAmiPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400); err != nil {
-			return types.Hash{}, errors.Trace(err)
+			return nil, errors.Trace(err)
 		} else {
 			defer ami.Close()
 			fetchRd = io.TeeReader(fetch, ami)
@@ -82,51 +82,51 @@ func UnpackImage(uri, path, saveAmiPath string) (types.Hash, error) {
 	untarCmd := run.Command("tar", "-C", path, "-xf", "-")
 	untar, err := untarCmd.StdinPipe()
 	if err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	if err := untarCmd.Start(); err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 	// FIXME: defer killing process if survived
 
 	if err := fetchCmd.Start(); err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 	// FIXME: defer killing process if survived
 
 	aci, err := DecompressingReader(fetchRd)
 	if err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	hash := sha512.New()
 
 	if _, err := io.Copy(hash, io.TeeReader(aci, untar)); err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	if err := fetch.Close(); err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	if err := fetchCmd.Wait(); err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	if err := untar.Close(); err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	if err := untarCmd.Wait(); err != nil {
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
 		// CAN'T HAPPEN
-		return types.Hash{}, errors.Trace(err)
+		return nil, errors.Trace(err)
 	} else {
-		return *hash, nil
+		return hash, nil
 	}
 }
 

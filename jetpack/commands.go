@@ -72,32 +72,14 @@ func (rt *Runtime) CmdList() error {
 	return nil
 }
 
-func (rt *Runtime) byUUID(
-	uuid string,
-	handleContainer func(*Container) error,
-	handleImage func(*Image) error,
-) error {
-	h := rt.Host
-
-	// TODO: distinguish "not found" from actual errors
-	if c, err := h.Containers.Get(uuid); err == nil {
-		return handleContainer(c)
-	}
-
-	if i, err := h.Images.Get(uuid); err == nil {
-		return handleImage(i)
-	}
-
-	return errors.Errorf("Not found: %#v", uuid)
-}
-
 func (rt *Runtime) CmdDestroy() error {
 	for _, uuid := range rt.Args {
-		if err := rt.byUUID(uuid,
-			func(c *Container) error { return c.Destroy() },
-			func(i *Image) error { return i.Destroy() },
-		); err != nil {
+		if obj, err := rt.Host.Get(uuid); err != nil {
 			return errors.Trace(err)
+		} else {
+			if err := obj.(Destroyable).Destroy(); err != nil {
+				return errors.Trace(err)
+			}
 		}
 	}
 	return nil
@@ -119,11 +101,12 @@ func (rt *Runtime) CmdCreate() error {
 
 func (rt *Runtime) CmdKill() error {
 	for _, uuid := range rt.Args {
-		if err := rt.byUUID(uuid,
-			func(c *Container) error { return c.Kill() },
-			func(i *Image) error { return ErrNotFound },
-		); err != nil {
+		if c, err := rt.Host.Containers.Get(uuid); err != nil {
 			return errors.Trace(err)
+		} else {
+			if err := c.Kill(); err != nil {
+				return errors.Trace(err)
+			}
 		}
 	}
 	return nil
@@ -134,10 +117,11 @@ func (rt *Runtime) CmdInfo() error {
 	case 0: // host info
 		return errors.Trace(rt.Show(rt.Host))
 	case 1: // UUID
-		return rt.byUUID(rt.Args[0],
-			func(c *Container) error { return errors.Trace(rt.Show(c)) },
-			func(i *Image) error { return errors.Trace(rt.Show(i)) },
-		)
+		if obj, err := rt.Host.Get(rt.Args[0]); err != nil {
+			return errors.Trace(err)
+		} else {
+			return errors.Trace(rt.Show(obj))
+		}
 	default:
 		return cli.ErrUsage
 	}
@@ -153,11 +137,18 @@ func (rt *Runtime) CmdRun() (err1 error) {
 	if rt.Console {
 		app = ConsoleApp("root")
 	}
-	return errors.Trace(
-		rt.byUUID(rt.Args[0],
-			func(c *Container) error { return errors.Trace(c.Run(app)) },
-			func(i *Image) error { return errors.Trace(i.Run(app, rt.Keep)) },
-		))
+	if obj, err := rt.Host.Get(rt.Args[0]); err != nil {
+		return errors.Trace(err)
+	} else {
+		switch obj.(type) {
+		case *Container:
+			return errors.Trace(obj.(*Container).Run(app))
+		case *Image:
+			return errors.Trace(obj.(*Image).Run(app, rt.Keep))
+		default:
+			return errors.New("CAN'T HAPPEN")
+		}
+	}
 }
 
 func (rt *Runtime) CmdPs() error {

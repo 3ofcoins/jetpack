@@ -4,6 +4,7 @@ import "encoding/json"
 import "io/ioutil"
 import "net/url"
 import "os"
+import "path"
 import "strings"
 import "time"
 
@@ -130,24 +131,62 @@ func (imgr *ImageManager) Find1(query string) (*Image, error) {
 	}
 }
 
-func (imgr *ImageManager) Get(spec string) (*Image, error) {
-	// TODO: by uuid.UUID only
-	if ds, err := imgr.Dataset.GetDataset(spec); err == nil {
-		return GetImage(ds, imgr)
-	}
+func (imgr *ImageManager) Get(spec interface{}) (*Image, error) {
+	switch spec.(type) {
 
-	// TODO: cache image list?
-	imgs, err := imgr.All()
-	if err != nil {
-		return nil, err
-	}
-	for _, img := range imgs {
-		// TODO: more sophisticated spec (as in ACI/discovery, maybe)
-		if string(img.Manifest.Name) == spec || (img.Hash != nil && img.Hash.String() == spec) {
-			return img, nil
+	case *zfs.Dataset:
+		return GetImage(spec.(*zfs.Dataset), imgr)
+
+	case uuid.UUID:
+		id := spec.(uuid.UUID)
+		// Go through list of children to avoid ugly error messages
+		if lines, err := imgr.Dataset.ZfsFields("list", "-tfilesystem", "-d1", "-oname"); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			for _, ln := range lines {
+				if uuid.Equal(id, uuid.Parse(path.Base(ln[0]))) {
+					if ds, err := zfs.GetDataset(ln[0]); err != nil {
+						return nil, errors.Trace(err)
+					} else {
+						return imgr.Get(ds)
+					}
+				}
+			}
 		}
+		return nil, ErrNotFound
+
+	case *types.Hash:
+		hsh := spec.(*types.Hash).String()
+		if target, err := os.Readlink(imgr.Dataset.Path(hsh)); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			if uuid := uuid.Parse(target); uuid != nil {
+				return imgr.Get(uuid)
+			} else {
+				return nil, errors.Errorf("Hash %v links to an invalid UUID %v", hsh, target)
+			}
+		}
+
+	case types.Hash:
+		hsh := spec.(types.Hash)
+		return imgr.Get(&hsh)
+
+	case string:
+		q := spec.(string)
+
+		if uuid := uuid.Parse(q); uuid != nil {
+			return imgr.Get(uuid)
+		}
+
+		if hsh, err := types.NewHash(q); err == nil {
+			return imgr.Get(hsh)
+		}
+
+		return imgr.Find1(q)
+
+	default:
+		return nil, errors.Errorf("Invalid image spec: %#v", spec)
 	}
-	return nil, ErrNotFound
 }
 
 func (imgr *ImageManager) Create() (*Image, error) {
@@ -170,7 +209,7 @@ func (imgr *ImageManager) Import(imageUri, manifestUri string) (*Image, error) {
 		if hash, err := UnpackImage(imageUri, img.Dataset.Mountpoint, img.Dataset.Path("ami")); err != nil {
 			return nil, errors.Trace(err)
 		} else {
-			img.Hash = &hash
+			img.Hash = hash
 		}
 	} else {
 		// FIXME: does this really belong here, or rather in an Image method?
@@ -179,10 +218,8 @@ func (imgr *ImageManager) Import(imageUri, manifestUri string) (*Image, error) {
 		if err := os.Mkdir(rootfsPath, 0755); err != nil {
 			return nil, errors.Trace(err)
 		}
-		if hash, err := UnpackImage(imageUri, rootfsPath, ""); err != nil {
+		if _, err := UnpackImage(imageUri, rootfsPath, ""); err != nil {
 			return nil, errors.Trace(err)
-		} else {
-			img.Hash = &hash
 		}
 
 		manifestBytes, err := run.Command("fetch", "-o", "-", manifestUri).Output()

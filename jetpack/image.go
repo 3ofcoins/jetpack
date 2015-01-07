@@ -98,15 +98,6 @@ func (img *Image) Seal() error {
 		return errors.Trace(err)
 	}
 
-	// Serialize metadata
-	if metadataJSON, err := json.Marshal(img); err != nil {
-		return errors.Trace(err)
-	} else {
-		if err := ioutil.WriteFile(img.Dataset.Path("metadata"), metadataJSON, 0400); err != nil {
-			return errors.Trace(err)
-		}
-	}
-
 	if img.Hash == nil {
 		// Save AMI, acquire hash.
 		// TODO: separate dir/volume for AMIs, only symlink from image dir?
@@ -148,6 +139,15 @@ func (img *Image) Seal() error {
 			} else {
 				img.Hash = hash
 			}
+		}
+	}
+
+	// Serialize metadata
+	if metadataJSON, err := json.Marshal(img); err != nil {
+		return errors.Trace(err)
+	} else {
+		if err := ioutil.WriteFile(img.Dataset.Path("metadata"), metadataJSON, 0400); err != nil {
+			return errors.Trace(err)
 		}
 	}
 
@@ -193,16 +193,14 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 	}
 }
 
-func (img *Image) Destroy() error {
-	err1 := img.Dataset.Destroy("-r")
-	mgr := img.Manager
-	hsh := img.Hash.String()
-	err2 := os.Remove(mgr.Dataset.Path(hsh))
-	if err1 != nil {
-		// if both err, this one is more important
-		return errors.Trace(err1)
+func (img *Image) Destroy() (err error) {
+	err = errors.Trace(img.Dataset.Destroy("-r"))
+	if img.Hash != nil {
+		if err2 := os.Remove(img.Manager.Dataset.Path(img.Hash.String())); err2 != nil && err == nil {
+			err = errors.Trace(err2)
+		}
 	}
-	return errors.Trace(err2)
+	return
 }
 
 type imageLabels []string
