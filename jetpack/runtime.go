@@ -103,7 +103,7 @@ func NewRuntime(name string) (*Runtime, error) {
 	rt := &Runtime{
 		Cli:        cli.NewCli(name),
 		UI:         ui.NewUI(os.Stdout),
-		configPath: ConfigPath,
+		configPath: DefaultConfigPath,
 	}
 
 	if cfg := os.Getenv("JETPACK_CONF"); cfg != "" {

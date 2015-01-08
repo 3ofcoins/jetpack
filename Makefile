@@ -22,7 +22,7 @@ revision := (unknown)
 
 const.jetpack = \
 	LibexecPath="${libexecdir}" \
-	ConfigPath="${sysconfdir}/jetpack.conf" \
+	DefaultConfigPath="${sysconfdir}/jetpack.conf" \
 	SharedPath="${sharedir}" \
 	Version="${version}" \
 	IsDevelopment=${PREFIX:Dfalse:Utrue} \
