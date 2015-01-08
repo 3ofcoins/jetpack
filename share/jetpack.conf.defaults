@@ -1,8 +1,8 @@
 # -*- conf -*-
 
 root.zfs = zroot/jetpack
-root.zfs.mountpoint = /srv/jetpack
-images.ami.store=yes
+root.zfs.mountpoint = /var/jetpack
+images.ami.store=no
 images.zfs.atime=off
 images.zfs.compress=lz4
 images.zfs.dedup=on

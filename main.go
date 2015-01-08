@@ -32,6 +32,15 @@ func subcommand(def string, args []string) (string, []string) {
 	return args[0], args[1:]
 }
 
+func image(name string) *jetpack.Image {
+	img, err := Host.Images.Get(name)
+	if err == jetpack.ErrNotFound {
+		die(errors.Errorf("No such image: %#v", name))
+	}
+	die(err)
+	return img
+}
+
 func main() {
 	configPath := jetpack.DefaultConfigPath
 	help := false
@@ -84,6 +93,13 @@ Needs Explanation:
                       - a checksum (sha512-...), or
                       - a QUERY (which can't be ambiguous).
           CONTAINER  Has to be an UUID for now
+Helpful Aliases:
+  i ... -- image ...
+  c ... -- container ...
+  image, images -- image list
+  container, containers -- container list
+  image build|show|destroy IMAGE ... -- image IMAGE build|show|destroy ...
+  
 `)
 		return
 	}
@@ -101,6 +117,7 @@ Needs Explanation:
 		// Init is special: it doesn't need an initialized host
 		die(Host.Initialize())
 		show(Host)
+		return
 	}
 
 	if Host.Dataset == nil {
@@ -112,7 +129,7 @@ Needs Explanation:
 		show(Host)
 	case "test":
 		die(run.Command(filepath.Join(jetpack.LibexecPath, "test.integration"),
-			append(args[1:], "dataset="+Host.Dataset.Name)...).Run())
+			append(args, "dataset="+Host.Dataset.Name)...).Run())
 	case "images":
 		command = "image"
 		args = append([]string{"list"}, args...)
@@ -148,11 +165,7 @@ Needs Explanation:
 			command, args[0] = args[0], command
 			fallthrough
 		default:
-			image, err := Host.Images.Get(command)
-			if err == jetpack.ErrNotFound {
-				die(errors.Errorf("No such image: %#v", command))
-			}
-			die(err)
+			img := image(command)
 
 			switch command, args := subcommand("show", args); command {
 			case "build":
@@ -164,13 +177,13 @@ Needs Explanation:
 				fs.StringVar(&buildDir, "dir", ".", "")
 				die(fs.Parse(args))
 
-				newImage, err := image.Build(buildDir, copyFiles, fs.Args())
+				newImage, err := img.Build(buildDir, copyFiles, fs.Args())
 				die(err)
 				show(newImage)
 			case "show":
-				show(image)
+				show(img)
 			case "destroy":
-				die(image.Destroy())
+				die(img.Destroy())
 			default:
 				die(errors.Errorf("Unknown command %#v", command))
 			}
@@ -182,13 +195,7 @@ Needs Explanation:
 	case "container", "c":
 		switch command, args := subcommand("list", args); command {
 		case "create":
-			image, err := Host.Images.Get(args[0])
-			if err == jetpack.ErrNotFound {
-				die(errors.Errorf("No such image: %#v", command))
-			}
-			die(err)
-
-			container, err := Host.Containers.Clone(image)
+			container, err := Host.Containers.Clone(image(args[0]))
 			die(err)
 			show(container)
 		case "list":

@@ -25,7 +25,7 @@ func HasParam(name string) bool {
 
 func initDataset() error {
 	for _, cmd := range [][]string{
-		[]string{"jetpack", "init", RootDatadir},
+		[]string{"jetpack", "init"},
 		[]string{"make", "-C", filepath.Join(ImagesPath, "freebsd-base.release")},
 		[]string{"make", "-C", filepath.Join(ImagesPath, "freebsd-base")},
 		[]string{"make", "-C", filepath.Join(ImagesPath, "example.showenv")},
@@ -215,7 +215,7 @@ func TestMain(m *testing.M) {
 func TestForSmoke(t *testing.T) {
 	RollbackDataset(t)
 
-	if out, err := run.Command("jetpack", "list").OutputString(); err != nil {
+	if out, err := run.Command("jetpack", "container", "list").OutputString(); err != nil {
 		t.Error(err)
 	} else {
 		t.Logf("jetpack list =>\n%v\n", out)
@@ -224,7 +224,7 @@ func TestForSmoke(t *testing.T) {
 		}
 	}
 
-	if out, err := run.Command("jetpack", "images").OutputLines(); err != nil {
+	if out, err := run.Command("jetpack", "image", "list").OutputLines(); err != nil {
 		t.Error(err)
 	} else {
 		t.Logf("jetpack images =>\n%v\n", strings.Join(out, "\n"))

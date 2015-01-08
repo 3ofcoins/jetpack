@@ -2,7 +2,16 @@
 #root.zfs = zroot/jetpack
 
 # Root mountpoint
-#root.zfs.mountpoint = /srv/jetpack
+#root.zfs.mountpoint = /var/jetpack
+
+# Interface to use for jails (it has to be created before jetpack is used)
+#jail.interface = lo1
+
+# Prefix for jail names. Jail name will be ${PREFIX}${UUID}.
+#jail.namePrefix = jetpack:
+
+# Set to `yes' to keep AMIs when building images
+#images.ami.store = no
 
 # Optionally set other ZFS parameters for root dataset:
 #root.zfs.PARAMETER = VALUE ...
@@ -16,10 +25,4 @@
 
 # ZFS parameters for containers dataset (none by default)
 #containers.zfs.PARAMETER = VALUE ...
-
-# Interface to use for jails (it has to be created before jetpack is used)
-#jail.interface = lo1
-
-# Prefix for jail names. Jail name will be ${PREFIX}${UUID}.
-#jail.namePrefix = jetpack:
 
