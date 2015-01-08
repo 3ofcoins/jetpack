@@ -1,16 +1,18 @@
-package jetpack
+package main
 
+import "bytes"
 import "fmt"
 import "sort"
 import "strconv"
 import "strings"
+import "text/tabwriter"
 
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 import "github.com/magiconair/properties"
 
-import "github.com/3ofcoins/jetpack/ui"
+import "github.com/3ofcoins/jetpack/jetpack"
 import "github.com/3ofcoins/jetpack/zfs"
 
 func showExec(strs []string) string {
@@ -32,16 +34,24 @@ func labelsTbl(labels types.Labels) [][]string {
 	return tbl
 }
 
-type SectionTable struct {
-	Name     string
-	Contents [][]string
+type sectionObj struct {
+	name string
+	objs []interface{}
 }
 
-func ShowSection(ui *ui.UI, name string, obj ...interface{}) error {
-	return ui.Section(name, func() error { return Show(ui, obj...) })
+func Section(name string, objs ...interface{}) sectionObj {
+	return sectionObj{name, objs}
 }
 
-func Show(ui *ui.UI, objs ...interface{}) error {
+func ShowSection(prefix, name string, obj ...interface{}) error {
+	return errors.Trace(Show(prefix, Section(name, obj...)))
+}
+
+func Showf(prefix string, format string, objs ...interface{}) error {
+	return Show(prefix, fmt.Sprintf(format, objs...))
+}
+
+func Show(prefix string, objs ...interface{}) error {
 	var obj interface{}
 	switch len(objs) {
 	case 0:
@@ -58,36 +68,59 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 
 	case []interface{}:
 		for _, obj := range obj.([]interface{}) {
-			if err := Show(ui, obj); err != nil {
+			if err := Show(prefix, obj); err != nil {
 				return errors.Trace(err)
 			}
 		}
 
 	case [][]string:
-		ui.Table(obj.([][]string))
+		if data := obj.([][]string); len(data) > 0 {
+			buf := new(bytes.Buffer)
+			w := tabwriter.NewWriter(buf, 2, 8, 2, ' ', 0)
+
+			lines := make([]string, len(data))
+			for i, ln := range data {
+				lines[i] = strings.Join(ln, "\t")
+			}
+
+			if _, err := w.Write([]byte(strings.Join(lines, "\n"))); err != nil {
+				return errors.Trace(err)
+			}
+
+			if err := w.Flush(); err != nil {
+				return errors.Trace(err)
+			}
+
+			return errors.Trace(Show(prefix, buf.String()))
+		}
 
 	case *properties.Properties:
-		p := obj.(*properties.Properties)
-		tbl := make([][]string, p.Len())
-		for i, k := range p.Keys() {
-			v, _ := p.Get(k)
-			tbl[i] = []string{k, v}
-		}
-		return Show(ui, SectionTable{"Configuration", tbl})
 
-	case SectionTable:
-		if st := obj.(SectionTable); len(st.Contents) > 0 {
-			return ShowSection(ui, st.Name, st.Contents)
+		if p := obj.(*properties.Properties); p.Len() > 0 {
+			tbl := make([][]string, p.Len())
+			for i, k := range p.Keys() {
+				v, _ := p.Get(k)
+				tbl[i] = []string{k, v}
+			}
+			return errors.Trace(ShowSection(prefix, "Configuration:", tbl))
 		}
+		return errors.Trace(Show(prefix, "Configuration: (empty)"))
 
-	case *Host:
-		h := obj.(*Host)
+	case sectionObj:
+		sec := obj.(sectionObj)
+		if err := Show(prefix, sec.name); err != nil {
+			return errors.Trace(err)
+		}
+		return errors.Trace(Show(prefix+"  ", sec.objs...))
+
+	case *jetpack.Host:
+		h := obj.(*jetpack.Host)
 		isdev := ""
-		if IsDevelopment {
+		if jetpack.IsDevelopment {
 			isdev = " (development)"
 		}
-		ui.Sayf("JetPack %v (%v), compiled on %v%v", Version, Revision, BuildTimestamp, isdev)
-		return Show(ui, h.Dataset, h.Properties)
+		Showf(prefix, "JetPack %v (%v), compiled on %v%v", jetpack.Version, jetpack.Revision, jetpack.BuildTimestamp, isdev)
+		return Show(prefix, h.Dataset, h.Properties)
 
 	case *zfs.Dataset:
 		ds := obj.(*zfs.Dataset)
@@ -96,10 +129,10 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 			tbl = append(tbl, []string{"Origin", ds.Origin})
 		}
 
-		return ShowSection(ui, fmt.Sprintf("ZFS Dataset %v", ds.Name), tbl)
+		return ShowSection(prefix, fmt.Sprintf("ZFS Dataset %v", ds.Name), tbl)
 
-	case *Image:
-		if img := obj.(*Image); img != nil {
+	case *jetpack.Image:
+		if img := obj.(*jetpack.Image); img != nil {
 			metadata := [][]string{}
 			if img.Hash != nil {
 				metadata = append(metadata, []string{"Hash", img.Hash.String()})
@@ -109,36 +142,33 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 			}
 			metadata = append(metadata, []string{"Timestamp", img.Timestamp.String()})
 
-			containersTbl := SectionTable{Name: "Containers"}
-			if containers, err := img.Containers(); err != nil {
+			items := []interface{}{img.Dataset, metadata, img.Manifest}
+
+			if cc, err := img.Containers(); err != nil {
 				return errors.Trace(err)
-			} else if len(containers) > 0 {
-				containersTbl.Contents = containers.Table()
+			} else if len(cc) > 0 {
+				sort.Sort(cc)
+				items = append(items, Section("Containers:", cc.Table()))
 			}
 
-			return ShowSection(ui, fmt.Sprintf("Image %v", img.UUID),
-				img.Dataset,
-				metadata,
-				img.Manifest,
-				containersTbl,
-			)
+			return errors.Trace(ShowSection(prefix, fmt.Sprintf("Image %v", img.UUID), items...))
 		}
 
-	case *Container:
-		c := obj.(*Container)
+	case *jetpack.Container:
+		c := obj.(*jetpack.Container)
 		img, err := c.GetImage()
 		if err != nil {
 			return errors.Trace(err)
 		}
 
-		return ShowSection(ui, fmt.Sprintf("Container %v", c.Manifest.UUID),
+		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Container %v", c.Manifest.UUID),
 			c.Dataset,
 			c.Manifest,
-			img)
+			img))
 
 	case schema.ImageManifest:
 		manifest := obj.(schema.ImageManifest)
-		return ShowSection(ui, fmt.Sprintf("Manifest %v", manifest.Name),
+		return ShowSection(prefix, fmt.Sprintf("Manifest %v", manifest.Name),
 			manifest.Labels,
 			manifest.App,
 			manifest.Annotations,
@@ -146,7 +176,7 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 
 	case schema.ContainerRuntimeManifest:
 		manifest := obj.(schema.ContainerRuntimeManifest)
-		return ShowSection(ui, "Manifest",
+		return ShowSection(prefix, "Manifest",
 			manifest.Apps,
 			manifest.Volumes,
 			manifest.Isolators,
@@ -170,9 +200,9 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 				envTbl[i] = []string{k, app.Environment[k]}
 			}
 
-			return ShowSection(ui, "App",
+			return ShowSection(prefix, "App",
 				metaTbl,
-				SectionTable{"Environment", envTbl},
+				Section("Environment:", envTbl),
 				app.EventHandlers,
 				app.MountPoints,
 				app.Ports,
@@ -185,12 +215,12 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 			for i, app := range apps {
 				appsI[i] = app
 			}
-			return ShowSection(ui, "Apps", appsI)
+			return ShowSection(prefix, "Apps", appsI)
 		}
 
 	case schema.RuntimeApp:
 		app := obj.(schema.RuntimeApp)
-		return ShowSection(ui, string(app.Name),
+		return ShowSection(prefix, string(app.Name),
 			app.ImageID, app.Isolators, types.Annotations(app.Annotations))
 
 	case []types.MountPoint:
@@ -202,7 +232,7 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 					tbl[i] = append(tbl[i], "ro")
 				}
 			}
-			return ShowSection(ui, "Mount Points", tbl)
+			return ShowSection(prefix, "Mount Points", tbl)
 		}
 
 	case []types.Volume:
@@ -218,14 +248,13 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 					hdr += " (ro)"
 				}
 
-				entry := SectionTable{hdr, [][]string{[]string{"Kind", vol.Kind}}}
-
+				details := [][]string{[]string{"Kind", vol.Kind}}
 				if vol.Source != "" {
-					entry.Contents = append(entry.Contents, []string{"Source", vol.Source})
+					details = append(details, []string{"Source", vol.Source})
 				}
-				tbl[i] = entry
+				tbl[i] = Section(hdr, details)
 			}
-			return ShowSection(ui, "Volumes", tbl)
+			return ShowSection(prefix, "Volumes", tbl)
 		}
 
 	case []types.EventHandler:
@@ -234,7 +263,7 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 			for i, handler := range handlers {
 				tbl[i] = []string{handler.Name, showExec(handler.Exec)}
 			}
-			return ShowSection(ui, "Event Handlers", tbl)
+			return ShowSection(prefix, "Event Handlers", tbl)
 		}
 
 	case []types.Port:
@@ -246,7 +275,7 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 					tbl[i] = append(tbl[i], "(socket activated)")
 				}
 			}
-			return ShowSection(ui, "Ports", tbl)
+			return ShowSection(prefix, "Ports", tbl)
 		}
 
 	case []types.Isolator:
@@ -255,12 +284,12 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 			for i, isolator := range isolators {
 				tbl[i] = []string{string(isolator.Name), isolator.Val}
 			}
-			return ShowSection(ui, "Isolators", tbl)
+			return ShowSection(prefix, "Isolators", tbl)
 		}
 
 	case types.Labels:
 		if labels := obj.(types.Labels); len(labels) > 0 {
-			return ShowSection(ui, "Labels", labelsTbl(labels))
+			return ShowSection(prefix, "Labels", labelsTbl(labels))
 		}
 
 	case types.Annotations:
@@ -269,32 +298,36 @@ func Show(ui *ui.UI, objs ...interface{}) error {
 			for name, value := range annotations {
 				tbl = append(tbl, []string{string(name), value})
 			}
-			return ShowSection(ui, "Annotations", tbl)
+			return ShowSection(prefix, "Annotations", tbl)
 		}
 
+	case types.Dependency:
+		dependency := obj.(types.Dependency)
+		return errors.Trace(ShowSection(prefix,
+			fmt.Sprintf("%v (%v)", dependency.App, dependency.ImageID),
+			labelsTbl(dependency.Labels)))
+
 	case types.Dependencies:
-		if dependencies := obj.(types.Dependencies); len(dependencies) > 0 {
-			return ui.Section("Dependencies", func() error {
-				for _, dependency := range dependencies {
-					header := fmt.Sprintf("%v (%v)", dependency.App, dependency.ImageID)
-					if err := ShowSection(ui, header, labelsTbl(dependency.Labels)); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
+		for _, dependency := range obj.(types.Dependencies) {
+			if err := Show(prefix, dependency); err != nil {
+				return errors.Trace(err)
+			}
 		}
 
 	// Just render some types as string
-	case *types.Hash, types.Hash, string:
-		ui.Sayf("%v", obj)
+	case *types.Hash, types.Hash:
+		return errors.Trace(Showf(prefix, "%v", obj))
+
+	case string:
+		for _, line := range strings.Split(strings.TrimRight(obj.(string), "\n"), "\n") {
+			if _, err := fmt.Println(prefix + line); err != nil {
+				return errors.Trace(err)
+			}
+		}
 
 	// Fallback
 	default:
-		return ui.Section(fmt.Sprintf("[%T %v]", obj, obj), func() error {
-			ui.Sayf("%#v", obj)
-			return nil
-		})
+		return errors.Trace(Showf(prefix, "[%T %#v]", obj, obj))
 	}
 
 	return nil

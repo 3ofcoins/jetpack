@@ -1,6 +1,6 @@
 JETPACK ?= jetpack
 BUILD_COMMAND ?= make build+manifest
-BUILD_DIR ?= .
+# BUILD_DIR ?= .
 CLEAN_FILES ?=
 # IMPORT_FILE
 # IMPORT_URL
@@ -37,9 +37,9 @@ BUILD_CP += ${.jetpack.image.mk.path}
 
 image: .PHONY prepare
 .ifdef IMPORT_FILE
-	$(JETPACK) import $(IMPORT_FILE) $(IMPORT_MANIFEST)
+	$(JETPACK) image import $(IMPORT_FILE) $(IMPORT_MANIFEST)
 .else
-	$(JETPACK) build ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} $(PARENT_IMAGE) $(BUILD_DIR) $(BUILD_COMMAND) $(BUILD_ARGS)
+	$(JETPACK) image $(PARENT_IMAGE) build ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} ${BUILD_DIR:D-dir=${BUILD_DIR}} $(BUILD_COMMAND) $(BUILD_ARGS)
 .endif
 
 .ifdef PKG_INSTALL
