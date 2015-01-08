@@ -47,41 +47,44 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 
-	if len(args) == 0 {
-		help = true
-	} else if args[0] == "help" {
-		help = true
-		args = args[1:]
-	}
-
-	if help {
-		if len(args) > 0 {
-			fmt.Fprintln(os.Stderr, "FIXME: should show help for", args)
-		}
-		fmt.Fprintln(os.Stderr, "Usage:")
-		usecase := func(args ...interface{}) {
-			args = append([]interface{}{"  ", os.Args[0]}, args...)
-			fmt.Fprintln(os.Stderr, args...)
-		}
-		usecase("help -- show this help screen")
-		usecase("init -- initialize host")
-		usecase("info -- show global information")
-		usecase("test -- run integration tests")
-		usecase("image import ARCHIVE_URI_OR_PATH [MANIFEST_URI_OR_PATH] -- import image from ACI or rootfs tarball + manifest JSON")
-		usecase("image list [QUERY] -- list images")
-		usecase("image IMAGE build [-cp=PATH...] [-dir=PATH] COMMAND... -- build new image from existing one (PATH defaults to current directory)")
-		usecase("image IMAGE show -- show image details")
-		usecase("image IMAGE destroy -- destroy image")
-		usecase("container create IMAGE -- create container from image")
-		usecase("container list -- list containers")
-		usecase("container CONTAINER show -- show container details")
-		usecase("container CONTAINER run -- run container")
-		usecase("container CONTAINER console [USER] -- open console inside the container")
-		usecase("container CONTAINER ps|top|killall [OPTIONS...] -- manage container's processes")
-		usecase("container CONTAINER kill -- kill running container")
-		usecase("container CONTAINER destroy -- destroy container")
-		fmt.Fprintln(os.Stderr, "Global flags:")
-		flag.PrintDefaults()
+	if help || len(args) == 0 || args[0] == "help" {
+		fmt.Fprintf(os.Stderr, `Usage: %s [OPTIONS] COMMAND...
+Options:
+  -config=PATH  Configuration file (%s)
+  -help, -h     Display this help screen
+Commands:
+  help                                    Display this help screen
+  init                                    Initialize host
+  info                                    Show global information
+  test                                    Run integration tests
+  image list [QUERY]                      List images
+  image import ARCHIVE [MANIFEST]         Import image from an archive
+  image IMAGE build [OPTIONS] COMMAND...  Build new image from an existing one
+                    -dir=.                Location on build directory on host
+                    -cp=PATH...           Copy additional files from host
+  image IMAGE show                        Display image details
+  image IMAGE destroy                     Destroy image
+  container list                          List containers
+  container create IMAGE                  Create new container from image
+  container CONTAINER show                Display container details
+  container CONTAINER run                 Run container's application
+  container CONTAINER console [USER]      Open console inside the container
+  container CONTAINER ps|top|killall [OPTIONS...]
+                                          Manage container's processes
+  container CONTAINER kill                Kill running container
+  container CONTAINER destroy             Destroy container
+Needs Explanation:
+  ARCHIVE, MANIFEST  May be filesystem paths or URLs.
+            cp=PATH  This option can be given multiple times
+              QUERY  Is an expression that looks like this:
+                      - NAME[,LABEL=VALUE[,LABEL=VALUE[,...]]]
+                      - NAME:VERSION (alias for NAME:version=VERSION)
+              IMAGE  Can be:
+                      - an UUID (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXX),
+                      - a checksum (sha512-...), or
+                      - a QUERY (which can't be ambiguous).
+          CONTAINER  Has to be an UUID for now
+`)
 		return
 	}
 
