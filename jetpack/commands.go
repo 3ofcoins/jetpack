@@ -113,20 +113,37 @@ func (rt *Runtime) CmdKill() error {
 }
 
 func (rt *Runtime) CmdInfo() error {
+	return errors.Trace(rt.Show(rt.Host))
+}
+
+func (rt *Runtime) CmdShow() error {
 	switch len(rt.Args) {
-	case 0: // host info
-		return errors.Trace(rt.Show(rt.Host))
-	case 1: // UUID
+	case 0:
+		return cli.ErrUsage
+	case 1:
 		if obj, err := rt.Host.Get(rt.Args[0]); err != nil {
 			return errors.Trace(err)
 		} else {
 			return errors.Trace(rt.Show(obj))
 		}
 	default:
-		return cli.ErrUsage
+		erred := false
+		for _, arg := range rt.Args {
+			if obj, err := rt.Host.Get(arg); err != nil {
+				rt.UI.Sayf("%v: ERROR: %v", arg, err)
+				erred = true
+			} else {
+				if err := rt.Show(obj); err != nil {
+					// error when showing is fatal
+					return errors.Trace(err)
+				}
+			}
+		}
+		if erred {
+			return errors.New("There were errors")
+		}
+		return nil
 	}
-
-	return nil
 }
 
 func (rt *Runtime) CmdRun() (err1 error) {
