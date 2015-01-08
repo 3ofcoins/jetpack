@@ -146,7 +146,7 @@ func (rt *Runtime) CmdShow() error {
 	}
 }
 
-func (rt *Runtime) CmdRun() (err1 error) {
+func (rt *Runtime) CmdRun() error {
 	if len(rt.Args) != 1 {
 		return cli.ErrUsage
 	}
