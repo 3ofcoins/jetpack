@@ -8,8 +8,8 @@ import "path/filepath"
 import "strings"
 import "testing"
 
-import "github.com/3ofcoins/jetpack/run"
-import "github.com/3ofcoins/jetpack/zfs"
+import "../run"
+import "../zfs"
 
 const datasetFile = "dataset.zfs"
 const snapshotName = "initialized"

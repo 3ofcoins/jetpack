@@ -9,8 +9,8 @@ import "strconv"
 
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/jetpack/jetpack"
-import "github.com/3ofcoins/jetpack/run"
+import "./jetpack"
+import "./run"
 
 var Host *jetpack.Host
 

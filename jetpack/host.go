@@ -10,8 +10,8 @@ import "time"
 import "github.com/juju/errors"
 import "github.com/magiconair/properties"
 
-import "github.com/3ofcoins/jetpack/run"
-import "github.com/3ofcoins/jetpack/zfs"
+import "../run"
+import "../zfs"
 
 var ErrNotFound = stderrors.New("Not found")
 var ErrManyFound = stderrors.New("Multiple results found")

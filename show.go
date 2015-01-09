@@ -12,8 +12,8 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 import "github.com/magiconair/properties"
 
-import "github.com/3ofcoins/jetpack/jetpack"
-import "github.com/3ofcoins/jetpack/zfs"
+import "./jetpack"
+import "./zfs"
 
 func showExec(strs []string) string {
 	for i, str := range strs {

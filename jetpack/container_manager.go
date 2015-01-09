@@ -12,7 +12,7 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/jetpack/zfs"
+import "../zfs"
 
 type ContainerManager struct {
 	Dataset *zfs.Dataset `json:"-"`

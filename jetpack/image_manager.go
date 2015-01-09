@@ -13,8 +13,8 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "github.com/3ofcoins/jetpack/run"
-import "github.com/3ofcoins/jetpack/zfs"
+import "../run"
+import "../zfs"
 
 type ImageManager struct {
 	Dataset *zfs.Dataset `json:"-"`
