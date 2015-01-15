@@ -239,13 +239,11 @@ func (imgr *ImageManager) Import(imageUri, manifestUri string) (*Image, error) {
 		}
 
 		if manifest["annotations"] == nil {
-			manifest["annotations"] = make(map[string]interface{})
+			manifest["annotations"] = make([]interface{}, 0)
 		}
 
-		annotations := manifest["annotations"].(map[string]interface{})
-		if _, ok := annotations["timestamp"]; !ok {
-			annotations["timestamp"] = time.Now()
-		}
+		manifest["annotations"] = append(manifest["annotations"].([]interface{}),
+			map[string]interface{}{"name": "timestamp", "value": time.Now()})
 
 		if manifestBytes, err := json.Marshal(manifest); err != nil {
 			return nil, errors.Trace(err)

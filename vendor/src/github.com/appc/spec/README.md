@@ -1,4 +1,6 @@
-# App Container 
+# App Container
+
+[![Build Status](https://travis-ci.org/appc/spec.png?branch=master)](https://travis-ci.org/appc/spec)
 
 ## Overview
 
@@ -7,10 +9,7 @@ See [SPEC.md](SPEC.md) for details of the specification itself.
 
 _Thank you to Tobi Knaup and Ben Hindman from Mesosphere, and the Pivotal Engineering team for providing initial feedback on the spec._
 
-- `schema` contains JSON definitions of the different constituent formats of the spec (the _Image Manifest_ and the _Container Runtime Manifest_). These JSON schemas also handle validation of the manifests through their Marshal/Unmarshal implementations.
-  - `schema/types` contains various types used by the Manifest types to enforce validation
-- `ace` contains a tool intended to be run within an _Application Container Executor_ to validate that the ACE has set up the container environment correctly. This tool can be built into an ACI image ready for running on an executor by using the `build_aci` script.
-- `actool` contains a tool for building and validating images and manifests that meet the App Container specifications.
+For information on the packages in the repository, see their respective [godocs](http://godoc.org/github.com/appc/spec).
 
 ## Building ACIs 
 
@@ -30,8 +29,8 @@ $ cat /tmp/my-app/manifest
     "acVersion": "0.1.1",
     "name": "my-app",
     "labels": [
-        {"name": "os", "val": "linux"},
-        {"name": "arch", "val": "amd64"}
+        {"name": "os", "value": "linux"},
+        {"name": "arch", "value": "amd64"}
     ],
     "app": {
         "exec": [
@@ -77,11 +76,11 @@ tar xf /tmp/my-app.aci manifest -O | python -m json.tool
     "labels": [
         {
             "name": "os",
-            "val": "linux"
+            "value": "linux"
         },
         {
             "name": "arch",
-            "val": "amd64"
+            "value": "amd64"
         }
     ],
     "name": "my-app",

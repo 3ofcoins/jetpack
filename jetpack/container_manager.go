@@ -109,14 +109,13 @@ func (cmgr *ContainerManager) newContainer(ds *zfs.Dataset) (*Container, error) 
 
 	c.Manifest.ACVersion = schema.AppContainerVersion
 	c.Manifest.ACKind = types.ACKind("ContainerRuntimeManifest")
-	c.Manifest.Annotations = make(map[types.ACName]string)
 	c.Manifest.UUID = *uuid
 
 	// TODO: lock until saved?
 	if ip, err := cmgr.nextIP(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		c.Manifest.Annotations["ip-address"] = ip.String()
+		c.Manifest.Annotations = c.Manifest.Annotations.Set("ip-address", ip.String())
 	}
 
 	return c, nil
@@ -205,7 +204,9 @@ func (cmgr *ContainerManager) nextIP() (net.IP, error) {
 					return nil, errors.Trace(err)
 				} else {
 					for _, c := range cc {
-						ips[c.Manifest.Annotations["ip-address"]] = true
+						if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
+							ips[ip] = true
+						}
 					}
 				}
 

@@ -8,7 +8,7 @@ cat <<EOF
 {
   "name": "freebsd-base",
   "labels": [
-    { "name": "version", "val": "${version}" }
+    { "name": "version", "value": "${version}" }
   ]
 }
 EOF

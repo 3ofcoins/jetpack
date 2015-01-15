@@ -8,7 +8,7 @@ cat <<EOF
 {
   "name": "example/nginx",
   "labels": [
-    { "name": "version", "val": "${version}" }
+    { "name": "version", "value": "${version}" }
   ],
   "app": {
     "exec": [

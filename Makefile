@@ -64,8 +64,6 @@ integration/const.go: .PHONY
 
 vendor.refetch: .PHONY
 	rm -rf vendor
-	mkdir -p vendor/src/github.com/3ofcoins
-	ln -s ../../../.. vendor/src/github.com/3ofcoins/jetpack
 	go get -d
 	set -e ; \
 	    cd vendor/src ; \

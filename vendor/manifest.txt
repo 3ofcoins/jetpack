@@ -1,4 +1,4 @@
 code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUIDs
-github.com/appc/spec 63373be Merge pull request #64 from jonboulle/master
-github.com/juju/errors 7a74894 Merge pull request #14 from aznashwan/user-not-found
+github.com/appc/spec ed1932f Merge pull request #116 from jonboulle/spec-auth-val
+github.com/juju/errors c3aaee4 Merge pull request #15 from axw/notprovisioned-error
 github.com/magiconair/properties 70f4111 Added GetParsedDuration()/MustGetParsedDuration()

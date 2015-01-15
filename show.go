@@ -295,8 +295,8 @@ func Show(prefix string, objs ...interface{}) error {
 	case types.Annotations:
 		if annotations := obj.(types.Annotations); len(annotations) > 0 {
 			tbl := make([][]string, 0, len(annotations))
-			for name, value := range annotations {
-				tbl = append(tbl, []string{string(name), value})
+			for _, antn := range annotations {
+				tbl = append(tbl, []string{string(antn.Name), antn.Value})
 			}
 			return ShowSection(prefix, "Annotations", tbl)
 		}

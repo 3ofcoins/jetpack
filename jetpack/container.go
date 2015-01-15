@@ -144,21 +144,21 @@ func (c *Container) jailConf() string {
 		"persist":       "true",
 	}
 
-	if hostname, ok := c.Manifest.Annotations["hostname"]; ok {
+	if hostname, ok := c.Manifest.Annotations.Get("hostname"); ok {
 		parameters["host.hostname"] = hostname
 	} else {
 		parameters["host.hostname"] = parameters["host.hostuuid"]
 	}
 
-	if ip, ok := c.Manifest.Annotations["ip-address"]; ok {
+	if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
 		parameters["ip4.addr"] = ip
 	} else {
 		panic(fmt.Sprintf("No IP address for container %v", c.Manifest.UUID))
 	}
 
-	for k, v := range c.Manifest.Annotations {
-		if strings.HasPrefix(string(k), "jetpack/jail.conf/") {
-			parameters[string(k)[len("jetpack/jail.conf/"):]] = v
+	for _, antn := range c.Manifest.Annotations {
+		if strings.HasPrefix(string(antn.Name), "jetpack/jail.conf/") {
+			parameters[string(antn.Name)[len("jetpack/jail.conf/"):]] = antn.Value
 		}
 	}
 
@@ -209,7 +209,7 @@ func (c *Container) Prep() error {
 		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
 			return errors.Trace(err)
 		}
-		c.Manifest.Annotations["jetpack/jail.conf/mount.fstab"] = fstabPath
+		c.Manifest.Annotations = c.Manifest.Annotations.Set("jetpack/jail.conf/mount.fstab", fstabPath)
 	}
 
 	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
@@ -222,14 +222,6 @@ func (c *Container) Prep() error {
 
 	return errors.Trace(
 		ioutil.WriteFile(c.Dataset.Path("jail.conf"), []byte(c.jailConf()), 0400))
-}
-
-func (c *Container) GetAnnotation(key, defval string) string {
-	if val, ok := c.Manifest.Annotations[types.ACName(key)]; ok {
-		return val
-	} else {
-		return defval
-	}
 }
 
 func (c *Container) Status() ContainerStatus {
@@ -357,6 +349,10 @@ func (c *Container) Stage2(app *types.App) error {
 		"-name", string(img.Manifest.Name),
 	}
 
+	if app.WorkingDirectory != "" {
+		args = append(args, "-cwd", app.WorkingDirectory)
+	}
+
 	for k, v := range app.Environment {
 		args = append(args, "-setenv", k+"="+v)
 	}
@@ -389,11 +385,12 @@ func (cc ContainerSlice) Table() [][]string {
 		if len(c.Manifest.Apps) > 0 {
 			appName = string(c.Manifest.Apps[0].Name)
 		}
+		ipAddress, _ := c.Manifest.Annotations.Get("ip-address")
 		rows[i+1] = []string{
 			c.Manifest.UUID.String(),
 			imageID,
 			appName,
-			c.GetAnnotation("ip-address", ""),
+			ipAddress,
 			c.Status().String(),
 		}
 	}

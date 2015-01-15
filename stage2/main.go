@@ -19,12 +19,14 @@ var JID int
 var User, Group, AppName string
 var Environment = make(dictFlag)
 var Exec []string
+var WorkingDirectory string
 
 func main() {
 	flag.IntVar(&JID, "jid", -1, "Jail ID")
 	flag.StringVar(&User, "user", "root", "User to run as")
 	flag.StringVar(&Group, "group", "", "Group to run as")
 	flag.StringVar(&AppName, "name", "", "Application name")
+	flag.StringVar(&WorkingDirectory, "cwd", "/", "Working directory")
 	flag.Var(&Environment, "setenv", "Environment variables")
 
 	flag.Parse()
@@ -36,7 +38,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := os.Chdir("/"); err != nil {
+	if err := os.Chdir(WorkingDirectory); err != nil {
 		panic(err)
 	}
 

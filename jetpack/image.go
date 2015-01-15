@@ -238,12 +238,8 @@ func (img *Image) Clone(snapshot, dest string) (*zfs.Dataset, error) {
 }
 
 func (img *Image) RuntimeApp() schema.RuntimeApp {
-	app := schema.RuntimeApp{
-		Name: img.Manifest.Name,
-		Annotations: map[types.ACName]string{
-			"jetpack/image-uuid": img.UUID.String(),
-		},
-	}
+	app := schema.RuntimeApp{Name: img.Manifest.Name}
+	app.Annotations = app.Annotations.Set("jetpack/image-uuid", img.UUID.String())
 	if img.Hash != nil {
 		app.ImageID = *img.Hash
 	} else {
@@ -294,7 +290,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// This is needed by freebsd-update at least, should be okay to
 	// allow this in builders.
-	buildContainer.Manifest.Annotations["jetpack/jail.conf/allow.chflags"] = "true"
+	buildContainer.Manifest.Annotations = buildContainer.Manifest.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
 
 	destroot := buildContainer.Dataset.Path("rootfs")
 
@@ -397,13 +393,11 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// Annotate with timestamp if there is no such annotation yet
 	if manifest["annotations"] == nil {
-		manifest["annotations"] = make(map[string]interface{})
+		manifest["annotations"] = make([]interface{}, 0)
 	}
 
-	annotations := manifest["annotations"].(map[string]interface{})
-	if _, ok := annotations["timestamp"]; !ok {
-		annotations["timestamp"] = time.Now()
-	}
+	manifest["annotations"] = append(manifest["annotations"].([]interface{}),
+		map[string]interface{}{"name": "timestamp", "value": time.Now()})
 
 	// Merge OS and arch from parent image if it's not set
 	// TODO: can we prevent this?
@@ -413,14 +407,14 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		hasLabels[label["name"].(string)] = true
 	}
 
-	if val, ok := img.Manifest.GetLabel("os"); ok && !hasLabels["os"] {
+	if value, ok := img.Manifest.GetLabel("os"); ok && !hasLabels["os"] {
 		manifest["labels"] = append(manifest["labels"].([]interface{}),
-			map[string]interface{}{"name": "os", "val": val})
+			map[string]interface{}{"name": "os", "value": value})
 	}
 
-	if val, ok := img.Manifest.GetLabel("arch"); ok && !hasLabels["arch"] {
+	if value, ok := img.Manifest.GetLabel("arch"); ok && !hasLabels["arch"] {
 		manifest["labels"] = append(manifest["labels"].([]interface{}),
-			map[string]interface{}{"name": "arch", "val": val})
+			map[string]interface{}{"name": "arch", "value": value})
 	}
 
 	// TODO: merge app from parent image?

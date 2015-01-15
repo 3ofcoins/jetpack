@@ -18,7 +18,7 @@ cat <<EOF
 
 Files:
 EOF
-ls -la . /opt/data/
+ls -la
 
 echo
 cat /opt/data/date.txt

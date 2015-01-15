@@ -10,7 +10,7 @@ This verifies the _apps perspective_ of the execution environment.
 Changes to the validator need to be reflected in app_manifest.json, and vice-versa
 
 The App Container Execution spec defines the following expectations within the execution environment:
- - Working directory always the root of the container
+ - Working Directory defaults to the root of the application image, overridden with "workingDirectory"
  - PATH /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
  - USER, LOGNAME username of the user executing this app
  - HOME home directory of the user
@@ -66,6 +66,7 @@ const (
 
 var (
 	// Expected values must be kept in sync with app_manifest.json
+	workingDirectory = "/opt/acvalidator"
 	// "Environment"
 	env = map[string]string{
 		"IN_ACE_VALIDATOR": "correct",
@@ -90,7 +91,7 @@ type results []error
 // main outputs diagnostic information to stderr and exits 1 if validation fails
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "usage: %s [main|sidekick|preStart|postStop]\n", os.Args[0])
+		stderr("usage: %s [main|sidekick|preStart|postStop]", os.Args[0])
 		os.Exit(64)
 	}
 	mode := os.Args[1]
@@ -105,7 +106,7 @@ func main() {
 	case "poststop":
 		res = validatePoststop()
 	default:
-		fmt.Fprintf(os.Stderr, "unrecognized mode: %s\b", mode)
+		stderr("unrecognized mode: %s", mode)
 		os.Exit(64)
 	}
 	if len(res) == 0 {
@@ -124,6 +125,7 @@ func validateMain() (errs results) {
 	errs = append(errs, assertNotExistsAndCreate(mainFile)...)
 	errs = append(errs, assertNotExists(poststopFile)...)
 	errs = append(errs, ValidatePath(standardPath)...)
+	errs = append(errs, ValidateWorkingDirectory(workingDirectory)...)
 	errs = append(errs, ValidateEnvironment(env)...)
 	errs = append(errs, ValidateMountpoints(mps)...)
 	errs = append(errs, ValidateAppNameEnv(an)...)
@@ -162,6 +164,20 @@ func ValidatePath(wp string) results {
 		r = append(r, fmt.Errorf("PATH not set appropriately (need %q)", wp))
 	}
 	return r
+}
+
+// ValidateWorkingDirectory ensures that the process working directory is set
+// to the desired path.
+func ValidateWorkingDirectory(wwd string) (r results) {
+	wd, err := os.Getwd()
+	if err != nil {
+		r = append(r, fmt.Errorf("error getting working directory: %x", err))
+		return
+	}
+	if wd != wwd {
+		r = append(r, fmt.Errorf("working directory %q not set (need %q)", wwd, wd))
+	}
+	return
 }
 
 // ValidateEnvironment ensures that the given environment exactly maps the
@@ -313,18 +329,15 @@ func validateAppAnnotations(crm *schema.ContainerRuntimeManifest, app *schema.Im
 	// build a map of expected annotations by merging app.Annotations
 	// with ContainerRuntimeManifest overrides
 	expectedAnnots := app.Annotations
-	if expectedAnnots == nil {
-		expectedAnnots = make(types.Annotations)
-	}
 	a := crm.Apps.Get(app.Name)
 	if a == nil {
 		panic("could not find app in manifest!")
 	}
-	for k, v := range a.Annotations {
-		expectedAnnots[k] = v
+	for _, annot := range a.Annotations {
+		expectedAnnots.Set(annot.Name, annot.Value)
 	}
 
-	actualAnnots := make(types.Annotations)
+	actualAnnots := types.Annotations{}
 
 	annots, err := metadataGet("/apps/" + string(app.Name) + "/annotations/")
 	if err != nil {
@@ -347,7 +360,7 @@ func validateAppAnnotations(crm *schema.ContainerRuntimeManifest, app *schema.Im
 			continue
 		}
 
-		actualAnnots[*lbl] = string(val)
+		actualAnnots.Set(*lbl, string(val))
 	}
 
 	if !reflect.DeepEqual(actualAnnots, expectedAnnots) {
@@ -530,4 +543,9 @@ func waitForFile(p string, to time.Duration) []error {
 			}
 		}
 	}
+}
+
+func stderr(format string, a ...interface{}) {
+	out := fmt.Sprintf(format, a...)
+	fmt.Fprintln(os.Stderr, strings.TrimSuffix(out, "\n"))
 }
