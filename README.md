@@ -83,18 +83,28 @@ To see the general information, run `jetpack info`.
 
 To build images, run `make` in the example image directories
 (`/usr/local/share/examples/jetpack/*` in system-wide installation;
-`./images/*` if you use in-place). You will probably want to build
-`freebsd-base.release` image (pure FreeBSD-10.1 system from `base.txz`
-distfile), and then `freebsd-base` (which runs `freebsd-update` on the
-previous one). After that, you can build `example.showenv`, which runs
-a basic smoke test (shows details of its container's inside).
+`./images/*` if you use in-place). You need to either run `make` as
+root, add a `JETPACK='sudo jetpack'` argument, or have a `jetpack`
+script in your `$PATH` that does `exec sudo
+~/Projects/jetpack/bin/jetpack "${@}"` (the last one is most
+convenient overall). 
+
+You will probably want to build `freebsd-base.release` image (pure
+FreeBSD-10.1 system from `base.txz` distfile), and then `freebsd-base`
+(which runs `freebsd-update` on the previous one). After that, you can
+build `example.showenv`, which runs a basic smoke test (shows details
+of its container's inside).
+
+Run `jetpack image list` or `jetpack images` to list available images.
 
 You create containers from images, then run the containers:
 
     jetpack container create freebsd-base
 
 Note the container UUID printed by the above command (no user-friendly
-container names yet), then run the container:
+container names yet) or get it from the container list (run `jetpack
+container list` or `jetpack containers` to see the list). Then run the
+container:
 
     jetpack container $UUID run
 
@@ -158,6 +168,9 @@ Features, or The Laundry List
          `environment/production`.
          - [ ] Maybe some variant of tags that would be unique per
                name?
+   - [ ] `/etc/rc.d/jetpack` (`/etc/rc.d/jetpack_` for individual
+         containers?) to start containers at boot time, and generally
+         manage them as services
    - If/when we get enough live runtime data to make it complicated,
      maybe a centralized indexed storage, like SQLite? This could also
      solve some locking issues for long-running processes…
