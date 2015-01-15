@@ -99,46 +99,15 @@ func (img *Image) Seal() error {
 	}
 
 	if img.Hash == nil {
-		// Save AMI, acquire hash.
-		// TODO: separate dir/volume for AMIs, only symlink from image dir?
-		tarCmd := run.Command("tar", "-C", img.Dataset.Mountpoint, "-c", "-f", "-", "manifest", "rootfs")
-		if tarOut, err := tarCmd.StdoutPipe(); err != nil {
+		amiPath := ""
+		if img.Manager.Host.Properties.GetBool("images.ami.store", false) {
+			amiPath = img.Dataset.Path("ami")
+		}
+
+		if hash, err := img.SaveAMI(amiPath, 0400); err != nil {
 			return errors.Trace(err)
 		} else {
-			hash := sha512.New()
-			if err := tarCmd.Start(); err != nil {
-				return errors.Trace(err)
-			}
-			if img.Manager.Host.Properties.GetBool("images.ami.store", false) {
-				if amiFile, err := os.OpenFile(img.Dataset.Path("ami"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400); err != nil {
-					return errors.Trace(err)
-				} else {
-					defer amiFile.Close()
-					xzCmd := run.Command("xz", "-z")
-					xzCmd.Cmd.Stdout = amiFile
-					if xzIn, err := xzCmd.StdinPipe(); err != nil {
-						return errors.Trace(err)
-					} else {
-						if err := xzCmd.Start(); err != nil {
-							return errors.Trace(err)
-						}
-						if _, err := io.Copy(xzIn, io.TeeReader(tarOut, hash)); err != nil {
-							return errors.Trace(err)
-						}
-					}
-				}
-			} else {
-				if _, err := io.Copy(hash, tarOut); err != nil {
-					return errors.Trace(err)
-				}
-			}
-
-			if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
-				// CAN'T HAPPEN, srsly
-				return errors.Trace(err)
-			} else {
-				img.Hash = hash
-			}
+			img.Hash = hash
 		}
 	}
 
@@ -164,6 +133,78 @@ func (img *Image) Seal() error {
 	}
 
 	return nil
+}
+
+// Save image to an AMI file, return its hash.
+//
+// If path is an empty string, don't save the image, just return the
+// hash. If path is "-", print image to stdout.
+func (img *Image) SaveAMI(path string, perm os.FileMode) (*types.Hash, error) {
+	archiver := run.Command("tar", "-C", img.Dataset.Mountpoint, "-c", "-f", "-", "manifest", "rootfs")
+	if archive, err := archiver.StdoutPipe(); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		hash := sha512.New()
+		faucet := io.TeeReader(archive, hash)
+		sink := ioutil.Discard
+		var compressor *run.Cmd = nil
+
+		if path != "" {
+			if path == "-" {
+				sink = os.Stdout
+			} else {
+				if f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm); err != nil {
+					return nil, errors.Trace(err)
+				} else {
+					defer f.Close()
+					sink = f
+				}
+			}
+
+			if compression := img.Manager.Host.Properties.GetString("images.ami.compression", "no"); compression != "none" {
+				switch compression {
+				case "xz":
+					compressor = run.Command("xz", "-z", "-c")
+				case "bzip2":
+					compressor = run.Command("bzip2", "-z", "-c")
+				case "gz":
+				case "gzip":
+					compressor = run.Command("gzip", "-c")
+				default:
+					return nil, errors.Errorf("Invalid setting images.ami.compression=%#v (allowed values: xz, bzip2, gzip, none)", compression)
+				}
+
+				compressor.Cmd.Stdout = sink
+				if cin, err := compressor.StdinPipe(); err != nil {
+					return nil, errors.Trace(err)
+				} else {
+					sink = cin
+				}
+			}
+		}
+
+		if err := archiver.Start(); err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if compressor != nil {
+			if err := compressor.Start(); err != nil {
+				archiver.Cmd.Process.Kill()
+				return nil, errors.Trace(err)
+			}
+		}
+
+		if _, err := io.Copy(sink, faucet); err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
+			// CAN'T HAPPEN, srsly
+			return nil, errors.Trace(err)
+		} else {
+			return hash, nil
+		}
+	}
 }
 
 func (img *Image) LoadManifest() error {

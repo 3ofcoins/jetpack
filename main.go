@@ -72,6 +72,8 @@ Commands:
                     -dir=.                Location on build directory on host
                     -cp=PATH...           Copy additional files from host
   image IMAGE show                        Display image details
+  image IMAGE export [PATH]               Export image to an AMI file
+                                          Output to stdout if no PATH given
   image IMAGE destroy                     Destroy image
   container list                          List containers
   container create IMAGE                  Create new container from image
@@ -98,8 +100,7 @@ Helpful Aliases:
   c ... -- container ...
   image, images -- image list
   container, containers -- container list
-  image build|show|destroy IMAGE ... -- image IMAGE build|show|destroy ...
-  
+  image build|show|export|destroy IMAGE ... -- image IMAGE build|show|... ...
 `)
 		return
 	}
@@ -160,7 +161,7 @@ Helpful Aliases:
 				sort.Sort(images)
 				show(images.Table()) // FIXME: Table() doesn't really belong in images
 			}
-		case "build", "show", "destroy":
+		case "build", "show", "export", "destroy":
 			// be nice to people who prefer to type UUID after command
 			command, args[0] = args[0], command
 			fallthrough
@@ -182,6 +183,16 @@ Helpful Aliases:
 				show(newImage)
 			case "show":
 				show(img)
+			case "export":
+				path := "-"
+				if len(args) > 0 {
+					path = args[0]
+				}
+				if hash, err := img.SaveAMI(path, 0644); err != nil {
+					die(err)
+				} else {
+					fmt.Fprintln(os.Stderr, hash)
+				}
 			case "destroy":
 				die(img.Destroy())
 			default:

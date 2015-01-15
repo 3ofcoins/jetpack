@@ -13,6 +13,10 @@
 # Set to `yes' to keep AMIs when building images
 #images.ami.store = no
 
+# Compression to used on stored and exported AMIs.
+# Valid options are: xz (default), bzip2, gzip, none
+#images.ami.compression = xz
+
 # Optionally set other ZFS parameters for root dataset:
 #root.zfs.PARAMETER = VALUE ...
 
