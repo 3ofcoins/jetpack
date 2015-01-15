@@ -24,24 +24,26 @@ Compatibility
 -------------
 
 Jetpack is developed and tested on an up-to-date FreeBSD 10.1 system,
-and compiled with Go 1.4.
+and compiled with Go 1.4. Earlier FreeBSD releases are not supported.
 
 Getting Started
 ---------------
 
 ### Configuring the system
 
-First, build JetPack and install it system-wide or in-place. The
+First, build Jetpack and install it system-wide or in-place. The
 `INSTALL.md` document contains the installation instructions.
 
-You will obviously need a ZFS pool for the files. By default, JetPack
-uses `zroot/jetpack` dataset mounted at `/var/jetpack`. These settings
-can be changed in the `jetpack.conf` file.
+You will obviously need a ZFS pool for Jetpack's datasets. By default,
+Jetpack will create a `zroot/jetpack` dataset and mount it at
+`/var/jetpack`. If your zpool is not named _zroot_, or if you prefer
+different locations, these defaults can be modified in the
+`jetpack.conf` file.
 
 You will also need a network interface that the jails will use, and
 this interface should have Internet access. By default, Jetpack uses
-`lo1` is used, but this can be changed in the `jetpack.conf` file. To
-create the interface, run the following command as root:
+`lo1`, but this can be changed in the `jetpack.conf` file. To create
+the interface, run the following command as root:
 
     ifconfig lo1 create inet 172.23.0.1/16
 
@@ -65,14 +67,14 @@ would be:
 
 where `$ext_if` is your external network interface. A more
 sopihisticated setup can be desired to limit containers'
-connectivity. In the long run, JetPack will probably manage its own
+connectivity. In the long run, Jetpack will probably manage its own
 `pf` anchor.
 
-Currently, JetPack copies `/etc/resolv.conf` file from host to
+Currently, Jetpack copies `/etc/resolv.conf` file from host to
 containers. In future, it will be possible to configure custom DNS
 servers (like a local unbound or dnsmasq).
 
-### Using JetPack
+### Using Jetpack
 
 Run `jetpack` without any arguments to see available commands.
 
@@ -81,13 +83,15 @@ init`.
 
 To see the general information, run `jetpack info`.
 
+To run a smoke test (which will be expanded into a more comprehensive
+integration test suite), run `jetpack test`.
+
 To build images, run `make` in the example image directories
 (`/usr/local/share/examples/jetpack/*` in system-wide installation;
 `./images/*` if you use in-place). You need to either run `make` as
 root, add a `JETPACK='sudo jetpack'` argument, or have a `jetpack`
-script in your `$PATH` that does `exec sudo
-~/Projects/jetpack/bin/jetpack "${@}"` (the last one is most
-convenient overall). 
+script in your `$PATH` that does `exec sudo /path/to/jetpack "${@}"`
+(the last one is most convenient overall).
 
 You will probably want to build `freebsd-base.release` image (pure
 FreeBSD-10.1 system from `base.txz` distfile), and then `freebsd-base`
@@ -128,6 +132,11 @@ Run `jetpack help` to see info on remaining available commands, and if
 something needs clarification, create an issue at
 https://github.com/3ofcoins/jetpack/ and ask the question. If
 something is not clear, it's a bug in the documentation!
+
+Building Images
+---------------
+
+See the [IMAGES.md](IMAGES.md) file for details.
 
 Features, or The Laundry List
 -----------------------------
@@ -174,13 +183,3 @@ Features, or The Laundry List
    - If/when we get enough live runtime data to make it complicated,
      maybe a centralized indexed storage, like SQLite? This could also
      solve some locking issues for long-running processes…
-
-Building Images
----------------
-
-> TODO
-
-Container Life Cycle
---------------------
-
-> TODO

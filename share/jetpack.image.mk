@@ -1,5 +1,5 @@
 JETPACK ?= jetpack
-BUILD_COMMAND ?= make build+manifest
+BUILD_COMMAND ?= make .jetpack.build.
 # BUILD_DIR ?= .
 CLEAN_FILES ?=
 # IMPORT_FILE
@@ -19,7 +19,7 @@ BUILD_ARGS += ${BUILD_VARS:@.VAR.@${${.VAR.}:D${.VAR.}=${${.VAR.}:Q}}@}
 IMPORT_FILE ?= ${IMPORT_URL:C%^.*/%%:C%\?.*$%%}
 CLEAN_FILES += $(IMPORT_FILE)
 
-prepare.import_file: $(IMPORT_FILE) $(IMPORT_MANIFEST)
+prepare..import_file: $(IMPORT_FILE) $(IMPORT_MANIFEST)
 .ifdef IMPORT_SHA256
 	sha256 -c $(IMPORT_SHA256) $(IMPORT_FILE)
 .else
@@ -38,21 +38,23 @@ BUILD_CP += ${.jetpack.image.mk.path}
 image: .PHONY prepare
 .ifdef IMPORT_FILE
 	$(JETPACK) image import $(IMPORT_FILE) $(IMPORT_MANIFEST)
-.else
+.elifdef PARENT_IMAGE
 	$(JETPACK) image $(PARENT_IMAGE) build ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} ${BUILD_DIR:D-dir=${BUILD_DIR}} $(BUILD_COMMAND) $(BUILD_ARGS)
+.else
+.error "Define either IMPORT_FILE/IMPORT_URL, or PARENT_IMAGE. I don't know what to do!"
 .endif
 
 .ifdef PKG_INSTALL
-build.pkg-install: .PHONY
+build..pkg-install: .PHONY
 	env ASSUME_ALWAYS_YES=YES pkg install ${PKG_INSTALL}
 .endif
 
 .if !empty(CLEAN_FILES)
-clean.files:
+clean..files:
 	rm -rf $(CLEAN_FILES)
 .endif
 
-build+manifest: .PHONY build .WAIT manifest.json
+.jetpack.build.: .PHONY build .WAIT manifest.json
 
 prepare: .PHONY ${.ALLTARGETS:Mprepare.*}
 build:   .PHONY ${.ALLTARGETS:Mbuild.*}
