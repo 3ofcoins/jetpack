@@ -280,7 +280,7 @@ func (img *Image) Clone(snapshot, dest string) (*zfs.Dataset, error) {
 
 func (img *Image) RuntimeApp() schema.RuntimeApp {
 	app := schema.RuntimeApp{Name: img.Manifest.Name}
-	app.Annotations = app.Annotations.Set("jetpack/image-uuid", img.UUID.String())
+	app.Annotations.Set("jetpack/image-uuid", img.UUID.String())
 	if img.Hash != nil {
 		app.ImageID = *img.Hash
 	} else {
@@ -331,7 +331,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// This is needed by freebsd-update at least, should be okay to
 	// allow this in builders.
-	buildContainer.Manifest.Annotations = buildContainer.Manifest.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
+	buildContainer.Manifest.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
 
 	destroot := buildContainer.Dataset.Path("rootfs")
 

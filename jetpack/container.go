@@ -209,7 +209,7 @@ func (c *Container) Prep() error {
 		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
 			return errors.Trace(err)
 		}
-		c.Manifest.Annotations = c.Manifest.Annotations.Set("jetpack/jail.conf/mount.fstab", fstabPath)
+		c.Manifest.Annotations.Set("jetpack/jail.conf/mount.fstab", fstabPath)
 	}
 
 	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {

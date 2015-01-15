@@ -115,7 +115,7 @@ func (cmgr *ContainerManager) newContainer(ds *zfs.Dataset) (*Container, error) 
 	if ip, err := cmgr.nextIP(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		c.Manifest.Annotations = c.Manifest.Annotations.Set("ip-address", ip.String())
+		c.Manifest.Annotations.Set("ip-address", ip.String())
 	}
 
 	return c, nil
