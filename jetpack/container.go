@@ -201,7 +201,6 @@ func (c *Container) Prep() error {
 		fstab = append(fstab,
 			fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Dataset.Path("rootfs/sys")),
 			fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Dataset.Path("rootfs/proc")),
-			fmt.Sprintf("tmpfs %v tmpfs rw,mode=777 0 0\n", c.Dataset.Path("rootfs/lib/init/rw")),
 		)
 	}
 	if len(fstab) > 0 {

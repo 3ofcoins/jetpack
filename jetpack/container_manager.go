@@ -164,8 +164,8 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 			})
 		}
 		if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
-			for _, dir := range []string{"sys", "proc", "lib/init/rw"} {
-				if err := os.MkdirAll(ds.Path("rootfs", dir), 0755); err != nil {
+			for _, dir := range []string{"sys", "proc"} {
+				if err := os.MkdirAll(ds.Path("rootfs", dir), 0755); err != nil && !os.IsExist(err) {
 					return nil, errors.Trace(err)
 				}
 			}
