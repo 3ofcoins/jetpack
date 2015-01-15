@@ -30,6 +30,10 @@ $(IMPORT_FILE):
 	fetch -o $@ $(IMPORT_URL)
 .endif
 
+.ifdef IMPORT_MANIFEST
+prepare: ${IMPORT_MANIFEST}
+.endif
+
 .jetpack.image.mk.path := $(.PARSEDIR)/$(.PARSEFILE)
 .if ${BUILD_CP_JETPACK_IMAGE_MK} == yes
 BUILD_CP += ${.jetpack.image.mk.path}
