@@ -32,7 +32,8 @@ Getting Started
 ### Configuring the system
 
 First, build Jetpack and install it system-wide or in-place. The
-`INSTALL.md` document contains the installation instructions.
+[INSTALL.md](INSTALL.md) document contains the installation
+instructions.
 
 You will obviously need a ZFS pool for Jetpack's datasets. By default,
 Jetpack will create a `zroot/jetpack` dataset and mount it at
