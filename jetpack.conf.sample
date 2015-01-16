@@ -30,3 +30,5 @@
 # ZFS parameters for containers dataset (none by default)
 #containers.zfs.PARAMETER = VALUE ...
 
+# Set to "on" to see debugging information
+#debug=off

@@ -241,7 +241,11 @@ func (c *Container) runJail(op string) error {
 	if err := c.Prep(); err != nil {
 		return err
 	}
-	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), "-v", op, c.JailName()).Run()
+	verbosity := "-q"
+	if c.Manager.Host.Properties.GetBool("debug", false) {
+		verbosity = "-v"
+	}
+	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), verbosity, op, c.JailName()).Run()
 }
 
 func (c *Container) Spawn() error {
