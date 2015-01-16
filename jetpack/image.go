@@ -77,18 +77,6 @@ func (img *Image) Load() error {
 		return errors.Trace(err)
 	}
 
-	if app := img.Manifest.App; app != nil {
-		if len(app.EventHandlers) != 0 {
-			return errors.New("TODO: event handlers are not supported")
-		}
-		if len(app.Ports) != 0 {
-			return errors.New("TODO: ports are not supported")
-		}
-		if len(app.Isolators) != 0 {
-			return errors.New("TODO: isolators are not supported")
-		}
-	}
-
 	return nil
 }
 
