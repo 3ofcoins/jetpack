@@ -1,0 +1,11 @@
+---
+ - hosts: all
+   tasks:
+   - name: Ensure dependencies are installed.
+     pkgng: name={{item}} state=present cached=true
+     with_items:
+     - git
+     - lang/go
+     - gmake
+
+
