@@ -4,10 +4,7 @@ Vagrant.configure("2") do |config|
   config.vm.box_url = "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_freebsd-10.1_chef-provisionerless.box"
   config.vm.box = "opscode_freebsd-10.1_chef-provisionerless.box"
   config.vm.network "private_network", ip: "10.0.1.10"
-  #config.ssh.username = "vagrant"
-  #config.ssh.password = "vagrant"
   config.ssh.shell = "/bin/sh"
-  #config.ssh.insert_key = "true"
   # Use NFS as a shared folder
   config.vm.synced_folder ".", "/vagrant", :nfs => true, id: "vagrant-root"
 
@@ -19,7 +16,7 @@ Vagrant.configure("2") do |config|
     vb.customize ["modifyvm", :id, "--audio", "none"]
     vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
     vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
-    vb.gui = true
+    #vb.gui = true
   end
 
   config.vm.provision "shell" do |s|

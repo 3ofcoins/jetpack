@@ -7,7 +7,14 @@
      - git
      - lang/go
 
-   - name: Build jetpack
+   - name: Create lo1 interface for jetpack
+     command: "ifconfig lo1 create inet 172.23.0.1/16"
+     ignore_errors: yes
+
+   - name: Enable ip forwarding so containers can haz nat
+     sysctl: name=net.inet.ip.forwarding value=1 state=present
+
+   - name: Build Jetpack
      command: "{{ item }}"
      args:
        chdir: "/vagrant"
@@ -15,5 +22,7 @@
      - "make PREFIX=/usr/local"
      - "make install PREFIX=/usr/local"
    
-   - name: Bootstrap zfs
-     zfs: name=zroot/jetpack mountpoint=/var/jetpack state=present 
+   - name: Init Jetpack
+     command: "jetpack init"
+     ignore_errors: yes
+
