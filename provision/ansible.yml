@@ -6,6 +6,7 @@
      with_items:
      - git
      - lang/go
+     - debootstrap
 
    - name: Enable ip forwarding so containers can haz nat
      sysctl: name=net.inet.ip.forwarding value=1 state=present
@@ -13,7 +14,7 @@
    - name: Create lo1 interface for jetpack
      command: "{{ item }}"
      with_items:
-     - "kldload pf"
+     - "kldload pf fdescfs linprocfs linsysfs tmpfs"
      - "ifconfig lo1 create inet 172.23.0.1/16"
      ignore_errors: yes
 
