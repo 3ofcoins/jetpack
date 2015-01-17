@@ -7,20 +7,29 @@
      - git
      - lang/go
 
-   - name: Create lo1 interface for jetpack
-     command: "ifconfig lo1 create inet 172.23.0.1/16"
-     ignore_errors: yes
-
    - name: Enable ip forwarding so containers can haz nat
      sysctl: name=net.inet.ip.forwarding value=1 state=present
 
-   - name: Build Jetpack
+   - name: Create lo1 interface for jetpack
      command: "{{ item }}"
+     with_items:
+     - "kldload pf"
+     - "ifconfig lo1 create inet 172.23.0.1/16"
+     ignore_errors: yes
+
+   - name: "Copy pf.conf"
+     copy: src=etc/pf.conf dest="/etc/pf.conf"
+
+   - name: Reload PF
+     command: "/etc/rc.d/pf onerestart"
+
+   - name: Build Jetpack
+     command: "{{ item }} PREFIX=/usr/local"
      args:
        chdir: "/vagrant"
      with_items:
-     - "make PREFIX=/usr/local"
-     - "make install PREFIX=/usr/local"
+     - "make"
+     - "make install"
    
    - name: Init Jetpack
      command: "jetpack init"
