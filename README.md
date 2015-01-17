@@ -28,6 +28,11 @@ and compiled with Go 1.4. Earlier FreeBSD releases are not supported.
 
 Getting Started
 ---------------
+### VM with vagrant
+To spin up a pre configured FreeBSD VM with [Vagrant](https://www.vagrantup.com)
+run `$ vagrant up` in the root directory of this repository.
+Then run `$ vagrant ssh` to ssh into the machine. 
+The code is mounted under `/vagrant`.
 
 ### Configuring the system
 
