@@ -1,0 +1,14 @@
+---
+ - name: update packages
+   command: "pkg update"
+ 
+ - name: upgrade pkg
+   command: "pkg install -f -y pkg"
+ 
+ - name: ensure dependencies are installed.
+   pkgng: name={{item}} state=present cached=no
+   with_items:
+   - git
+   - lang/go
+
+
