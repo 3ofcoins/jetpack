@@ -10,5 +10,3 @@
    with_items:
    - git
    - lang/go
-
-
