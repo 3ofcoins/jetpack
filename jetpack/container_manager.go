@@ -1,5 +1,6 @@
 package jetpack
 
+import "fmt"
 import "io/ioutil"
 import "net"
 import "os"
@@ -30,8 +31,7 @@ func (cmgr *ContainerManager) All() (ContainerSlice, error) {
 			}
 			if c, err := GetContainer(ds, cmgr); err != nil {
 				if err != ErrContainerIsEmpty {
-					// TODO: warn but still return useful containers
-					return nil, errors.Trace(err)
+					fmt.Fprintf(os.Stderr, "GetImage: %v: ERROR: %v\n", ds.Name, err)
 				}
 			} else {
 				rv = append(rv, c)
