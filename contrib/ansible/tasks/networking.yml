@@ -1,0 +1,11 @@
+---
+ - name: cloned interface lo1
+   action: command sysrc cloned_interfaces=lo1
+
+ - name: ipv4 addresses for lo1
+   action: command sysrc ipv4_addrs_lo1=172.23.0.1/16
+    
+ - name: start lo1
+   action: command service netif start lo1
+   register: command_result
+   failed_when: "'172.23.0.1' not in command_result.stdout"

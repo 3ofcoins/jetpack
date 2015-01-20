@@ -1,0 +1,22 @@
+---
+ - hosts: default
+   tasks:
+   - include: tasks/dependencies.yml # install git & go
+   - include: tasks/networking.yml   # setup and start lo1
+   - include: tasks/pf.yml           # configure and start firewall
+       
+   - name: build & install Jetpack
+     command: "{{ item }} PREFIX=/usr/local"
+     args:
+       chdir: "/vagrant"
+     with_items:
+     - "make"
+     - "make install"
+   
+   - name: init Jetpack
+     command: "jetpack init"
+     ignore_errors: yes
+
+   handlers:
+    - name: restart pf
+      service: name=pf state=restarted
