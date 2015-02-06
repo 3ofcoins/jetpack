@@ -1,6 +1,7 @@
 package jetpack
 
 import "encoding/json"
+import "fmt"
 import "io/ioutil"
 import "net/url"
 import "os"
@@ -31,8 +32,7 @@ func (imgr *ImageManager) All() (ImageSlice, error) {
 				continue
 			}
 			if img, err := GetImage(ds, imgr); err != nil {
-				// TODO: warn
-				return nil, errors.Trace(err)
+				fmt.Fprintf(os.Stderr, "GetImage: %v: ERROR: %v\n", ds.Name, err)
 			} else {
 				rv = append(rv, img)
 			}

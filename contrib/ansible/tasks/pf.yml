@@ -1,0 +1,8 @@
+---
+ - name: enable pf
+   action: command sysrc pf_enable=YES
+    
+ - name: copy pf.conf
+   copy: src=etc/pf.conf dest="/etc/pf.conf"
+   notify:
+    - restart pf
