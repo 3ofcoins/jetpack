@@ -14,7 +14,16 @@ func ZPools() ([]string, error) {
 }
 
 func zfs(command string, args []string) *run.Cmd {
-	return run.Command("/sbin/zfs", append([]string{command}, args...)...)
+	quiet := false
+	if command[0] == '@' {
+		quiet = true
+		command = command[1:]
+	}
+	cmd := run.Command("/sbin/zfs", append([]string{command}, args...)...)
+	if quiet {
+		cmd.Cmd.Stderr = nil
+	}
+	return cmd
 }
 
 func zfsHp(command string, args []string) *run.Cmd {
