@@ -108,6 +108,11 @@ func main() {
 		}
 	}
 
+	term := os.Getenv("TERM")
+	if term == "" {
+		term = "vt100"
+	}
+
 	os.Clearenv()
 
 	// Put environment in a map to avoid duplicates when App.Environment
@@ -119,6 +124,7 @@ func main() {
 		"LOGNAME": Username,
 		"HOME":    Home,
 		"SHELL":   Shell,
+		"TERM":    term,
 	}
 
 	for k, v := range Environment {
