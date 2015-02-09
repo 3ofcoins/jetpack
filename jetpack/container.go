@@ -156,7 +156,7 @@ func (c *Container) jailConf() string {
 
 	for _, antn := range c.Manifest.Annotations {
 		if strings.HasPrefix(string(antn.Name), "jetpack/jail.conf/") {
-			parameters[string(antn.Name)[len("jetpack/jail.conf/"):]] = antn.Value
+			parameters[strings.Replace(string(antn.Name)[len("jetpack/jail.conf/"):], "-", "_", -1)] = antn.Value
 		}
 	}
 
