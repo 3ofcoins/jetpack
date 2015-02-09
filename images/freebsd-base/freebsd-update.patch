@@ -1,0 +1,13 @@
+--- /usr/sbin/freebsd-update	2015-02-08 22:15:58.178818000 +0100
++++ freebsd-update	2015-02-09 13:45:42.202917000 +0100
+@@ -618,9 +618,7 @@
+ 	# to provide an upgrade path for FreeBSD Update 1.x users, since
+ 	# the kernels provided by FreeBSD Update 1.x are always labelled
+ 	# as X.Y-SECURITY.
+-	RELNUM=`uname -r |
+-	    sed -E 's,-p[0-9]+,,' |
+-	    sed -E 's,-SECURITY,-RELEASE,'`
++	RELNUM=10.1-RELEASE
+ 	ARCH=`uname -m`
+ 	FETCHDIR=${RELNUM}/${ARCH}
+ 	PATCHDIR=${RELNUM}/${ARCH}/bp
