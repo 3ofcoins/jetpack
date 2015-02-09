@@ -1,6 +1,6 @@
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.1.1",
+    "acVersion": "0.3.0",
     "name": "example.com/reduce-worker",
     "labels": [
         {
@@ -18,7 +18,8 @@
     ],
     "app": {
         "exec": [
-            "/usr/bin/reduce-worker"
+            "/usr/bin/reduce-worker",
+            "--quiet"
         ],
         "user": "100",
         "group": "300",
@@ -31,19 +32,19 @@
             },
             {
                 "exec": [
-                    "/usr/bin/deregister-worker"
+                    "/usr/bin/deregister-worker",
+                    "--verbose"
                 ],
                 "name": "post-stop"
             }
         ],
-        "environment": {
-            "REDUCE_WORKER_DEBUG": "true"
-        },
-        "isolators": [
+        "environment": [
             {
-                "name": "private-network",
+                "name": "REDUCE_WORKER_DEBUG",
                 "value": "true"
-            },
+            }
+        ],
+        "isolators": [
             {
                 "name": "cpu/shares",
                 "value": "20"

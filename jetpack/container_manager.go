@@ -158,7 +158,7 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 
 			vols = append(vols, types.Volume{
 				Kind:     "empty",
-				Fulfills: []types.ACName{mnt.Name},
+				Name:     mnt.Name,
 				Source:   sourcePath,
 				ReadOnly: mnt.ReadOnly,
 			})

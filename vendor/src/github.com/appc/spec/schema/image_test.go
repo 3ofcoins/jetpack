@@ -6,7 +6,7 @@ func TestEmptyApp(t *testing.T) {
 	imj := `
 		{
 		    "acKind": "ImageManifest",
-		    "acVersion": "0.1.1",
+		    "acVersion": "0.3.0",
 		    "name": "example.com/test"
 		}
 		`
@@ -26,6 +26,22 @@ func TestEmptyApp(t *testing.T) {
 	}
 
 	err = im.UnmarshalJSON(buf)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestImageManifestMerge(t *testing.T) {
+	imj := `{"name": "example.com/test"}`
+	im := &ImageManifest{}
+
+	if im.UnmarshalJSON([]byte(imj)) == nil {
+		t.Fatal("Manifest JSON without acKind and acVersion unmarshalled successfully")
+	}
+
+	im = BlankImageManifest()
+
+	err := im.UnmarshalJSON([]byte(imj))
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

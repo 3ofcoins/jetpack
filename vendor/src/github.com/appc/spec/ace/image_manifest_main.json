@@ -1,9 +1,9 @@
 {
-    "acVersion": "0.1.1",
+    "acVersion": "0.3.0",
     "acKind": "ImageManifest",
     "name": "coreos.com/ace-validator-main",
     "labels": [
-        { "name": "version", "value": "0.1.1" },
+        { "name": "version", "value": "0.3.0" },
         { "name": "os", "value": "linux" },
         { "name": "arch", "value": "amd64" }
     ],
@@ -28,9 +28,12 @@
         "user": "0",
         "group": "0",
         "workingDirectory": "/opt/acvalidator",
-        "environment": {
-            "IN_ACE_VALIDATOR": "correct"
-        },
+        "environment": [
+            {
+                "name": "IN_ACE_VALIDATOR",
+                "value": "correct"
+            }
+        ],
         "mountPoints": [
             {
                 "name": "database",
@@ -47,20 +50,31 @@
         ],
         "isolators": [
             {
-                "name": "private-network",
-                "value": "true"
-            },
-            {
                 "name": "memory/limit",
                 "value": "1G"
             }
         ]
     },
-    "annotations": {
-        "created": "2014-10-27T19:32:27.67021798Z",
-        "authors": "Carly Container <carly@example.com>, Nat Network <nat@example.com>",
-        "homepage": "https://github.com/containers/standard",
-        "documentation": "https://github.com/containers/standard/blob/master/README.md",
-        "lorem": "ipsum"
-    }
+    "annotations": [
+        {
+            "name": "created",
+            "value": "2014-10-27T19:32:27.67021798Z"
+        },
+        {
+            "name": "authors",
+            "value": "Carly Container <carly@example.com>, Nat Network <nat@example.com>"
+        },
+        {
+            "name": "homepage",
+            "value": "https://github.com/containers/standard"
+        },
+        {
+            "name": "documentation",
+            "value": "https://github.com/containers/standard/blob/master/README.md"
+        },
+        {
+            "name": "lorem",
+            "value": "ipsum"
+        }
+    ]
 }

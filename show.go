@@ -190,14 +190,9 @@ func Show(prefix string, objs ...interface{}) error {
 				[]string{"Group", app.Group},
 			}
 
-			envKeys := make([]string, 0, len(app.Environment))
-			for k := range app.Environment {
-				envKeys = append(envKeys, k)
-			}
-			sort.Strings(envKeys)
 			envTbl := make([][]string, len(app.Environment))
-			for i, k := range envKeys {
-				envTbl[i] = []string{k, app.Environment[k]}
+			for i, ev := range app.Environment {
+				envTbl[i] = []string{ev.Name, ev.Value}
 			}
 
 			return ShowSection(prefix, "App",
@@ -239,11 +234,7 @@ func Show(prefix string, objs ...interface{}) error {
 		if vols := obj.([]types.Volume); len(vols) > 0 {
 			tbl := make([]interface{}, len(vols))
 			for i, vol := range vols {
-				fulfills := make([]string, len(vol.Fulfills))
-				for i, name := range vol.Fulfills {
-					fulfills[i] = string(name)
-				}
-				hdr := strings.Join(fulfills, ", ")
+				hdr := string(vol.Name)
 				if vol.ReadOnly {
 					hdr += " (ro)"
 				}

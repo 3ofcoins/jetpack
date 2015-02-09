@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -16,10 +17,19 @@ type acMeta struct {
 	uri    string
 }
 
+type ACIEndpoint struct {
+	ACI string
+	Sig string
+}
+
 type Endpoints struct {
-	Sig  []string
-	ACI  []string
-	Keys []string
+	ACIEndpoints []ACIEndpoint
+	Keys         []string
+}
+
+func (e *Endpoints) Append(ep Endpoints) {
+	e.ACIEndpoints = append(e.ACIEndpoints, ep.ACIEndpoints...)
+	e.Keys = append(e.Keys, ep.Keys...)
 }
 
 const (
@@ -28,6 +38,7 @@ const (
 
 var (
 	templateExpression = regexp.MustCompile(`{.*?}`)
+	errEnough          = errors.New("enough discovery information found")
 )
 
 func appendMeta(meta []acMeta, attrs []html.Attribute) []acMeta {
@@ -98,7 +109,7 @@ func createTemplateVars(app App) []string {
 	return tplVars
 }
 
-func doDiscover(app App, pre string, insecure bool) (*Endpoints, error) {
+func doDiscover(pre string, app App, insecure bool) (*Endpoints, error) {
 	if app.Labels["version"] == "" {
 		app.Labels["version"] = defaultVersion
 	}
@@ -125,39 +136,106 @@ func doDiscover(app App, pre string, insecure bool) (*Endpoints, error) {
 			// Ignore not handled variables as {ext} isn't already rendered.
 			uri, _ := renderTemplate(m.uri, tplVars...)
 			sig, ok := renderTemplate(uri, "{ext}", "sig")
-			if ok {
-				de.Sig = append(de.Sig, sig)
+			if !ok {
+				continue
 			}
 			aci, ok := renderTemplate(uri, "{ext}", "aci")
-			if ok {
-				de.ACI = append(de.ACI, aci)
+			if !ok {
+				continue
 			}
+			de.ACIEndpoints = append(de.ACIEndpoints, ACIEndpoint{ACI: aci, Sig: sig})
 
 		case "ac-discovery-pubkeys":
 			de.Keys = append(de.Keys, m.uri)
 		}
 	}
 
-	if len(de.ACI) == 0 {
-		return nil, fmt.Errorf("found no ACI meta tags")
-	}
-
 	return de, nil
 }
 
-// DiscoverEndpoints will make HTTPS requests to find the ac-discovery meta
-// tags and optionally will use HTTP if insecure is set. Based on the app
-// passed the discovery templates will be filled out and returned in eps.
-func DiscoverEndpoints(app App, insecure bool) (eps *Endpoints, err error) {
+// DiscoverWalk will make HTTPS requests to find discovery meta tags and
+// optionally will use HTTP if insecure is set. Based on the response of the
+// discoverFn it will continue to recurse up the tree.
+func DiscoverWalk(app App, insecure bool, discoverFn DiscoverWalkFunc) (err error) {
+	var (
+		eps *Endpoints
+	)
+
 	parts := strings.Split(string(app.Name), "/")
 	for i := range parts {
 		end := len(parts) - i
 		pre := strings.Join(parts[:end], "/")
-		eps, err = doDiscover(app, pre, insecure)
-		if err == nil {
-			break
+
+		eps, err = doDiscover(pre, app, insecure)
+		derr := discoverFn(pre, eps, err)
+		if derr != nil {
+			return err
 		}
 	}
 
 	return
+}
+
+// DiscoverWalkFunc can stop a DiscoverWalk by returning non-nil error.
+type DiscoverWalkFunc func(prefix string, eps *Endpoints, err error) error
+
+// FailedAttempt represents a failed discovery attempt. This is for debugging
+// and user feedback.
+type FailedAttempt struct {
+	Prefix string
+	Error  error
+}
+
+func walker(out *Endpoints, attempts *[]FailedAttempt, testFn DiscoverWalkFunc) DiscoverWalkFunc {
+	return func(pre string, eps *Endpoints, err error) error {
+		if err != nil {
+			*attempts = append(*attempts, FailedAttempt{pre, err})
+			return nil
+		}
+		out.Append(*eps)
+		if err := testFn(pre, eps, err); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+// DiscoverEndpoints will make HTTPS requests to find the ac-discovery meta
+// tags and optionally will use HTTP if insecure is set. It will not give up
+// until it has exhausted the path or found an image discovery.
+func DiscoverEndpoints(app App, insecure bool) (out *Endpoints, attempts []FailedAttempt, err error) {
+	out = &Endpoints{}
+	testFn := func(pre string, eps *Endpoints, err error) error {
+		if len(out.ACIEndpoints) != 0 {
+			return errEnough
+		}
+		return nil
+	}
+
+	err = DiscoverWalk(app, insecure, walker(out, &attempts, testFn))
+	if err != nil && err != errEnough {
+		return nil, attempts, err
+	}
+
+	return out, attempts, nil
+}
+
+// DiscoverPublicKey will make HTTPS requests to find the ac-public-keys meta
+// tags and optionally will use HTTP if insecure is set. It will not give up
+// until it has exhausted the path or found an public key.
+func DiscoverPublicKeys(app App, insecure bool) (out *Endpoints, attempts []FailedAttempt, err error) {
+	out = &Endpoints{}
+	testFn := func(pre string, eps *Endpoints, err error) error {
+		if len(out.Keys) != 0 {
+			return errEnough
+		}
+		return nil
+	}
+
+	err = DiscoverWalk(app, insecure, walker(out, &attempts, testFn))
+	if err != nil && err != errEnough {
+		return nil, attempts, err
+	}
+
+	return out, attempts, nil
 }

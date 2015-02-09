@@ -124,10 +124,8 @@ func (c *Container) Save() error {
 
 func (c *Container) findVolume(name types.ACName) *types.Volume {
 	for _, vol := range c.Manifest.Volumes {
-		for _, fulfills := range vol.Fulfills {
-			if fulfills == name {
-				return &vol
-			}
+		if vol.Name == name {
+			return &vol
 		}
 	}
 	return nil
@@ -356,8 +354,8 @@ func (c *Container) Stage2(app *types.App) error {
 		args = append(args, "-cwd", app.WorkingDirectory)
 	}
 
-	for k, v := range app.Environment {
-		args = append(args, "-setenv", k+"="+v)
+	for _, env_var := range app.Environment {
+		args = append(args, "-setenv", env_var.Name+"="+env_var.Value)
 	}
 
 	args = append(args, app.Exec...)
