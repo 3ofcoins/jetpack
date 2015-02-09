@@ -1,0 +1,9 @@
+
+{
+  "name": "freebsd-current",
+  "labels": [
+    { "name": "version", "value": "11" },
+    { "name": "os", "value": "freebsd" },
+    { "name": "arch", "value": "amd64" }
+  ]
+}

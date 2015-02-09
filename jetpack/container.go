@@ -177,23 +177,21 @@ func (c *Container) Prep() error {
 
 	var fstab []string
 	if app := img.Manifest.App; app != nil && len(app.MountPoints) > 0 {
-		appFstab := make([]string, len(app.MountPoints))
-		for i, mnt := range app.MountPoints {
+		for _, mnt := range app.MountPoints {
 			if vol := c.findVolume(mnt.Name); vol == nil {
 				return errors.Errorf("No volume found for %v", mnt.Name)
-			} else {
+			} else if vol.Kind == "host" {
 				opts := "rw"
 				if vol.ReadOnly {
 					opts = "ro"
 				}
-				appFstab[i] = fmt.Sprintf("%v %v nullfs %v 0 0\n",
+				fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 0 0\n",
 					vol.Source,
 					c.Dataset.Path("rootfs", mnt.Path),
 					opts,
-				)
+				))
 			}
 		}
-		fstab = appFstab
 	}
 	if os, _ := img.Manifest.GetLabel("os"); os == "linux" {
 		fstab = append(fstab,

@@ -6,7 +6,6 @@ import "net"
 import "os"
 import "path"
 import "path/filepath"
-import "syscall"
 
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
@@ -132,34 +131,15 @@ func (cmgr *ContainerManager) Clone(img *Image) (*Container, error) {
 	if img.Manifest.App != nil {
 		for _, mnt := range img.Manifest.App.MountPoints {
 			// TODO: host volumes
-			sourcePath := filepath.Join(ds.Mountpoint, "volumes", string(mnt.Name))
 			targetPath := filepath.Join(ds.Mountpoint, "rootfs", mnt.Path)
 
 			if err := os.MkdirAll(targetPath, 0755); err != nil {
 				return nil, errors.Trace(err)
 			}
-			// FIXME: we should handle the situation when volume names are "nested". UUIDs? Hash the name?
-			if err := os.MkdirAll(sourcePath, 0700); err != nil {
-				return nil, errors.Trace(err)
-			}
-
-			// Initialize empty volume with same permissions as directory in image.
-			if fi, err := os.Stat(targetPath); err != nil {
-				return nil, errors.Trace(err)
-			} else {
-				st := fi.Sys().(*syscall.Stat_t)
-				if err := os.Chmod(sourcePath, fi.Mode().Perm()); err != nil {
-					return nil, errors.Trace(err)
-				}
-				if err := os.Chown(sourcePath, int(st.Uid), int(st.Gid)); err != nil {
-					return nil, errors.Trace(err)
-				}
-			}
 
 			vols = append(vols, types.Volume{
 				Kind:     "empty",
 				Name:     mnt.Name,
-				Source:   sourcePath,
 				ReadOnly: mnt.ReadOnly,
 			})
 		}

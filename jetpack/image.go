@@ -35,9 +35,10 @@ type Image struct {
 func NewImage(ds *zfs.Dataset, mgr *ImageManager) (*Image, error) {
 	basename := path.Base(ds.Name)
 	img := &Image{
-		Dataset: ds,
-		Manager: mgr,
-		UUID:    uuid.Parse(basename),
+		Dataset:  ds,
+		Manager:  mgr,
+		UUID:     uuid.Parse(basename),
+		Manifest: *schema.BlankImageManifest(),
 	}
 	if img.UUID == nil {
 		return nil, errors.Errorf("Invalid UUID: %#v", basename)
@@ -401,56 +402,50 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	// Construct the final manifest
+	// Construct the child image's manifest
 
-	// defaults that are always present
-	manifest := map[string]interface{}{
-		"acKind":    "ImageManifest",
-		"acVersion": schema.AppContainerVersion,
-	}
-
-	// Merge what the build directory has left for us
 	if manifestBytes, err := ioutil.ReadFile(childImage.Dataset.Path("build.manifest")); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		if err := json.Unmarshal(manifestBytes, &childImage.Manifest); err != nil {
 			return nil, errors.Trace(err)
 		}
 	}
 
-	// FIXME: the below is UGLY. Can we make it prettier?
-
-	// Annotate with timestamp if there is no such annotation yet
-	if manifest["annotations"] == nil {
-		manifest["annotations"] = make([]interface{}, 0)
+	if _, ok := childImage.Manifest.Annotations.Get("timestamp"); !ok {
+		if ts, err := time.Now().MarshalText(); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			childImage.Manifest.Annotations.Set("timestamp", string(ts))
+		}
 	}
 
-	manifest["annotations"] = append(manifest["annotations"].([]interface{}),
-		map[string]interface{}{"name": "timestamp", "value": time.Now()})
-
-	// Merge OS and arch from parent image if it's not set
-	// TODO: can we prevent this?
-	hasLabels := map[string]bool{}
-	for _, labelI := range manifest["labels"].([]interface{}) {
-		label := labelI.(map[string]interface{})
-		hasLabels[label["name"].(string)] = true
+	for _, label := range []string{"os", "arch"} {
+		if childValue, ok := childImage.Manifest.GetLabel(label); !ok {
+			// if child has no os/arch, copy from parent
+			if parentValue, ok := img.Manifest.GetLabel(label); ok {
+				childImage.Manifest.Labels = append(childImage.Manifest.Labels,
+					types.Label{Name: types.ACName(label), Value: parentValue})
+			}
+		} else if childValue == "" {
+			// if child explicitly set to nil or empty string, remove the
+			// label
+			for i, l := range childImage.Manifest.Labels {
+				if string(l.Name) == label {
+					childImage.Manifest.Labels = append(
+						childImage.Manifest.Labels[:i],
+						childImage.Manifest.Labels[i+1:]...)
+					break
+				}
+			}
+		}
 	}
 
-	if value, ok := img.Manifest.GetLabel("os"); ok && !hasLabels["os"] {
-		manifest["labels"] = append(manifest["labels"].([]interface{}),
-			map[string]interface{}{"name": "os", "value": value})
-	}
-
-	if value, ok := img.Manifest.GetLabel("arch"); ok && !hasLabels["arch"] {
-		manifest["labels"] = append(manifest["labels"].([]interface{}),
-			map[string]interface{}{"name": "arch", "value": value})
-	}
-
-	// TODO: merge app from parent image?
+	// TODO: should we merge app from parent image?
 
 	childImage.Origin = img.UUID.String()
 
-	if manifestBytes, err := json.Marshal(manifest); err != nil {
+	if manifestBytes, err := json.Marshal(childImage.Manifest); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		if err := ioutil.WriteFile(childImage.Dataset.Path("manifest"), manifestBytes, 0400); err != nil {

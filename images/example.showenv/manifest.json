@@ -17,9 +17,9 @@
     "mountPoints": [
       {"name": "data", "path": "/opt/data"}
     ],
-    "environment": {
-      "FOO": "bar",
-      "BAZ": "quux"
-    }
+    "environment": [
+      {"name": "FOO", "value": "bar"},
+      {"name": "BAZ", "value": "quux"}
+    ]
   }
 }
