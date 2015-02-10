@@ -159,7 +159,3 @@ func (h *Host) Get(spec interface{}) (interface{}, error) {
 		return nil, err
 	}
 }
-
-type Destroyable interface {
-	Destroy() error
-}
