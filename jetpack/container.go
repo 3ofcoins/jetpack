@@ -12,6 +12,7 @@ import "strconv"
 import "strings"
 import "time"
 
+import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
@@ -45,24 +46,21 @@ func (cs ContainerStatus) String() string {
 }
 
 type Container struct {
-	Dataset  *zfs.Dataset                    `json:"-"`
-	Manifest schema.ContainerRuntimeManifest `json:"-"`
-	Manager  *ContainerManager               `json:"-"`
+	Dataset  *zfs.Dataset
+	Manifest schema.ContainerRuntimeManifest
+	Host     *Host
 
 	image *Image
 }
 
-func NewContainer(ds *zfs.Dataset, mgr *ContainerManager) *Container {
-	return &Container{Dataset: ds, Manager: mgr}
-}
-
-func GetContainer(ds *zfs.Dataset, mgr *ContainerManager) (*Container, error) {
-	c := NewContainer(ds, mgr)
-	if err := c.Load(); err != nil {
-		return nil, err
+func NewContainer(ds *zfs.Dataset, h *Host) *Container {
+	c := &Container{Dataset: ds, Host: h, Manifest: *schema.BlankContainerRuntimeManifest()}
+	if uuid, err := types.NewUUID(path.Base(c.Dataset.Name)); err != nil {
+		panic(err)
 	} else {
-		return c, nil
+		c.Manifest.UUID = *uuid
 	}
+	return c
 }
 
 func (c *Container) IsEmpty() bool {
@@ -70,12 +68,8 @@ func (c *Container) IsEmpty() bool {
 	return os.IsNotExist(err)
 }
 
-func (c *Container) IsLoaded() bool {
-	return !c.Manifest.ACVersion.Empty()
-}
-
 func (c *Container) Load() error {
-	if c.IsLoaded() {
+	if !c.Manifest.UUID.Empty() {
 		return errors.New("Already loaded")
 	}
 
@@ -136,7 +130,7 @@ func (c *Container) jailConf() string {
 		"devfs_ruleset": "4",
 		"exec.clean":    "true",
 		"host.hostuuid": c.Manifest.UUID.String(),
-		"interface":     c.Manager.Host.Properties.MustGetString("jail.interface"),
+		"interface":     c.Host.Properties.MustGetString("jail.interface"),
 		"mount.devfs":   "true",
 		"path":          c.Dataset.Path("rootfs"),
 		"persist":       "true",
@@ -166,10 +160,10 @@ func (c *Container) jailConf() string {
 	}
 	sort.Strings(lines)
 
-	return fmt.Sprintf("%#v {\n%v\n}\n", c.JailName(), strings.Join(lines, "\n"))
+	return fmt.Sprintf("%#v {\n%v\n}\n", c.jailName(), strings.Join(lines, "\n"))
 }
 
-func (c *Container) Prep() error {
+func (c *Container) prepJail() error {
 	img, err := c.GetImage()
 	if err != nil {
 		return errors.Trace(err)
@@ -220,7 +214,7 @@ func (c *Container) Prep() error {
 }
 
 func (c *Container) Status() ContainerStatus {
-	if status, err := c.GetJailStatus(false); err != nil {
+	if status, err := c.jailStatus(false); err != nil {
 		panic(err)
 	} else {
 		if status == NoJailStatus {
@@ -234,18 +228,14 @@ func (c *Container) Status() ContainerStatus {
 }
 
 func (c *Container) runJail(op string) error {
-	if err := c.Prep(); err != nil {
+	if err := c.prepJail(); err != nil {
 		return err
 	}
 	verbosity := "-q"
-	if c.Manager.Host.Properties.GetBool("debug", false) {
+	if c.Host.Properties.GetBool("debug", false) {
 		verbosity = "-v"
 	}
-	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), verbosity, op, c.JailName()).Run()
-}
-
-func (c *Container) Spawn() error {
-	return errors.Trace(c.runJail("-c"))
+	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), verbosity, op, c.jailName()).Run()
 }
 
 func (c *Container) Kill() error {
@@ -274,29 +264,29 @@ func (c *Container) Destroy() error {
 	return c.Dataset.Destroy("-r")
 }
 
-func (c *Container) JailName() string {
-	return c.Manager.Host.Properties.MustGetString("jail.namePrefix") + c.Manifest.UUID.String()
+func (c *Container) jailName() string {
+	return c.Host.Properties.MustGetString("jail.namePrefix") + c.Manifest.UUID.String()
 }
 
-func (c *Container) GetJailStatus(refresh bool) (JailStatus, error) {
-	return c.Manager.Host.GetJailStatus(c.JailName(), refresh)
+func (c *Container) jailStatus(refresh bool) (JailStatus, error) {
+	return c.Host.GetJailStatus(c.jailName(), refresh)
 }
 
 func (c *Container) Jid() int {
-	if status, err := c.GetJailStatus(false); err != nil {
+	if status, err := c.jailStatus(false); err != nil {
 		panic(err) // do we need to?
 	} else {
 		return status.Jid
 	}
 }
 
-func (c *Container) imageUUID() string {
-	return strings.Split(path.Base(c.Dataset.Origin), "@")[0]
+func (c *Container) imageUUID() uuid.UUID {
+	return uuid.Parse(strings.Split(path.Base(c.Dataset.Origin), "@")[0])
 }
 
 func (c *Container) GetImage() (*Image, error) {
 	if c.image == nil {
-		if img, err := c.Manager.Host.Images.Get(c.imageUUID()); err != nil {
+		if img, err := c.Host.GetImage(c.imageUUID()); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			c.image = img
@@ -306,7 +296,7 @@ func (c *Container) GetImage() (*Image, error) {
 }
 
 func (c *Container) Run(app *types.App) (err1 error) {
-	if err := c.Spawn(); err != nil {
+	if err := errors.Trace(c.runJail("-c")); err != nil {
 		return errors.Trace(err)
 	}
 	defer func() {

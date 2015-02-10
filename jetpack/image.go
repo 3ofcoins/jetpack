@@ -1,5 +1,7 @@
 package jetpack
 
+// FIXME: refactor references to Host.imagesDS
+
 import "bytes"
 import "crypto/sha512"
 import "encoding/json"
@@ -9,6 +11,7 @@ import "io/ioutil"
 import "os"
 import "path"
 import "path/filepath"
+import "sort"
 import "strings"
 import "time"
 
@@ -22,7 +25,7 @@ import "../zfs"
 
 type Image struct {
 	Dataset  *zfs.Dataset         `json:"-"`
-	Manager  *ImageManager        `json:"-"`
+	Host     *Host                `json:"-"`
 	Manifest schema.ImageManifest `json:"-"`
 
 	UUID uuid.UUID `json:"-"`
@@ -32,27 +35,18 @@ type Image struct {
 	Timestamp time.Time
 }
 
-func NewImage(ds *zfs.Dataset, mgr *ImageManager) (*Image, error) {
+func NewImage(ds *zfs.Dataset, h *Host) *Image {
 	basename := path.Base(ds.Name)
 	img := &Image{
 		Dataset:  ds,
-		Manager:  mgr,
+		Host:     h,
 		UUID:     uuid.Parse(basename),
 		Manifest: *schema.BlankImageManifest(),
 	}
 	if img.UUID == nil {
-		return nil, errors.Errorf("Invalid UUID: %#v", basename)
+		panic(fmt.Sprintf("Invalid UUID: %#v", basename))
 	}
-	return img, nil
-}
-
-func GetImage(ds *zfs.Dataset, mgr *ImageManager) (img *Image, err error) {
-	img, err = NewImage(ds, mgr)
-	if err != nil {
-		return
-	}
-	err = img.Load()
-	return
+	return img
 }
 
 func (img *Image) IsEmpty() bool {
@@ -74,7 +68,7 @@ func (img *Image) Load() error {
 		return errors.Trace(err)
 	}
 
-	if err := img.LoadManifest(); err != nil {
+	if err := img.loadManifest(); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -83,13 +77,13 @@ func (img *Image) Load() error {
 
 func (img *Image) Seal() error {
 	// Make sure that manifest exists and validates correctly
-	if err := img.LoadManifest(); err != nil {
+	if err := img.loadManifest(); err != nil {
 		return errors.Trace(err)
 	}
 
 	if img.Hash == nil {
 		amiPath := ""
-		if img.Manager.Host.Properties.GetBool("images.ami.store", false) {
+		if img.Host.Properties.GetBool("images.ami.store", false) {
 			amiPath = img.Dataset.Path("ami")
 		}
 
@@ -109,7 +103,7 @@ func (img *Image) Seal() error {
 		}
 	}
 
-	if err := os.Symlink(path.Base(img.Dataset.Name), img.Manager.Dataset.Path(img.Hash.String())); err != nil {
+	if err := os.Symlink(path.Base(img.Dataset.Name), img.Host.imagesDS.Path(img.Hash.String())); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -150,7 +144,7 @@ func (img *Image) SaveAMI(path string, perm os.FileMode) (*types.Hash, error) {
 				}
 			}
 
-			if compression := img.Manager.Host.Properties.GetString("images.ami.compression", "no"); compression != "none" {
+			if compression := img.Host.Properties.GetString("images.ami.compression", "no"); compression != "none" {
 				switch compression {
 				case "xz":
 					compressor = run.Command("xz", "-z", "-c")
@@ -196,7 +190,7 @@ func (img *Image) SaveAMI(path string, perm os.FileMode) (*types.Hash, error) {
 	}
 }
 
-func (img *Image) LoadManifest() error {
+func (img *Image) loadManifest() error {
 	manifestJSON, err := ioutil.ReadFile(img.Dataset.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
@@ -210,7 +204,7 @@ func (img *Image) LoadManifest() error {
 }
 
 func (img *Image) Containers() (children ContainerSlice, _ error) {
-	if containers, err := img.Manager.Host.Containers.All(); err != nil {
+	if containers, err := img.Host.Containers(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		snap := img.Dataset.SnapshotName("seal")
@@ -226,25 +220,11 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 func (img *Image) Destroy() (err error) {
 	err = errors.Trace(img.Dataset.Destroy("-r"))
 	if img.Hash != nil {
-		if err2 := os.Remove(img.Manager.Dataset.Path(img.Hash.String())); err2 != nil && err == nil {
+		if err2 := os.Remove(img.Host.imagesDS.Path(img.Hash.String())); err2 != nil && err == nil {
 			err = errors.Trace(err2)
 		}
 	}
 	return
-}
-
-type imageLabels []string
-
-func (lb imageLabels) String() string {
-	return strings.Join(lb, " ")
-}
-
-func (img *Image) PrettyLabels() imageLabels {
-	labels := make(imageLabels, len(img.Manifest.Labels))
-	for i, l := range img.Manifest.Labels {
-		labels[i] = fmt.Sprintf("%v=%#v", l.Name, l.Value)
-	}
-	return labels
 }
 
 func (img *Image) Clone(snapshot, dest string) (*zfs.Dataset, error) {
@@ -290,29 +270,9 @@ func (img *Image) GetApp() *types.App {
 	}
 }
 
-func (img *Image) Run(app *types.App, keep bool) (err1 error) {
-	c, err := img.Manager.Host.Containers.Clone(img)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if !keep {
-		defer func() {
-			if err := c.Destroy(); err != nil {
-				err = errors.Trace(err)
-				if err1 != nil {
-					err1 = errors.Wrap(err1, err)
-				} else {
-					err1 = err
-				}
-			}
-		}()
-	}
-	return c.Run(app)
-}
-
 func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
 	var buildContainer *Container
-	if c, err := img.Manager.Host.Containers.Clone(img); err != nil {
+	if c, err := img.Host.CloneContainer(img); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		buildContainer = c
@@ -373,11 +333,11 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// Pivot container into an image
 	uuid := path.Base(buildContainer.Dataset.Name)
-	if err := buildContainer.Dataset.Rename(img.Manager.Dataset.ChildName(uuid)); err != nil {
+	if err := buildContainer.Dataset.Rename(img.Host.imagesDS.ChildName(uuid)); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ds, err := img.Manager.Dataset.GetDataset(uuid)
+	ds, err := img.Host.imagesDS.GetDataset(uuid)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -397,10 +357,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		}
 	}
 
-	childImage, err := NewImage(ds, img.Manager)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
+	childImage := NewImage(ds, img.Host)
 
 	// Construct the child image's manifest
 
@@ -477,7 +434,12 @@ func (ii ImageSlice) Table() [][]string {
 	rows := make([][]string, len(ii)+1)
 	rows[0] = []string{"UUID", "NAME", "LABELS"}
 	for i, img := range ii {
-		rows[i+1] = append([]string{img.UUID.String(), string(img.Manifest.Name)}, img.PrettyLabels()...)
+		labels := make([]string, len(img.Manifest.Labels))
+		for j, l := range img.Manifest.Labels {
+			labels[j] = fmt.Sprintf("%v=%#v", l.Name, l.Value)
+		}
+		sort.Strings(labels)
+		rows[i+1] = append([]string{img.UUID.String(), string(img.Manifest.Name)}, strings.Join(labels, ","))
 	}
 	return rows
 }

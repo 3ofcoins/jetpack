@@ -33,7 +33,7 @@ func subcommand(def string, args []string) (string, []string) {
 }
 
 func image(name string) *jetpack.Image {
-	img, err := Host.Images.Get(name)
+	img, err := Host.FindImage(name)
 	if err == jetpack.ErrNotFound {
 		die(errors.Errorf("No such image: %#v", name))
 	}
@@ -148,11 +148,11 @@ Helpful Aliases:
 			default:
 				die(errors.New("Usage: import ARCHIVE_URI [MANIFEST_URI]"))
 			}
-			image, err := Host.Images.Import(archive, manifest)
+			image, err := Host.ImportImage(archive, manifest)
 			die(err)
 			show(image)
 		case "list":
-			images, err := Host.Images.All()
+			images, err := Host.Images()
 			die(err)
 
 			if len(images) == 0 {
@@ -206,11 +206,11 @@ Helpful Aliases:
 	case "container", "c":
 		switch command, args := subcommand("list", args); command {
 		case "create":
-			container, err := Host.Containers.Clone(image(args[0]))
+			container, err := Host.CloneContainer(image(args[0]))
 			die(err)
 			show(container)
 		case "list":
-			if containers, err := Host.Containers.All(); err != nil {
+			if containers, err := Host.Containers(); err != nil {
 				die(err)
 			} else {
 				if len(containers) == 0 {
@@ -225,7 +225,7 @@ Helpful Aliases:
 			command, args[0] = args[0], command
 			fallthrough
 		default:
-			container, err := Host.Containers.Get(command)
+			container, err := Host.FindContainer(command)
 			if err == jetpack.ErrNotFound {
 				die(errors.Errorf("No such container: %#v", command))
 			}
