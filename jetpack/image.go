@@ -426,14 +426,14 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 // For sorting
 type ImageSlice []*Image
 
-func (ii ImageSlice) Len() int           { return len(ii) }
-func (ii ImageSlice) Less(i, j int) bool { return bytes.Compare(ii[i].UUID, ii[j].UUID) < 0 }
-func (ii ImageSlice) Swap(i, j int)      { ii[i], ii[j] = ii[j], ii[i] }
+func (imgs ImageSlice) Len() int           { return len(imgs) }
+func (imgs ImageSlice) Less(i, j int) bool { return bytes.Compare(imgs[i].UUID, imgs[j].UUID) < 0 }
+func (imgs ImageSlice) Swap(i, j int)      { imgs[i], imgs[j] = imgs[j], imgs[i] }
 
-func (ii ImageSlice) Table() [][]string {
-	rows := make([][]string, len(ii)+1)
+func (imgs ImageSlice) Table() [][]string {
+	rows := make([][]string, len(imgs)+1)
 	rows[0] = []string{"UUID", "NAME", "LABELS"}
-	for i, img := range ii {
+	for i, img := range imgs {
 		labels := make([]string, len(img.Manifest.Labels))
 		for j, l := range img.Manifest.Labels {
 			labels[j] = fmt.Sprintf("%v=%#v", l.Name, l.Value)
