@@ -23,6 +23,8 @@ import "github.com/juju/errors"
 import "../run"
 import "../zfs"
 
+const imageSnapshotName = "seal"
+
 type Image struct {
 	Dataset  *zfs.Dataset         `json:"-"`
 	Host     *Host                `json:"-"`
@@ -107,7 +109,7 @@ func (img *Image) Seal() error {
 		return errors.Trace(err)
 	}
 
-	if _, err := img.Dataset.Snapshot("seal"); err != nil {
+	if _, err := img.Dataset.Snapshot(imageSnapshotName); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -207,7 +209,7 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 	if containers, err := img.Host.Containers(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		snap := img.Dataset.SnapshotName("seal")
+		snap := img.Dataset.SnapshotName(imageSnapshotName)
 		for _, container := range containers {
 			if container.Dataset.Origin == snap {
 				children = append(children, container)
@@ -227,8 +229,8 @@ func (img *Image) Destroy() (err error) {
 	return
 }
 
-func (img *Image) Clone(snapshot, dest string) (*zfs.Dataset, error) {
-	snap, err := img.Dataset.GetSnapshot(snapshot)
+func (img *Image) Clone(dest string) (*zfs.Dataset, error) {
+	snap, err := img.Dataset.GetSnapshot(imageSnapshotName)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

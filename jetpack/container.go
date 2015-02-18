@@ -69,10 +69,6 @@ func (c *Container) IsEmpty() bool {
 }
 
 func (c *Container) Load() error {
-	if !c.Manifest.UUID.Empty() {
-		return errors.New("Already loaded")
-	}
-
 	if c.IsEmpty() {
 		return ErrContainerIsEmpty
 	}
@@ -384,4 +380,33 @@ func (cc ContainerSlice) Table() [][]string {
 		}
 	}
 	return rows
+}
+
+func ContainerRuntimeManifest(imgs []*Image) *schema.ContainerRuntimeManifest {
+	if len(imgs) != 1 {
+		panic("FIXME: only one-image manifests are supported")
+	}
+	crm := schema.BlankContainerRuntimeManifest()
+
+	if id, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
+		panic(err)
+	} else {
+		crm.UUID = *id
+	}
+
+	crm.Apps = make([]schema.RuntimeApp, len(imgs))
+	for i, img := range imgs {
+		crm.Apps[i] = img.RuntimeApp()
+		if img.Manifest.App != nil {
+			for _, mnt := range img.Manifest.App.MountPoints {
+				crm.Volumes = append(crm.Volumes, types.Volume{
+					Kind:     "empty",
+					Name:     mnt.Name,
+					ReadOnly: mnt.ReadOnly,
+				})
+			}
+		}
+	}
+
+	return crm
 }

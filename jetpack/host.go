@@ -194,56 +194,77 @@ func (h *Host) nextIP() (net.IP, error) {
 	}
 }
 
-func (h *Host) CloneContainer(img *Image) (*Container, error) {
-	ds, err := img.Clone("seal", path.Join(h.containersDS.Name, uuid.NewRandom().String()))
-	if err != nil {
-		return nil, errors.Trace(err)
+func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container, error) {
+	if len(crm.Apps) != 1 {
+		return nil, errors.New("Only single application containers are supported")
 	}
 
-	vols := []types.Volume{}
+	var c *Container
 
-	if img.Manifest.App != nil {
-		for _, mnt := range img.Manifest.App.MountPoints {
-			// TODO: host volumes
-			targetPath := filepath.Join(ds.Mountpoint, "rootfs", mnt.Path)
-
-			if err := os.MkdirAll(targetPath, 0755); err != nil {
-				return nil, errors.Trace(err)
-			}
-
-			vols = append(vols, types.Volume{
-				Kind:     "empty",
-				Name:     mnt.Name,
-				ReadOnly: mnt.ReadOnly,
-			})
+	for _, app := range crm.Apps {
+		uuid_str, err := os.Readlink(h.imagesDS.Path(app.ImageID.String()))
+		if err != nil {
+			return nil, errors.Trace(err)
 		}
-		if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
-			for _, dir := range []string{"sys", "proc"} {
-				if err := os.MkdirAll(ds.Path("rootfs", dir), 0755); err != nil && !os.IsExist(err) {
+
+		uuid := uuid.Parse(uuid_str)
+		if uuid == nil {
+			panic(fmt.Sprintf("Invalid UUID: %#v", uuid_str))
+		}
+
+		img, err := h.GetImage(uuid)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		// FIXME: code until end of `for` depends on len(crm.Apps)==1
+
+		ds, err := img.Clone(path.Join(h.containersDS.Name, crm.UUID.String()))
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if img.Manifest.App != nil {
+			for _, mnt := range img.Manifest.App.MountPoints {
+				// TODO: host volumes
+				targetPath := filepath.Join(ds.Mountpoint, "rootfs", mnt.Path)
+
+				if err := os.MkdirAll(targetPath, 0755); err != nil {
 					return nil, errors.Trace(err)
 				}
 			}
+			if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
+				for _, dir := range []string{"sys", "proc"} {
+					if err := os.MkdirAll(ds.Path("rootfs", dir), 0755); err != nil && !os.IsExist(err) {
+						return nil, errors.Trace(err)
+					}
+				}
+			}
 		}
-	}
 
-	c := NewContainer(ds, h)
+		c = NewContainer(ds, h)
+		c.image = img
+	}
 
 	// TODO: lock until saved?
 	if ip, err := h.nextIP(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		c.Manifest.Annotations.Set("ip-address", ip.String())
+		crm.Annotations.Set("ip-address", ip.String())
 	}
 
-	c.image = img
-	c.Manifest.Apps = []schema.RuntimeApp{img.RuntimeApp()}
-	c.Manifest.Volumes = vols
+	c.Manifest = *crm
 
 	if err := c.Save(); err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	return c, nil
+}
+
+func (h *Host) CloneContainer(img *Image) (*Container, error) {
+	// DEPRECATED
+	return h.CreateContainer(ContainerRuntimeManifest([]*Image{img}))
 }
 
 func (h *Host) GetContainer(id uuid.UUID) (*Container, error) {
