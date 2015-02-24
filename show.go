@@ -142,7 +142,7 @@ func Show(prefix string, objs ...interface{}) error {
 			}
 			metadata = append(metadata, []string{"Timestamp", img.Timestamp.String()})
 
-			items := []interface{}{img.Dataset, metadata, img.Manifest}
+			items := []interface{}{metadata, img.Manifest}
 
 			if cc, err := img.Containers(); err != nil {
 				return errors.Trace(err)

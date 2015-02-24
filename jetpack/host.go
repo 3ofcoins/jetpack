@@ -77,6 +77,10 @@ func NewHost(configPath string) (*Host, error) {
 	return &h, nil
 }
 
+func (h *Host) Path(elem ...string) string {
+	return h.Dataset.Path(elem...)
+}
+
 func (h *Host) zfsOptions(prefix string, opts ...string) []string {
 	l := len(prefix)
 	p := h.Properties.FilterPrefix(prefix)
@@ -219,7 +223,8 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 
 		// FIXME: code until end of `for` depends on len(crm.Apps)==1
 
-		ds, err := img.Clone(path.Join(h.containersDS.Name, crm.UUID.String()))
+		ds, err := img.Clone(path.Join(h.containersDS.Name, crm.UUID.String()),
+			h.containersDS.Path(crm.UUID.String(), "rootfs"))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -327,7 +332,7 @@ func (h *Host) Images() (ImageSlice, error) {
 			if ds.Type != "filesystem" {
 				continue
 			}
-			img := NewImage(ds, h)
+			img := NewImage(h, uuid.Parse(filepath.Base(ds.Name)))
 			if img.IsEmpty() {
 				fmt.Fprintf(os.Stderr, "%v.Load(): WARNING: image is empty\n", img.UUID)
 			} else if err := img.Load(); err != nil {
@@ -448,7 +453,7 @@ func (h *Host) GetImage(id uuid.UUID) (*Image, error) {
 				if ds, err := zfs.GetDataset(ln[0]); err != nil {
 					return nil, errors.Trace(err)
 				} else {
-					img := NewImage(ds, h)
+					img := NewImage(h, uuid.Parse(filepath.Base(ds.Name)))
 					if err := img.Load(); err != nil {
 						return nil, errors.Trace(err)
 					} else {
@@ -462,27 +467,24 @@ func (h *Host) GetImage(id uuid.UUID) (*Image, error) {
 }
 
 func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
-	ds, err := h.imagesDS.CreateDataset(uuid.NewRandom().String())
-	if err != nil {
+	newId := uuid.NewRandom()
+	newIdStr := newId.String()
+	if _, err := h.imagesDS.CreateDataset(newIdStr, "-o", "mountpoint="+h.imagesDS.Path(newIdStr, "rootfs")); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	img := NewImage(ds, h)
+	img := NewImage(h, newId)
 	img.Origin = imageUri
 	img.Timestamp = time.Now()
 
 	if manifestUri == "" {
-		if hash, err := UnpackImage(imageUri, img.Dataset.Mountpoint, img.Dataset.Path("ami")); err != nil {
+		if hash, err := UnpackImage(imageUri, filepath.Dir(img.Path()), img.Path("ami")); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			img.Hash = hash
 		}
 	} else {
-		rootfsPath := img.Dataset.Path("rootfs")
-		if err := os.Mkdir(rootfsPath, 0755); err != nil {
-			return nil, errors.Trace(err)
-		}
-		if _, err := UnpackImage(imageUri, rootfsPath, ""); err != nil {
+		if _, err := UnpackImage(imageUri, img.Path(), ""); err != nil {
 			return nil, errors.Trace(err)
 		}
 
@@ -512,7 +514,7 @@ func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
 		if manifestBytes, err := json.Marshal(manifest); err != nil {
 			return nil, errors.Trace(err)
 		} else {
-			if err := ioutil.WriteFile(img.Dataset.Path("manifest"), manifestBytes, 0400); err != nil {
+			if err := ioutil.WriteFile(img.Path("manifest"), manifestBytes, 0400); err != nil {
 				return nil, errors.Trace(err)
 			}
 		}

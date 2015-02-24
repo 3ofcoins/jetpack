@@ -26,33 +26,44 @@ import "../zfs"
 const imageSnapshotName = "seal"
 
 type Image struct {
-	Dataset  *zfs.Dataset         `json:"-"`
+	UUID     uuid.UUID            `json:"-"`
 	Host     *Host                `json:"-"`
 	Manifest schema.ImageManifest `json:"-"`
-
-	UUID uuid.UUID `json:"-"`
 
 	Hash      *types.Hash `json:",omitempty"`
 	Origin    string
 	Timestamp time.Time
+
+	rootfs *zfs.Dataset
 }
 
-func NewImage(ds *zfs.Dataset, h *Host) *Image {
-	basename := path.Base(ds.Name)
-	img := &Image{
-		Dataset:  ds,
-		Host:     h,
-		UUID:     uuid.Parse(basename),
-		Manifest: *schema.BlankImageManifest(),
+func NewImage(h *Host, id uuid.UUID) *Image {
+	if id == nil {
+		panic("Image UUID can't be nil!")
 	}
-	if img.UUID == nil {
-		panic(fmt.Sprintf("Invalid UUID: %#v", basename))
+	return &Image{Host: h, UUID: id, Manifest: *schema.BlankImageManifest()}
+}
+
+func (img *Image) Path(elem ...string) string {
+	return img.Host.Path(append(
+		[]string{"images", img.UUID.String()},
+		elem...,
+	)...)
+}
+
+func (img *Image) getRootfs() *zfs.Dataset {
+	if img.rootfs == nil {
+		ds, err := img.Host.Dataset.GetDataset(path.Join("images", img.UUID.String()))
+		if err != nil {
+			panic(err)
+		}
+		img.rootfs = ds
 	}
-	return img
+	return img.rootfs
 }
 
 func (img *Image) IsEmpty() bool {
-	_, err := os.Stat(img.Dataset.Path("manifest"))
+	_, err := os.Stat(img.Path("manifest"))
 	return os.IsNotExist(err)
 }
 
@@ -61,7 +72,7 @@ func (img *Image) Load() error {
 		return errors.New("Image is empty")
 	}
 
-	metadataJSON, err := ioutil.ReadFile(img.Dataset.Path("metadata"))
+	metadataJSON, err := ioutil.ReadFile(img.Path("metadata"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -86,7 +97,7 @@ func (img *Image) Seal() error {
 	if img.Hash == nil {
 		amiPath := ""
 		if img.Host.Properties.GetBool("images.ami.store", false) {
-			amiPath = img.Dataset.Path("ami")
+			amiPath = img.Path("ami")
 		}
 
 		if hash, err := img.SaveAMI(amiPath, 0400); err != nil {
@@ -100,20 +111,20 @@ func (img *Image) Seal() error {
 	if metadataJSON, err := json.Marshal(img); err != nil {
 		return errors.Trace(err)
 	} else {
-		if err := ioutil.WriteFile(img.Dataset.Path("metadata"), metadataJSON, 0400); err != nil {
+		if err := ioutil.WriteFile(img.Path("metadata"), metadataJSON, 0400); err != nil {
 			return errors.Trace(err)
 		}
 	}
 
-	if err := os.Symlink(path.Base(img.Dataset.Name), img.Host.imagesDS.Path(img.Hash.String())); err != nil {
+	if err := os.Symlink(img.UUID.String(), img.Host.imagesDS.Path(img.Hash.String())); err != nil {
 		return errors.Trace(err)
 	}
 
-	if _, err := img.Dataset.Snapshot(imageSnapshotName); err != nil {
+	if _, err := img.getRootfs().Snapshot(imageSnapshotName); err != nil {
 		return errors.Trace(err)
 	}
 
-	if err := img.Dataset.Zfs("set", "readonly=on"); err != nil {
+	if err := img.getRootfs().Zfs("set", "readonly=on"); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -125,7 +136,7 @@ func (img *Image) Seal() error {
 // If path is an empty string, don't save the image, just return the
 // hash. If path is "-", print image to stdout.
 func (img *Image) SaveAMI(path string, perm os.FileMode) (*types.Hash, error) {
-	archiver := run.Command("tar", "-C", img.Dataset.Mountpoint, "-c", "-f", "-", "manifest", "rootfs")
+	archiver := run.Command("tar", "-C", img.Path(), "-c", "-f", "-", "manifest", "rootfs")
 	if archive, err := archiver.StdoutPipe(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
@@ -193,7 +204,7 @@ func (img *Image) SaveAMI(path string, perm os.FileMode) (*types.Hash, error) {
 }
 
 func (img *Image) loadManifest() error {
-	manifestJSON, err := ioutil.ReadFile(img.Dataset.Path("manifest"))
+	manifestJSON, err := ioutil.ReadFile(img.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -209,7 +220,7 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 	if containers, err := img.Host.Containers(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		snap := img.Dataset.SnapshotName(imageSnapshotName)
+		snap := img.getRootfs().SnapshotName(imageSnapshotName)
 		for _, container := range containers {
 			if container.Dataset.Origin == snap {
 				children = append(children, container)
@@ -220,22 +231,26 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 }
 
 func (img *Image) Destroy() (err error) {
-	err = errors.Trace(img.Dataset.Destroy("-r"))
+	dir := filepath.Dir(img.Path())
+	err = errors.Trace(img.getRootfs().Destroy("-r"))
 	if img.Hash != nil {
 		if err2 := os.Remove(img.Host.imagesDS.Path(img.Hash.String())); err2 != nil && err == nil {
+			err = errors.Trace(err2)
+		}
+		if err2 := os.RemoveAll(dir); err2 != nil && err == nil {
 			err = errors.Trace(err2)
 		}
 	}
 	return
 }
 
-func (img *Image) Clone(dest string) (*zfs.Dataset, error) {
-	snap, err := img.Dataset.GetSnapshot(imageSnapshotName)
+func (img *Image) Clone(dest, mountpoint string) (*zfs.Dataset, error) {
+	snap, err := img.getRootfs().GetSnapshot(imageSnapshotName)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ds, err := snap.Clone(dest)
+	ds, err := snap.Clone(dest, "-o", "mountpoint="+mountpoint)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -334,12 +349,12 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	// Pivot container into an image
-	uuid := path.Base(buildContainer.Dataset.Name)
-	if err := buildContainer.Dataset.Rename(img.Host.imagesDS.ChildName(uuid)); err != nil {
+	childId := path.Base(buildContainer.Dataset.Name)
+	if err := buildContainer.Dataset.Rename(img.Host.imagesDS.ChildName(childId)); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ds, err := img.Host.imagesDS.GetDataset(uuid)
+	ds, err := img.Host.imagesDS.GetDataset(childId)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -359,11 +374,11 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		}
 	}
 
-	childImage := NewImage(ds, img.Host)
+	childImage := NewImage(img.Host, uuid.Parse(childId))
 
 	// Construct the child image's manifest
 
-	if manifestBytes, err := ioutil.ReadFile(childImage.Dataset.Path("build.manifest")); err != nil {
+	if manifestBytes, err := ioutil.ReadFile(childImage.Path("build.manifest")); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		if err := json.Unmarshal(manifestBytes, &childImage.Manifest); err != nil {
@@ -407,12 +422,12 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	if manifestBytes, err := json.Marshal(childImage.Manifest); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		if err := ioutil.WriteFile(childImage.Dataset.Path("manifest"), manifestBytes, 0400); err != nil {
+		if err := ioutil.WriteFile(childImage.Path("manifest"), manifestBytes, 0400); err != nil {
 			return nil, errors.Trace(err)
 		}
 	}
 
-	if err := os.Remove(childImage.Dataset.Path("build.manifest")); err != nil {
+	if err := os.Remove(childImage.Path("build.manifest")); err != nil {
 		return nil, errors.Trace(err)
 	}
 

@@ -63,8 +63,12 @@ func NewContainer(ds *zfs.Dataset, h *Host) *Container {
 	return c
 }
 
+func (c *Container) path(filename string) string {
+	return filepath.Join(filepath.Dir(c.Dataset.Mountpoint), filename)
+}
+
 func (c *Container) IsEmpty() bool {
-	_, err := os.Stat(c.Dataset.Path("manifest"))
+	_, err := os.Stat(c.path("manifest"))
 	return os.IsNotExist(err)
 }
 
@@ -92,7 +96,7 @@ func (c *Container) Load() error {
 }
 
 func (c *Container) readManifest() error {
-	manifestJSON, err := ioutil.ReadFile(c.Dataset.Path("manifest"))
+	manifestJSON, err := ioutil.ReadFile(c.path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -109,7 +113,7 @@ func (c *Container) Save() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	return errors.Trace(ioutil.WriteFile(c.Dataset.Path("manifest"), manifestJSON, 0400))
+	return errors.Trace(ioutil.WriteFile(c.path("manifest"), manifestJSON, 0400))
 }
 
 func (c *Container) findVolume(name types.ACName) *types.Volume {
@@ -128,7 +132,7 @@ func (c *Container) jailConf() string {
 		"host.hostuuid": c.Manifest.UUID.String(),
 		"interface":     c.Host.Properties.MustGetString("jail.interface"),
 		"mount.devfs":   "true",
-		"path":          c.Dataset.Path("rootfs"),
+		"path":          c.path("rootfs"),
 		"persist":       "true",
 	}
 
@@ -177,7 +181,7 @@ func (c *Container) prepJail() error {
 				}
 				fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 0 0\n",
 					vol.Source,
-					c.Dataset.Path("rootfs", mnt.Path),
+					c.path(filepath.Join("rootfs", mnt.Path)),
 					opts,
 				))
 			}
@@ -185,12 +189,12 @@ func (c *Container) prepJail() error {
 	}
 	if os, _ := img.Manifest.GetLabel("os"); os == "linux" {
 		fstab = append(fstab,
-			fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Dataset.Path("rootfs/sys")),
-			fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Dataset.Path("rootfs/proc")),
+			fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.path("rootfs/sys")),
+			fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.path("rootfs/proc")),
 		)
 	}
 	if len(fstab) > 0 {
-		fstabPath := c.Dataset.Path("fstab")
+		fstabPath := c.path("fstab")
 		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
 			return errors.Trace(err)
 		}
@@ -200,13 +204,13 @@ func (c *Container) prepJail() error {
 	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
 		return errors.Trace(err)
 	} else {
-		if err := ioutil.WriteFile(c.Dataset.Path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
+		if err := ioutil.WriteFile(c.path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
 			return errors.Trace(err)
 		}
 	}
 
 	return errors.Trace(
-		ioutil.WriteFile(c.Dataset.Path("jail.conf"), []byte(c.jailConf()), 0400))
+		ioutil.WriteFile(c.path("jail.conf"), []byte(c.jailConf()), 0400))
 }
 
 func (c *Container) Status() ContainerStatus {
@@ -231,7 +235,7 @@ func (c *Container) runJail(op string) error {
 	if c.Host.Properties.GetBool("debug", false) {
 		verbosity = "-v"
 	}
-	return run.Command("jail", "-f", c.Dataset.Path("jail.conf"), verbosity, op, c.jailName()).Run()
+	return run.Command("jail", "-f", c.path("jail.conf"), verbosity, op, c.jailName()).Run()
 }
 
 func (c *Container) Kill() error {
@@ -257,7 +261,11 @@ retry:
 }
 
 func (c *Container) Destroy() error {
-	return c.Dataset.Destroy("-r")
+	dir := filepath.Dir(c.Dataset.Mountpoint)
+	if err := c.Dataset.Destroy("-r"); err != nil {
+		return errors.Trace(err)
+	}
+	return errors.Trace(os.RemoveAll(dir))
 }
 
 func (c *Container) jailName() string {
