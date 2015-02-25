@@ -162,7 +162,6 @@ func Show(prefix string, objs ...interface{}) error {
 		}
 
 		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Container %v", c.Manifest.UUID),
-			c.Dataset,
 			c.Manifest,
 			img))
 

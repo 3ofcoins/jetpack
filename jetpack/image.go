@@ -116,7 +116,7 @@ func (img *Image) Seal() error {
 		}
 	}
 
-	if err := os.Symlink(img.UUID.String(), img.Host.imagesDS.Path(img.Hash.String())); err != nil {
+	if err := os.Symlink(img.UUID.String(), img.Path("..", img.Hash.String())); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -222,7 +222,8 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 	} else {
 		snap := img.getRootfs().SnapshotName(imageSnapshotName)
 		for _, container := range containers {
-			if container.Dataset.Origin == snap {
+			// FIXME: getDataset
+			if container.getDataset().Origin == snap {
 				children = append(children, container)
 			}
 		}
@@ -231,13 +232,12 @@ func (img *Image) Containers() (children ContainerSlice, _ error) {
 }
 
 func (img *Image) Destroy() (err error) {
-	dir := filepath.Dir(img.Path())
 	err = errors.Trace(img.getRootfs().Destroy("-r"))
 	if img.Hash != nil {
-		if err2 := os.Remove(img.Host.imagesDS.Path(img.Hash.String())); err2 != nil && err == nil {
+		if err2 := os.Remove(img.Path("..", img.Hash.String())); err2 != nil && err == nil {
 			err = errors.Trace(err2)
 		}
-		if err2 := os.RemoveAll(dir); err2 != nil && err == nil {
+		if err2 := os.RemoveAll(img.Path()); err2 != nil && err == nil {
 			err = errors.Trace(err2)
 		}
 	}
@@ -255,12 +255,6 @@ func (img *Image) Clone(dest, mountpoint string) (*zfs.Dataset, error) {
 		return nil, errors.Trace(err)
 	}
 
-	// FIXME: maybe not? (hint: multi-app containers)
-	for _, filename := range []string{"manifest", "metadata"} {
-		if err := os.Remove(ds.Path(filename)); err != nil && !os.IsNotExist(err) {
-			return nil, errors.Trace(err)
-		}
-	}
 	return ds, nil
 }
 
@@ -299,7 +293,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	// allow this in builders.
 	buildContainer.Manifest.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
 
-	destroot := buildContainer.Dataset.Path("rootfs")
+	destroot := buildContainer.Path("rootfs")
 
 	workDir, err := ioutil.TempDir(destroot, ".jetpack.build.")
 	if err != nil {
@@ -333,10 +327,8 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	if err := os.Rename(
-		filepath.Join(workDir, "manifest.json"),
-		buildContainer.Dataset.Path("build.manifest"),
-	); err != nil {
+	manifestBytes, err := ioutil.ReadFile(filepath.Join(workDir, "manifest.json"))
+	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -349,42 +341,28 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	// Pivot container into an image
-	childId := path.Base(buildContainer.Dataset.Name)
-	if err := buildContainer.Dataset.Rename(img.Host.imagesDS.ChildName(childId)); err != nil {
+	childImage := NewImage(img.Host, buildContainer.UUID)
+
+	ds := buildContainer.getDataset() // FIXME: getDataset()
+	if err := ds.Set("mountpoint", childImage.Path("rootfs")); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ds, err := img.Host.imagesDS.GetDataset(childId)
-	if err != nil {
+	if err := buildContainer.getDataset().Rename(img.Host.Dataset.ChildName(path.Join("images", childImage.UUID.String()))); err != nil {
 		return nil, errors.Trace(err)
 	}
-
-	// Clean up container's runtime stuff, leave only rootfs and new manifest
-	if entries, err := ioutil.ReadDir(ds.Mountpoint); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		for _, entry := range entries {
-			filename := entry.Name()
-			if filename == "rootfs" || filename == "build.manifest" {
-				continue
-			}
-			if err := os.RemoveAll(ds.Path(filename)); err != nil {
-				return nil, errors.Trace(err)
-			}
-		}
-	}
-
-	childImage := NewImage(img.Host, uuid.Parse(childId))
 
 	// Construct the child image's manifest
 
-	if manifestBytes, err := ioutil.ReadFile(childImage.Path("build.manifest")); err != nil {
+	if err := json.Unmarshal(manifestBytes, &childImage.Manifest); err != nil {
 		return nil, errors.Trace(err)
-	} else {
-		if err := json.Unmarshal(manifestBytes, &childImage.Manifest); err != nil {
-			return nil, errors.Trace(err)
-		}
 	}
+
+	// We don't need build container anymore
+	if err := os.RemoveAll(buildContainer.Path()); err != nil {
+		return nil, errors.Trace(err)
+	}
+	buildContainer = nil
 
 	if _, ok := childImage.Manifest.Annotations.Get("timestamp"); !ok {
 		if ts, err := time.Now().MarshalText(); err != nil {
@@ -425,10 +403,6 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		if err := ioutil.WriteFile(childImage.Path("manifest"), manifestBytes, 0400); err != nil {
 			return nil, errors.Trace(err)
 		}
-	}
-
-	if err := os.Remove(childImage.Path("build.manifest")); err != nil {
-		return nil, errors.Trace(err)
 	}
 
 	childImage.Timestamp = time.Now()

@@ -203,7 +203,8 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 		return nil, errors.New("Only single application containers are supported")
 	}
 
-	var c *Container
+	c := NewContainer(h, uuid.Parse(crm.UUID.String()))
+	c.Manifest = *crm
 
 	for _, app := range crm.Apps {
 		uuid_str, err := os.Readlink(h.imagesDS.Path(app.ImageID.String()))
@@ -223,8 +224,7 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 
 		// FIXME: code until end of `for` depends on len(crm.Apps)==1
 
-		ds, err := img.Clone(path.Join(h.containersDS.Name, crm.UUID.String()),
-			h.containersDS.Path(crm.UUID.String(), "rootfs"))
+		ds, err := img.Clone(path.Join(h.containersDS.Name, c.UUID.String()), c.Path("rootfs"))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -232,22 +232,19 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 		if img.Manifest.App != nil {
 			for _, mnt := range img.Manifest.App.MountPoints {
 				// TODO: host volumes
-				targetPath := filepath.Join(ds.Mountpoint, "rootfs", mnt.Path)
-
-				if err := os.MkdirAll(targetPath, 0755); err != nil {
+				if err := os.MkdirAll(ds.Path(mnt.Path), 0755); err != nil {
 					return nil, errors.Trace(err)
 				}
 			}
 			if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
 				for _, dir := range []string{"sys", "proc"} {
-					if err := os.MkdirAll(ds.Path("rootfs", dir), 0755); err != nil && !os.IsExist(err) {
+					if err := os.MkdirAll(ds.Path(dir), 0755); err != nil && !os.IsExist(err) {
 						return nil, errors.Trace(err)
 					}
 				}
 			}
 		}
 
-		c = NewContainer(ds, h)
 		c.image = img
 	}
 
@@ -255,10 +252,8 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 	if ip, err := h.nextIP(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		crm.Annotations.Set("ip-address", ip.String())
+		c.Manifest.Annotations.Set("ip-address", ip.String())
 	}
-
-	c.Manifest = *crm
 
 	if err := c.Save(); err != nil {
 		return nil, errors.Trace(err)
@@ -273,25 +268,11 @@ func (h *Host) CloneContainer(img *Image) (*Container, error) {
 }
 
 func (h *Host) GetContainer(id uuid.UUID) (*Container, error) {
-	if lines, err := h.containersDS.ZfsFields("list", "-tfilesystem", "-d1", "-oname"); err != nil {
+	c := NewContainer(h, id)
+	if err := c.Load(); err != nil {
 		return nil, errors.Trace(err)
-	} else {
-		for _, ln := range lines {
-			if uuid.Equal(id, uuid.Parse(path.Base(ln[0]))) {
-				if ds, err := zfs.GetDataset(ln[0]); err != nil {
-					return nil, errors.Trace(err)
-				} else {
-					c := NewContainer(ds, h)
-					if err := c.Load(); err != nil {
-						return nil, errors.Trace(err)
-					} else {
-						return c, nil
-					}
-				}
-			}
-		}
 	}
-	return nil, ErrNotFound
+	return c, nil
 }
 
 func (h *Host) FindContainer(query string) (*Container, error) {
@@ -310,11 +291,9 @@ func (h *Host) Containers() (ContainerSlice, error) {
 			if ds.Type != "filesystem" {
 				continue
 			}
-			c := NewContainer(ds, h)
-			if c.IsEmpty() {
-				fmt.Fprintf(os.Stderr, "%v: WARNING: container is empty\n", c.Manifest.UUID, err)
-			} else if err := c.Load(); err != nil {
-				fmt.Fprintf(os.Stderr, "%v.Load(): ERROR: %v\n", c.Manifest.UUID, err)
+			c := NewContainer(h, uuid.Parse(path.Base(ds.Name))) // FIXME: ds
+			if err := c.Load(); err != nil {
+				fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.UUID, err)
 			} else {
 				rv = append(rv, c)
 			}
@@ -478,13 +457,13 @@ func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
 	img.Timestamp = time.Now()
 
 	if manifestUri == "" {
-		if hash, err := UnpackImage(imageUri, filepath.Dir(img.Path()), img.Path("ami")); err != nil {
+		if hash, err := UnpackImage(imageUri, img.Path(), img.Path("ami")); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			img.Hash = hash
 		}
 	} else {
-		if _, err := UnpackImage(imageUri, img.Path(), ""); err != nil {
+		if _, err := UnpackImage(imageUri, img.Path("rootfs"), ""); err != nil {
 			return nil, errors.Trace(err)
 		}
 
