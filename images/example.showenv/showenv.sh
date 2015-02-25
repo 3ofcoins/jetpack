@@ -16,6 +16,12 @@ date > /opt/data/date.txt
 
 cat <<EOF
 
+Mounts:
+EOF
+mount
+
+cat <<EOF
+
 Files:
 EOF
 ls -la
