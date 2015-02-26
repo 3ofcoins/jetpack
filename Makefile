@@ -106,3 +106,10 @@ reinstall: .PHONY uninstall .WAIT install
 
 clean: .PHONY
 	rm -rf bin tmp .prefix jetpack/const.go integration/const.go
+
+# development helpers
+cloc:
+	cloc --exclude-dir=vendor .
+
+ack:
+	ack --type=go --ignore-dir=vendor -w ${q}
