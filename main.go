@@ -152,8 +152,7 @@ Helpful Aliases:
 			die(err)
 			show(image)
 		case "list":
-			images, err := Host.Images()
-			die(err)
+			images := Host.Images()
 
 			if len(images) == 0 {
 				show("No images")
@@ -210,15 +209,11 @@ Helpful Aliases:
 			die(err)
 			show(container)
 		case "list":
-			if containers, err := Host.Containers(); err != nil {
-				die(err)
+			if containers := Host.Containers(); len(containers) == 0 {
+				show("No containers")
 			} else {
-				if len(containers) == 0 {
-					show("No containers")
-				} else {
-					sort.Sort(containers)
-					show(containers.Table()) // FIXME: Table() doesn't really belong in containers
-				}
+				sort.Sort(containers)
+				show(containers.Table()) // FIXME: Table() doesn't really belong in containers
 			}
 		case "show", "run", "ps", "top", "killall", "kill", "destroy":
 			// be nice to people who prefer to type UUID after command

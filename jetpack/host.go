@@ -126,7 +126,7 @@ func (h *Host) Initialize() error {
 	return nil
 }
 
-func (h *Host) GetJailStatus(name string, refresh bool) (JailStatus, error) {
+func (h *Host) getJailStatus(name string, refresh bool) (JailStatus, error) {
 	if refresh || h.jailStatusCache == nil || time.Now().Sub(h.jailStatusTimestamp) > (2*time.Second) {
 		// FIXME: nicer cache/expiry implementation?
 		if lines, err := run.Command("/usr/sbin/jls", "-d", "jid", "dying", "name").OutputLines(); err != nil {
@@ -171,13 +171,9 @@ func (h *Host) nextIP() (net.IP, error) {
 				return nil, errors.Trace(err)
 			} else {
 				ips := make(map[string]bool)
-				if cc, err := h.Containers(); err != nil {
-					return nil, errors.Trace(err)
-				} else {
-					for _, c := range cc {
-						if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
-							ips[ip] = true
-						}
+				for _, c := range h.Containers() {
+					if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
+						ips[ip] = true
 					}
 				}
 
@@ -282,55 +278,41 @@ func (h *Host) FindContainer(query string) (*Container, error) {
 	return nil, ErrNotFound
 }
 
-func (h *Host) Containers() (ContainerSlice, error) {
-	if dss, err := h.containersDS.Children(1); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		rv := make(ContainerSlice, 0, len(dss))
-		for _, ds := range dss {
-			if ds.Type != "filesystem" {
-				continue
-			}
-			c := NewContainer(h, uuid.Parse(path.Base(ds.Name))) // FIXME: ds
-			if err := c.Load(); err != nil {
-				fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.UUID, err)
-			} else {
-				rv = append(rv, c)
-			}
+func (h *Host) Containers() ContainerSlice {
+	mm, _ := filepath.Glob(h.Path("containers/*/manifest"))
+	rv := make(ContainerSlice, 0, len(mm))
+	for _, m := range mm {
+		c := NewContainer(h, uuid.Parse(filepath.Base(filepath.Dir(m))))
+		if err := c.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.UUID, err)
+		} else {
+			rv = append(rv, c)
 		}
-		return rv, nil
 	}
+	return rv
 }
 
-func (h *Host) Images() (ImageSlice, error) {
-	if dss, err := h.imagesDS.Children(1); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		rv := make(ImageSlice, 0, len(dss))
-		for _, ds := range dss {
-			if ds.Type != "filesystem" {
-				continue
-			}
-			img := NewImage(h, uuid.Parse(filepath.Base(ds.Name)))
-			if img.IsEmpty() {
-				fmt.Fprintf(os.Stderr, "%v.Load(): WARNING: image is empty\n", img.UUID)
-			} else if err := img.Load(); err != nil {
-				fmt.Fprintf(os.Stderr, "%v.Load(): ERROR: %v\n", img.UUID, err)
-			} else {
-				rv = append(rv, img)
-			}
+func (h *Host) Images() ImageSlice {
+	mm, _ := filepath.Glob(h.Path("images/*/manifest"))
+	rv := make(ImageSlice, 0, len(mm))
+	for _, m := range mm {
+		img := NewImage(h, uuid.Parse(filepath.Base(filepath.Dir(m))))
+		if err := img.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", img.UUID, err)
+		} else {
+			rv = append(rv, img)
 		}
-		return rv, nil
 	}
+	return rv
 }
 
 func (h *Host) FindImages(query string) (ImageSlice, error) {
 	// Empty query means all images
 	if query == "" {
-		if imgs, err := h.Images(); err == nil && len(imgs) == 0 {
+		if imgs := h.Images(); len(imgs) == 0 {
 			return nil, ErrNotFound
 		} else {
-			return imgs, err
+			return imgs, nil
 		}
 	}
 
@@ -344,10 +326,7 @@ func (h *Host) FindImages(query string) (ImageSlice, error) {
 	}
 
 	// We'll search for images, let's prepare the list now
-	imgs, err := h.Images()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
+	imgs := h.Images()
 
 	// Try hash
 	if hash, err := types.NewHash(query); err == nil {

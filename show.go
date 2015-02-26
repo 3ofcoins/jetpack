@@ -144,9 +144,7 @@ func Show(prefix string, objs ...interface{}) error {
 
 			items := []interface{}{metadata, img.Manifest}
 
-			if cc, err := img.Containers(); err != nil {
-				return errors.Trace(err)
-			} else if len(cc) > 0 {
+			if cc := img.Containers(); len(cc) > 0 {
 				sort.Sort(cc)
 				items = append(items, Section("Containers:", cc.Table()))
 			}

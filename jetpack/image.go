@@ -216,19 +216,15 @@ func (img *Image) loadManifest() error {
 	return nil
 }
 
-func (img *Image) Containers() (children ContainerSlice, _ error) {
-	if containers, err := img.Host.Containers(); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		snap := img.getRootfs().SnapshotName(imageSnapshotName)
-		for _, container := range containers {
-			// FIXME: getDataset
-			if container.getDataset().Origin == snap {
-				children = append(children, container)
-			}
+func (img *Image) Containers() (children ContainerSlice) {
+	snap := img.getRootfs().SnapshotName(imageSnapshotName)
+	for _, container := range img.Host.Containers() {
+		// FIXME: getDataset
+		if container.getDataset().Origin == snap {
+			children = append(children, container)
 		}
-		return
 	}
+	return
 }
 
 func (img *Image) Destroy() (err error) {

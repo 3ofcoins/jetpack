@@ -291,7 +291,7 @@ func (c *Container) jailName() string {
 }
 
 func (c *Container) jailStatus(refresh bool) (JailStatus, error) {
-	return c.Host.GetJailStatus(c.jailName(), refresh)
+	return c.Host.getJailStatus(c.jailName(), refresh)
 }
 
 func (c *Container) Jid() int {
