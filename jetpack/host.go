@@ -296,7 +296,18 @@ func (h *Host) Images() ImageSlice {
 	mm, _ := filepath.Glob(h.Path("images/*/manifest"))
 	rv := make(ImageSlice, 0, len(mm))
 	for _, m := range mm {
-		img := NewImage(h, uuid.Parse(filepath.Base(filepath.Dir(m))))
+		d := filepath.Dir(m)
+		if fi, err := os.Lstat(d); err != nil {
+			panic(err)
+		} else {
+			if !fi.IsDir() {
+				// This is a checksum symlink, skip it.
+				// TODO: are checksum symlinks useful, or harmful by not being DRY?
+				continue
+			}
+		}
+
+		img := NewImage(h, uuid.Parse(filepath.Base(d)))
 		if err := img.Load(); err != nil {
 			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", img.UUID, err)
 		} else {
