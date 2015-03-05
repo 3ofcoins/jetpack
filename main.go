@@ -1,12 +1,17 @@
 package main
 
+import "encoding/json"
 import "flag"
 import "fmt"
+import "io/ioutil"
 import "os"
 import "path/filepath"
 import "sort"
 import "strconv"
 
+import "code.google.com/p/go-uuid/uuid"
+import "github.com/appc/spec/schema"
+import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 import "./jetpack"
@@ -205,7 +210,32 @@ Helpful Aliases:
 	case "container", "c":
 		switch command, args := subcommand("list", args); command {
 		case "create":
-			container, err := Host.CloneContainer(image(args[0]))
+			var crm *schema.ContainerRuntimeManifest
+
+			if args[0][0] == '.' || args[0][0] == '/' {
+				// JSON manifest
+				crm = schema.BlankContainerRuntimeManifest()
+				if id, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
+					panic(err)
+				} else {
+					crm.UUID = *id
+				}
+
+				if crmf, err := ioutil.ReadFile(args[0]); err != nil {
+					die(err)
+				} else {
+					die(json.Unmarshal(crmf, crm))
+				}
+			} else {
+				// TODO: generalized/parameterized manifest building
+				imgs := make([]*jetpack.Image, len(args))
+				for i, img := range args {
+					imgs[i] = image(img)
+				}
+				crm = jetpack.ContainerRuntimeManifest(imgs)
+			}
+
+			container, err := Host.CreateContainer(crm)
 			die(err)
 			show(container)
 		case "list":
