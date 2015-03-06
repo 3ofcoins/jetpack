@@ -1,0 +1,26 @@
+.MAKEFLAGS: -I${../../share:L:tA}
+
+RELEASE ?=	14.04
+CODENAME ?=	trusty
+
+BASEURL =	https://partner-images.canonical.com/core/${CODENAME}/current
+
+IMPORT_URL =	${BASEURL}/ubuntu-${CODENAME}-core-cloudimg-i386-root.tar.gz
+IMPORT_SHA256 = ${awk '/\*${IMPORT_FILE}$$/ { print $$1 }' SHA256SUMS:L:sh}
+IMPORT_MANIFEST = manifest.json
+
+CLEAN_FILES +=	SHA256SUMS SHA256SUMS.gpg *-root.tar.gz build-info.txt manifest.json
+
+prepare..import_file:	SHA256SUMS
+
+SHA256SUMS:
+	fetch ${BASEURL}/$@ ${BASEURL}/$@.gpg
+	if ! gpg --verify $@.gpg $@; then mv -v $@ $@~CORRUPT ; false ; fi
+
+build-info.txt:
+	fetch -o $@ ${BASEURL}/unpacked/build-info.txt
+
+manifest.json: ${IMPORT_FILE} build-info.txt manifest.json.sh
+	./manifest.json.sh ${IMPORT_FILE} > $@
+
+.include "jetpack.image.mk"
