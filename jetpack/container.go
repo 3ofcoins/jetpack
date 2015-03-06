@@ -187,6 +187,14 @@ func (c *Container) prepJail() error {
 			)
 		}
 
+		if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+			return errors.Trace(err)
+		} else {
+			if err := ioutil.WriteFile(c.Path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
+				return errors.Trace(err)
+			}
+		}
+
 		imgApp := img.Manifest.App
 		if imgApp == nil {
 			continue
@@ -266,14 +274,6 @@ func (c *Container) prepJail() error {
 		}
 		if len(unfulfilled) > 0 {
 			return errors.Errorf("Unfulfilled mount points for %v: %v", img.Manifest.Name, unfulfilled)
-		}
-
-		if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
-			return errors.Trace(err)
-		} else {
-			if err := ioutil.WriteFile(c.Path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
-				return errors.Trace(err)
-			}
 		}
 	}
 
