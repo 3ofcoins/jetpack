@@ -12,6 +12,8 @@ import "strconv"
 import "strings"
 import "time"
 
+import "golang.org/x/sys/unix"
+
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
@@ -126,15 +128,6 @@ func (c *Container) Save() error {
 	return errors.Trace(ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0400))
 }
 
-func (c *Container) findVolume(name types.ACName) *types.Volume {
-	for _, vol := range c.Manifest.Volumes {
-		if vol.Name == name {
-			return &vol
-		}
-	}
-	return nil
-}
-
 func (c *Container) jailConf() string {
 	parameters := map[string]string{
 		"devfs_ruleset": "4",
@@ -174,49 +167,122 @@ func (c *Container) jailConf() string {
 }
 
 func (c *Container) prepJail() error {
-	img, err := c.GetImage()
-	if err != nil {
-		return errors.Trace(err)
+	if len(c.Manifest.Apps) != 1 {
+		return errors.New("FIXME: Only one-app containers are supported!")
 	}
 
 	var fstab []string
-	if app := img.Manifest.App; app != nil && len(app.MountPoints) > 0 {
-		for _, mnt := range app.MountPoints {
-			if vol := c.findVolume(mnt.Name); vol == nil {
-				return errors.Errorf("No volume found for %v", mnt.Name)
-			} else if vol.Kind == "host" {
-				opts := "rw"
-				if vol.ReadOnly {
-					opts = "ro"
+
+	for _, app := range c.Manifest.Apps {
+		img, err := c.Host.GetImageByHash(app.ImageID)
+		if err != nil {
+			// TODO: someday we may offer to install missing images
+			return errors.Trace(err)
+		}
+
+		if os, _ := img.Manifest.GetLabel("os"); os == "linux" {
+			fstab = append(fstab,
+				fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Path("rootfs", "sys")),
+				fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Path("rootfs", "proc")),
+			)
+		}
+
+		imgApp := img.Manifest.App
+		if imgApp == nil {
+			continue
+		}
+
+		fulfilledMountPoints := make(map[types.ACName]bool)
+		for _, mnt := range app.Mounts {
+			var vol types.Volume
+			volNo := -1
+			for i, cvol := range c.Manifest.Volumes {
+				if cvol.Name == mnt.Volume {
+					vol = cvol
+					volNo = i
+					break
 				}
-				fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 0 0\n",
-					vol.Source,
-					c.Path(filepath.Join("rootfs", mnt.Path)),
-					opts,
-				))
+			}
+			if volNo < 0 {
+				return errors.Errorf("Volume not found: %v", mnt.Volume)
+			}
+
+			var mntPoint *types.MountPoint
+			for _, mntp := range imgApp.MountPoints {
+				if mntp.Name == mnt.MountPoint {
+					mntPoint = &mntp
+					break
+				}
+			}
+			if mntPoint == nil {
+				return errors.Errorf("No mount point found: %v", mnt.MountPoint)
+			}
+
+			fulfilledMountPoints[mnt.MountPoint] = true
+
+			containerPath := c.Path("rootfs", mntPoint.Path)
+			hostPath := vol.Source
+
+			if vol.Kind == "empty" {
+				hostPath = c.Path("volumes", strconv.Itoa(volNo))
+				if err := os.MkdirAll(hostPath, 0700); err != nil {
+					return errors.Trace(err)
+				}
+				var st unix.Stat_t
+				if err := unix.Stat(containerPath, &st); err != nil {
+					if !os.IsNotExist(err) {
+						return errors.Trace(err)
+					} else {
+						// TODO: make path?
+					}
+				} else {
+					// Copy ownership & mode from image's already existing mount
+					// point.
+					// TODO: What if multiple images use same empty volume, and
+					// have conflicting modes?
+					if err := unix.Chmod(hostPath, uint32(st.Mode&07777)); err != nil {
+						return errors.Trace(err)
+					}
+					if err := unix.Chown(hostPath, int(st.Uid), int(st.Gid)); err != nil {
+						return errors.Trace(err)
+					}
+				}
+			}
+
+			opts := "rw"
+			if vol.ReadOnly || mntPoint.ReadOnly {
+				opts = "ro"
+			}
+
+			fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 0 0\n",
+				hostPath, containerPath, opts))
+		}
+
+		var unfulfilled []types.ACName
+		for _, mntp := range imgApp.MountPoints {
+			if !fulfilledMountPoints[mntp.Name] {
+				unfulfilled = append(unfulfilled, mntp.Name)
+			}
+		}
+		if len(unfulfilled) > 0 {
+			return errors.Errorf("Unfulfilled mount points for %v: %v", img.Manifest.Name, unfulfilled)
+		}
+
+		if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+			return errors.Trace(err)
+		} else {
+			if err := ioutil.WriteFile(c.Path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
+				return errors.Trace(err)
 			}
 		}
 	}
-	if os, _ := img.Manifest.GetLabel("os"); os == "linux" {
-		fstab = append(fstab,
-			fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Path("rootfs/sys")),
-			fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Path("rootfs/proc")),
-		)
-	}
+
 	if len(fstab) > 0 {
 		fstabPath := c.Path("fstab")
 		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
 			return errors.Trace(err)
 		}
 		c.Manifest.Annotations.Set("jetpack/jail.conf/mount.fstab", fstabPath)
-	}
-
-	if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
-		return errors.Trace(err)
-	} else {
-		if err := ioutil.WriteFile(c.Path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
-			return errors.Trace(err)
-		}
 	}
 
 	return errors.Trace(
@@ -429,6 +495,10 @@ func ContainerRuntimeManifest(imgs []*Image) *schema.ContainerRuntimeManifest {
 					Kind:     "empty",
 					Name:     mnt.Name,
 					ReadOnly: mnt.ReadOnly,
+				})
+				crm.Apps[i].Mounts = append(crm.Apps[i].Mounts, schema.Mount{
+					Volume:     mnt.Name,
+					MountPoint: mnt.Name,
 				})
 			}
 		}
