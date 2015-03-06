@@ -2,3 +2,4 @@ code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUID
 github.com/appc/spec 698e84b Merge pull request #124 from 3ofcoins/enhancement/unmarshal-merge
 github.com/juju/errors c3aaee4 Merge pull request #15 from axw/notprovisioned-error
 github.com/magiconair/properties 70f4111 Added GetParsedDuration()/MustGetParsedDuration()
+golang.org/x/sys 5b68325 x/sys/windows: Add GetComputerNameEx

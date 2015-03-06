@@ -71,7 +71,7 @@ vendor.refetch: .PHONY
 	        echo "$$d $$(cd $$d ; hg log -l 1 --template '{node|short} {desc|firstline}')" >> $(.CURDIR)/vendor/manifest.txt ; \
 	        rm -rf $$d/.hg ; \
 	    done ; \
-	    for d in github.com/*/* ; do \
+	    for d in github.com/*/* golang.org/x/* ; do \
 	        if test -L $$d ; then \
 	            continue ; \
 	        fi ; \
