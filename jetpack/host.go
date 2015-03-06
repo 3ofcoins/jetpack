@@ -435,6 +435,22 @@ func (h *Host) GetImage(id uuid.UUID) (*Image, error) {
 	return nil, ErrNotFound
 }
 
+func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
+	if idStr, err := os.Readlink(h.Path("images", hash.String())); err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotFound
+		} else {
+			return nil, errors.Trace(err)
+		}
+	} else {
+		if id := uuid.Parse(idStr); id == nil {
+			return nil, errors.Errorf("Invalid UUID: %v", idStr)
+		} else {
+			return h.GetImage(id)
+		}
+	}
+}
+
 func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
 	newId := uuid.NewRandom()
 	newIdStr := newId.String()
