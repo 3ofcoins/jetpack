@@ -154,14 +154,16 @@ func Show(prefix string, objs ...interface{}) error {
 
 	case *jetpack.Container:
 		c := obj.(*jetpack.Container)
-		img, err := c.GetImage()
-		if err != nil {
-			return errors.Trace(err)
+		items := []interface{}{c.Manifest}
+		for _, app := range c.Manifest.Apps {
+			if img, err := c.Host.GetImageByHash(app.ImageID); err != nil {
+				return errors.Trace(err)
+			} else {
+				items = append(items, img)
+			}
 		}
 
-		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Container %v", c.Manifest.UUID),
-			c.Manifest,
-			img))
+		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Container %v", c.Manifest.UUID), items...))
 
 	case schema.ImageManifest:
 		manifest := obj.(schema.ImageManifest)
