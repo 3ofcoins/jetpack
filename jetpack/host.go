@@ -282,14 +282,51 @@ func (h *Host) Containers() ContainerSlice {
 	mm, _ := filepath.Glob(h.Path("containers/*/manifest"))
 	rv := make(ContainerSlice, 0, len(mm))
 	for _, m := range mm {
-		c := NewContainer(h, uuid.Parse(filepath.Base(filepath.Dir(m))))
-		if err := c.Load(); err != nil {
+		if c, err := h.GetContainer(uuid.Parse(filepath.Base(filepath.Dir(m)))); err != nil {
 			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.UUID, err)
 		} else {
 			rv = append(rv, c)
 		}
 	}
 	return rv
+}
+
+func (h *Host) GetImage(id uuid.UUID) (*Image, error) {
+	if lines, err := h.imagesDS.ZfsFields("list", "-tfilesystem", "-d1", "-oname"); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		for _, ln := range lines {
+			if uuid.Equal(id, uuid.Parse(path.Base(ln[0]))) {
+				if ds, err := zfs.GetDataset(ln[0]); err != nil {
+					return nil, errors.Trace(err)
+				} else {
+					img := NewImage(h, uuid.Parse(filepath.Base(ds.Name)))
+					if err := img.Load(); err != nil {
+						return nil, errors.Trace(err)
+					} else {
+						return img, nil
+					}
+				}
+			}
+		}
+	}
+	return nil, ErrNotFound
+}
+
+func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
+	if idStr, err := os.Readlink(h.Path("images", hash.String())); err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotFound
+		} else {
+			return nil, errors.Trace(err)
+		}
+	} else {
+		if id := uuid.Parse(idStr); id == nil {
+			return nil, errors.Errorf("Invalid UUID: %v", idStr)
+		} else {
+			return h.GetImage(id)
+		}
+	}
 }
 
 func (h *Host) Images() ImageSlice {
@@ -307,8 +344,7 @@ func (h *Host) Images() ImageSlice {
 			}
 		}
 
-		img := NewImage(h, uuid.Parse(filepath.Base(d)))
-		if err := img.Load(); err != nil {
+		if img, err := h.GetImage(uuid.Parse(filepath.Base(d))); err != nil {
 			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", img.UUID, err)
 		} else {
 			rv = append(rv, img)
@@ -409,44 +445,6 @@ func (h *Host) FindImage(query string) (*Image, error) {
 			return imgs[0], nil
 		} else {
 			return nil, ErrManyFound
-		}
-	}
-}
-
-func (h *Host) GetImage(id uuid.UUID) (*Image, error) {
-	if lines, err := h.imagesDS.ZfsFields("list", "-tfilesystem", "-d1", "-oname"); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		for _, ln := range lines {
-			if uuid.Equal(id, uuid.Parse(path.Base(ln[0]))) {
-				if ds, err := zfs.GetDataset(ln[0]); err != nil {
-					return nil, errors.Trace(err)
-				} else {
-					img := NewImage(h, uuid.Parse(filepath.Base(ds.Name)))
-					if err := img.Load(); err != nil {
-						return nil, errors.Trace(err)
-					} else {
-						return img, nil
-					}
-				}
-			}
-		}
-	}
-	return nil, ErrNotFound
-}
-
-func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
-	if idStr, err := os.Readlink(h.Path("images", hash.String())); err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNotFound
-		} else {
-			return nil, errors.Trace(err)
-		}
-	} else {
-		if id := uuid.Parse(idStr); id == nil {
-			return nil, errors.Errorf("Invalid UUID: %v", idStr)
-		} else {
-			return h.GetImage(id)
 		}
 	}
 }
