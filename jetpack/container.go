@@ -101,7 +101,7 @@ func (c *Container) Load() error {
 		return errors.Errorf("TODO: Multi-application containers are not supported")
 	}
 
-	if len(c.Manifest.Isolators) != 0 || len(c.Manifest.Apps[0].Isolators) != 0 {
+	if len(c.Manifest.Isolators) != 0 {
 		return errors.Errorf("TODO: isolators are not supported")
 	}
 	return nil
@@ -174,7 +174,7 @@ func (c *Container) prepJail() error {
 	var fstab []string
 
 	for _, app := range c.Manifest.Apps {
-		img, err := c.Host.GetImageByHash(app.ImageID)
+		img, err := c.Host.GetImageByHash(app.Image.ID)
 		if err != nil {
 			// TODO: someday we may offer to install missing images
 			return errors.Trace(err)

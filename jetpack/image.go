@@ -255,13 +255,16 @@ func (img *Image) Clone(dest, mountpoint string) (*zfs.Dataset, error) {
 }
 
 func (img *Image) RuntimeApp() schema.RuntimeApp {
-	app := schema.RuntimeApp{Name: img.Manifest.Name}
+	app := schema.RuntimeApp{
+		Name:  img.Manifest.Name,
+		Image: schema.RuntimeImage{Name: img.Manifest.Name},
+	}
 	app.Annotations.Set("jetpack/image-uuid", img.UUID.String())
 	if img.Hash != nil {
-		app.ImageID = *img.Hash
+		app.Image.ID = *img.Hash
 	} else {
 		// TODO: do we really need to store ACI tarballs to have an image ID on built images?
-		app.ImageID.Set(fmt.Sprintf(
+		app.Image.ID.Set(fmt.Sprintf(
 			"sha512-000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000%032x",
 			[]byte(img.UUID),
 		))

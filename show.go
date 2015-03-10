@@ -156,7 +156,7 @@ func Show(prefix string, objs ...interface{}) error {
 		c := obj.(*jetpack.Container)
 		items := []interface{}{c.Manifest}
 		for _, app := range c.Manifest.Apps {
-			if img, err := c.Host.GetImageByHash(app.ImageID); err != nil {
+			if img, err := c.Host.GetImageByHash(app.Image.ID); err != nil {
 				return errors.Trace(err)
 			} else {
 				items = append(items, img)
@@ -215,7 +215,7 @@ func Show(prefix string, objs ...interface{}) error {
 	case schema.RuntimeApp:
 		app := obj.(schema.RuntimeApp)
 		return ShowSection(prefix, string(app.Name),
-			app.ImageID, app.Isolators, types.Annotations(app.Annotations))
+			app.Image.ID, types.Annotations(app.Annotations))
 
 	case []types.MountPoint:
 		if mntpts := obj.([]types.MountPoint); len(mntpts) > 0 {
@@ -272,7 +272,7 @@ func Show(prefix string, objs ...interface{}) error {
 		if isolators := obj.([]types.Isolator); len(isolators) > 0 {
 			tbl := make([][]string, len(isolators))
 			for i, isolator := range isolators {
-				tbl[i] = []string{string(isolator.Name), isolator.Val}
+				tbl[i] = []string{string(isolator.Name), string(isolator.ValueRaw)}
 			}
 			return ShowSection(prefix, "Isolators", tbl)
 		}

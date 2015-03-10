@@ -203,7 +203,7 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 	c.Manifest = *crm
 
 	for _, app := range crm.Apps {
-		uuid_str, err := os.Readlink(h.imagesDS.Path(app.ImageID.String()))
+		uuid_str, err := os.Readlink(h.imagesDS.Path(app.Image.ID.String()))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
