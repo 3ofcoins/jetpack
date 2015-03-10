@@ -49,8 +49,6 @@ type Container struct {
 	UUID     uuid.UUID
 	Host     *Host
 	Manifest schema.ContainerRuntimeManifest
-
-	image *Image
 }
 
 func NewContainer(h *Host, id uuid.UUID) *Container {
@@ -368,22 +366,7 @@ func (c *Container) Jid() int {
 	}
 }
 
-func (c *Container) imageUUID() uuid.UUID {
-	return uuid.Parse(strings.Split(path.Base(c.getDataset().Origin), "@")[0])
-}
-
-func (c *Container) GetImage() (*Image, error) {
-	if c.image == nil {
-		if img, err := c.Host.GetImage(c.imageUUID()); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			c.image = img
-		}
-	}
-	return c.image, nil
-}
-
-func (c *Container) Run(app *types.App) (err1 error) {
+func (c *Container) Run(rtapp schema.RuntimeApp) (err1 error) {
 	if err := errors.Trace(c.runJail("-c")); err != nil {
 		return errors.Trace(err)
 	}
@@ -396,17 +379,18 @@ func (c *Container) Run(app *types.App) (err1 error) {
 			}
 		}
 	}()
-	return c.Stage2(app)
+	return c.Stage2(rtapp)
 }
 
-func (c *Container) Stage2(app *types.App) error {
-	img, err := c.GetImage()
+func (c *Container) Stage2(rtapp schema.RuntimeApp) error {
+	img, err := c.Host.GetImageByHash(rtapp.Image.ID)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
+	app := rtapp.App
 	if app == nil {
-		app = img.GetApp()
+		app = img.Manifest.App
 	}
 
 	jid := c.Jid()
@@ -423,7 +407,7 @@ func (c *Container) Stage2(app *types.App) error {
 		"-jid", strconv.Itoa(jid),
 		"-user", user,
 		"-group", app.Group,
-		"-name", string(img.Manifest.Name),
+		"-name", string(rtapp.Name),
 	}
 
 	if app.WorkingDirectory != "" {
@@ -452,7 +436,7 @@ func (cc ContainerSlice) Table() [][]string {
 	rows[0] = []string{"UUID", "IMAGE", "APP", "IP", "STATUS"}
 	for i, c := range cc {
 		imageID := ""
-		if img, err := c.GetImage(); err != nil {
+		if img, err := c.Host.GetImageByHash(c.Manifest.Apps[0].Image.ID); err != nil {
 			imageID = fmt.Sprintf("[%v]", err)
 		} else {
 			imageID = img.UUID.String()

@@ -240,8 +240,6 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 				}
 			}
 		}
-
-		c.image = img
 	}
 
 	// TODO: lock until saved?

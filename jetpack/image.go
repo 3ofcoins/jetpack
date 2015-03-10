@@ -314,7 +314,8 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	cWorkDir := filepath.Base(workDir)
-	buildApp := &types.App{
+	buildApp := img.RuntimeApp()
+	buildApp.App = &types.App{
 		Exec: append([]string{
 			"/bin/sh", "-c",
 			fmt.Sprintf("cd '%s' && exec \"${@}\"", cWorkDir),

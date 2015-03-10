@@ -259,13 +259,15 @@ Helpful Aliases:
 			case "show":
 				show(container)
 			case "run":
-				die(container.Run(nil))
+				die(container.Run(container.Manifest.Apps[0]))
 			case "console":
 				user := "root"
 				if len(args) != 0 {
 					user = args[0]
 				}
-				die(container.Run(jetpack.ConsoleApp(user)))
+				rtapp := container.Manifest.Apps[0]
+				rtapp.App = jetpack.ConsoleApp(user)
+				die(container.Run(rtapp))
 			case "ps", "top", "killall":
 				jid := container.Jid()
 				if jid == 0 {
