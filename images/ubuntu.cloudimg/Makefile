@@ -1,7 +1,17 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
-RELEASE ?=	14.04
 CODENAME ?=	trusty
+RELEASE ?=	${RELEASE_${CODENAME}}
+RELEASE_lucid =		10.04
+RELEASE_maverick =	10.10
+RELEASE_natty =		11.04
+RELEASE_oneiric =	11.10
+RELEASE_precise =	12.04
+RELEASE_quantal =	12.10
+RELEASE_raring =	13.04
+RELEASE_saucy =		13.10
+RELEASE_trusty =	14.04
+RELEASE_utopic =	14.10
 
 BASEURL =	https://partner-images.canonical.com/core/${CODENAME}/current
 
