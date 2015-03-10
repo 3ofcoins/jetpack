@@ -16,7 +16,8 @@ RELEASE_utopic =	14.10
 BASEURL =	https://partner-images.canonical.com/core/${CODENAME}/current
 
 IMPORT_URL =	${BASEURL}/ubuntu-${CODENAME}-core-cloudimg-i386-root.tar.gz
-IMPORT_SHA256 = ${awk '/\*${IMPORT_FILE}$$/ { print $$1 }' SHA256SUMS:L:sh}
+IMPORT_SHA256_cmd = awk '/\*${IMPORT_FILE}$$/ { print $$1 }' SHA256SUMS
+IMPORT_SHA256 = ${IMPORT_SHA256_cmd:sh}
 IMPORT_MANIFEST = manifest.json
 
 CLEAN_FILES +=	SHA256SUMS SHA256SUMS.gpg *-root.tar.gz build-info.txt manifest.json
