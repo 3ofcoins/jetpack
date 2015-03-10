@@ -67,23 +67,22 @@ It includes a *rootfs* with all of the files that will exist in the root of the 
 The ACI file format ("image archive") aims for flexibility and relies on standard and common technologies: HTTP, gpg, tar and gzip.
 This set of formats makes it easy to build, host and secure a container using technologies that are widely available and battle-tested.
 
-- Image archives MUST be a tar formatted file.
-- All files in the image MUST maintain all of their original properties, including timestamps, Unix modes, and extended attributes (xattrs).
 - Image archives MUST be named with the suffix `.aci`, irrespective of compression/encryption (see below).
-- Image archives SHOULD be signed using PGP, in detached signature mode.
-- Image signatures MUST be named with the suffix `.aci.asc`.
-
-There are two further transformations that may be applied to image archives for transport:
+- Image archives MUST be a tar formatted file with no duplicate entries.
+- Image archives MUST have only two top-level pathnames, `manifest` (a regular file) and `rootfs` (a directory). Image archives with additional files outside of `rootfs` are not valid.
+- All files in the image MUST maintain all of their original properties, including timestamps, Unix modes, and extended attributes (xattrs).
 - Image archives MAY be compressed with `gzip`, `bzip2`, or `xz`.
 - Image archives MAY be encrypted with AES symmetric encryption, after (optional) compression.
+- Image archives SHOULD be signed using PGP, the format MUST be ascii-armored detached signature mode.
+- Image signatures MUST be named with the suffix `.aci.asc`.
 
 The following example demonstrates the creation of a simple ACI using common command-line tools.
 In this case, the ACI is both compressed and encrypted.
 
 ```
 tar cvf reduce-worker.tar manifest rootfs
-gpg --output reduce-worker.sig --detach-sig reduce-worker.tar
 gzip reduce-worker.tar -c > reduce-worker.aci
+gpg --armor --output reduce-worker.aci.asc --detach-sig reduce-worker.aci
 gpg --output reduce-worker.aci --digest-algo sha256 --cipher-algo AES256 --symmetric reduce-worker.aci
 ```
 
@@ -113,6 +112,7 @@ Image manifests MAY specify dependencies, which describe how to assemble the fin
 As an example, an app might require special certificates to be layered into its filesystem.
 In this case, the app can reference the name "example.com/trusted-certificate-authority" as a dependency in the image manifest.
 The dependencies are applied in order and each image dependency can overwrite files from the previous dependency.
+Execution details specified in image dependencies are ignored.
 An optional *path whitelist* can be provided, in which case all non-specified files from all dependencies will be omitted in the final, assembled rootfs.
 
 Image Format TODO
@@ -201,25 +201,154 @@ Note that logging mechanisms other than stdout and stderr are not required by th
 ### Isolators
 
 Isolators enforce resource constraints rather than namespacing.
-Isolators may be applied to individual applications, to whole containers, or to both.
+Isolators may be scoped to individual applications, to whole containers, or to both.
 Some well known isolators can be verified by the specification.
 Additional isolators will be added to this specification over time.
 
-|Name|Type|Schema|Example|
-|---------------------------|------|------------------------------------|------------------------------------|
-|cpu/shares                 |string|"&lt;uint&gt;"                      |"4096"                              |
-|memory/limit               |string|"&lt;bytes&gt;"                     |"1G", "5T", "4K"                    |
-|cpu/mask                   |string|"&lt;cpu range&gt;"                 |"0", "0-3", "0,2,4-7"               |
-|block-io/read-bandwidth    |string|"&lt;path to file&gt; &lt;bytes&gt;"|"/tmp 1K"                           |
-|block-io/write-bandwidth   |string|"&lt;path to file&gt; &lt;bytes&gt;"|"/tmp 1K"                           |
-|network-io/read-bandwidth  |string|"&lt;device name&gt; &lt;bytes&gt;" |"eth0 100M"                         |
-|network-io/write-bandwidth |string|"&lt;device name&gt; &lt;bytes&gt;" |"eth0 100M"                         |
-|capabilities/bounding-set  |string|"&lt;cap&gt; &lt;cap&gt; ..."       |"CAP_NET_BIND_SERVICE CAP_SYS_ADMIN"|
+An isolator is a standalone JSON object with only one required field: "name".
+All other fields are specific to the isolator.
 
-#### Types
+An executor MAY ignore isolators that it does not understand and run the container without them.
+But, an executor MUST make information about which isolators were ignored, enforced or modified available to the user.
+An executor MAY implement a "strict mode" where an image cannot run unless all isolators are in place.
 
-* uint: base 10 formatted unsigned int as a string
-* bytes: Suffix to a base 10 int to make it a K, M, G, or T for base 1024
+### Linux Isolators
+
+These isolators are specific to the Linux kernel and are impossible to represent as a 1-to-1 mapping on other kernels.
+The first example is "capabilities" but this will be expanded to include things such as SELinux, SMACK or AppArmor.
+
+#### linux/capabilities-remove-set
+
+* Scope: app
+
+**Parameters:**
+* **set** list of capabilities that will be removed from the process's capabilities bounding set
+
+```
+"name": "os/linux/capabilities-remove-set",
+"value": {
+  "set": [
+    "CAP_SYS_PTRACE",
+  ]
+}
+```
+
+#### linux/capabilities-retain-set
+
+* Scope: app
+
+**Parameters:**
+* **set** list of capabilities that will be retained in the process's capabilities bounding set
+
+```
+"name": "os/linux/capabilities-retain-set",
+"value": {
+  "set": [
+    "CAP_KILL",
+    "CAP_CHOWN"
+  ]
+}
+```
+
+### Resource Isolators
+
+A resource is something that can be consumed by a container such as memory (RAM), CPU, and network bandwidth. These resource isolators will have a request and limit quantity:
+
+- request will be the guaranteed quantity resources given to the container. Going over the request may result in throttling or denial. If request is omitted, it defaults to limit.
+
+- limit is the cap on the maximum amount of resources that will be made available to the container. If more resources than the limit are consumed, it may be terminated or throttled to no more than the limit.
+
+Limit and requests will always be a resource type's natural base units (e.g., bytes, not MB). These quantities may either be unsuffixed, have suffices (E, P, T, G, M, K, m) or power-of-two suffices (Ei, Pi, Ti, Gi, Mi, Ki). For example, the following represent roughly the same value: 128974848, "129e6", "129M" , "123Mi". Small quantities can be represented directly as decimals (e.g., 0.3), or using milli-units (e.g., "300m").
+
+#### resource/block-bandwidth
+
+* Scope: app/container
+
+**Parameters:**
+* **devicePaths** the block devices that this limit will be placed on
+* **limit** read/write bytes per second
+
+```
+"name": "resouce/block-bandwidth",
+"value": {
+  "default": true,
+  "limit": "2M"
+}
+```
+
+**TODO**: The default=true behvaior probably covers nearly 80% of all use cases but we need to define a way to target particular devices.
+
+#### resource/block-iops
+
+* Scope: app/container
+
+**Parameters:**
+* **default** must be set to true and means that this bandwidth limit applies to all interfaces except localhost by default.
+* **limit** read/write input/output operations per second
+
+```
+"name": "resource/block-iops",
+"value": {
+  "default": true,
+  "limit": "1000"
+}
+```
+
+**TODO**: The default=true behvaior probably covers nearly 80% of all use cases but we need to define a way to target particular devices.
+
+
+#### resource/cpu
+
+* Scope: app/container
+
+**Parameters:**
+* **request** milli-cores that are requested
+* **limit** milli-cores that can be consumed before the kernel temporarily throttles the process
+
+```
+"name": "resource/cpu",
+"value": {
+  "request": "250",
+  "limit": "500"
+}
+```
+
+**Note**: a milli-core is the milli-seconds/second that the app will be able to run. e.g. 1000 would represent full use of a single CPU core every second.
+
+#### resource/memory
+
+* Scope: app/container
+
+**Parameters:**
+* **request** bytes of memory that the app is requesting to use and allocations over this request will be reclaimed in case of contention
+* **limit** bytes of memory that the app can allocate before the kernel considers the container out of memory and stops allowing allocations.
+
+```
+"name": "resource/memory",
+"value": {
+  "request": "1G",
+  "limit": "2G"
+}
+```
+
+#### resource/network-bandwidth
+
+* Scope: app/container
+
+**Parameters:**
+* **default** must be set to true and means that this bandwidth limit applies to all interfaces except localhost by default.
+* **limit** read/write bytes per second
+
+```
+"name": "resource/network-bandwidth",
+"value": {
+  "default": true,
+  "limit": "1G"
+}
+```
+
+**NOTE**: Limits SHOULD NOT apply to localhost communication between apps in a container.
+**TODO**: The default=true behvaior probably covers nearly 80% of all use cases but we need to define a network interface tagging spec for appc.
 
 ## App Container Image Discovery
 
@@ -229,20 +358,33 @@ Furthermore, attributes other than the name may be required to unambiguously ide
 App Container Image Discovery prescribes a discovery process to retrieve an image based on the app name and these attributes.
 Image Discovery is inspired by Go's [remote import paths](https://golang.org/cmd/go/#hdr-Remote_import_paths).
 
+There are three URLs types:
+* Image URLs
+* Signature URLs
+* Public key URLs
+
+Simple and Meta Discovery processes use one or more templates (predefined or derived from various sources) to render Image and Signature URLs (while the Public keys URLs aren't templates).
+
+Note that, to discriminate between the image and its signature, the templates must contain `{ext}` and its values should be either `aci` (for the image) or `aci.asc` (for the signature).
+
 ### Simple Discovery
 
-First, try to fetch the app container image by rendering the following template and directly retrieving the resulting URL:
+The simple discovery template is:
 
-    https://{name}-{version}-{os}-{arch}.aci
+    https://{name}-{version}-{os}-{arch}.{ext}
+
+First, try to fetch the app container image by rendering the above template (with `{ext}` rendered to `aci`) and directly retrieving the resulting URL.
 
 For example, given the app name `example.com/reduce-worker`, with version `1.0.0`, arch `amd64`, and os `linux`, try to retrieve:
 
     https://example.com/reduce-worker-1.0.0-linux-amd64.aci
 
 If this fails, move on to meta discovery.
-If this succeeds, try fetching the signature using the same template but with a `.sig` extension:
+If this succeeds, try fetching the signature using the same template but with `{ext}` rendered to `aci.asc`:
 
-    https://example.com/reduce-worker-1.0.0-linux-amd64.sig
+    https://example.com/reduce-worker-1.0.0-linux-amd64.aci.asc
+
+Simple discovery doesn't provide a way to discover Public Keys.
 
 ### Meta Discovery
 
@@ -275,12 +417,12 @@ The algorithm first ensures that the prefix of the AC Name matches the prefix-ma
 curl $(echo "$urltmpl" | sed -e "s/{name}/$appname/" -e "s/{version}/$version/" -e "s/{os}/$os/" -e "s/{arch}/$arch/" -e "s/{ext}/$ext/")
 ```
 
-where _appname_, _version_, _os_, and _arch_ are set to their respective values for the application, and _ext_ is either `aci` or `sig` for retrieving an app container image or signature respectively.
+where _appname_, _version_, _os_, and _arch_ are set to their respective values for the application, and _ext_ is either `aci` or `aci.asc` for retrieving an app container image or signature respectively.
 
 In our example above this would be:
 
 ```
-sig: https://storage.example.com/linux/amd64/reduce-worker-1.0.0.sig
+sig: https://storage.example.com/linux/amd64/reduce-worker-1.0.0.aci.asc
 aci: https://storage.example.com/linux/amd64/reduce-worker-1.0.0.aci
 keys: https://example.com/pubkeys.gpg
 ```
@@ -363,7 +505,9 @@ Accessible at `$AC_METADATA_URL/acMetadata/v1/container/hmac`
 
 ## AC Name Type
 
-An AC Name Type is restricted to lowercase characters accepted by the DNS [RFC](http://tools.ietf.org/html/rfc1123#page-13) and "/".
+An AC Name Type is restricted to lowercase characters accepted by the DNS [RFC1123](http://tools.ietf.org/html/rfc1123#page-13) and "/".
+An AC Name Type cannot be an empty string and must begin and end with an alphanumeric character.
+An AC Name Type will match the following [RE2](https://code.google.com/p/re2/wiki/Syntax) regular expression: `^[a-z0-9]+([-./][a-z0-9]+)*$`
 
 Examples:
 
@@ -372,7 +516,6 @@ Examples:
 * example.com/ourapp
 * sub-domain.example.com/org/product/release
 
-An AC Name Type cannot be an empty string.
 The AC Name Type is used as the primary key for a number of fields in the schemas below.
 The schema validator will ensure that the keys conform to these constraints.
 
@@ -433,20 +576,24 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
         ],
         "isolators": [
             {
-                "name": "cpu/shares",
-                "value": "20"
+                "name": "resources/cpu",
+                "value": {
+                    "request": "250",
+                    "limit": "500"
+                }
             },
             {
-                "name": "memory/limit",
-                "value": "1G"
+                "name": "resource/memory",
+                "value": {
+                    "request": "1G",
+                    "limit": "2G"
+                }
             },
             {
-                "name": "cpu/mask",
-                "value": "0-3"
-            },
-            {
-                "name": "capabilities/bounding-set",
-                "value": "CAP_NET_BIND_SERVICE CAP_SYS_ADMIN"
+                "name": "linux/capabilities-retain-set",
+                "value": {
+                    "set": ["CAP_NET_BIND_SERVICE", "CAP_SYS_ADMIN"]
+                }
             }
         ],
         "mountPoints": [
@@ -509,30 +656,31 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
 }
 ```
 
-* **acKind** (required) must be set to "ImageManifest"
-* **acVersion** (required) represents the version of the schema specification that the manifest implements (string, must be in [semver](http://semver.org/) format)
-* **name** (required) is used as a human readable index to the container image. (string, restricted to the AC Name formatting)
-* **labels** (optional) list of label objects (where the *name* is restricted to the AC Name formatting and *value* is an arbitrary string). Label names must be unique within the list, and (to avoid confusion with the image's name) cannot be "name". Labels are used during image discovery and dependency resolution. Several well-known labels are defined:
+* **acKind** (string, required) must be set to "ImageManifest"
+* **acVersion** (string, required) represents the version of the schema specification that the manifest implements (string, must be in [semver](http://semver.org/) format)
+* **name** (string, required) used as a human readable index to the container image. (string, restricted to the AC Name formatting)
+* **labels** (list of objects, optional) used during image discovery and dependency resolution. The listed objects must have two key-value pairs: *name* is restricted to the AC Name formatting and *value* is an arbitrary string. Label names must be unique within the list, and (to avoid confusion with the image's name) cannot be "name". Several well-known labels are defined:
     * **version** when combined with "name", this should be unique for every build of an app (on a given "os"/"arch" combination).
     * **os**, **arch** can together be considered to describe the syscall ABI this image requires. **arch** is meaningful only if **os** is provided. If one or both values are not provided, the image is assumed to be OS- and/or architecture-independent. Currently supported combinations are listed in the [`types.ValidOSArch`](schema/types/labels.go) variable, which can be updated by an implementation that supports other combinations. The combinations whitelisted by default are (in format `os/arch`): `linux/amd64`, `linux/i386`, `freebsd/amd64`, `freebsd/i386`, `freebsd/arm`, `darwin/x86_64`, `darwin/i386`.
-* **app** (optional) if present, defines the default parameters that can be used to execute this image as an application.
-    * **exec** (required) executable to launch and any flags (array of strings, must be non-empty; the executable must be an absolute path within the app rootfs; ACE can append or override)
-    * **user**, **group** (required) indicate either the UID/GID or the username/group name the app should run as inside the container (freeform string). If the user or group field begins with a "/", the owner and group of the file found at that absolute path inside the rootfs is used as the UID/GID of the process.
-    * **eventHandlers** (optional) list of eventHandler objects. eventHandlers allow the app to have several hooks based on lifecycle events. For example, you may want to execute a script before the main process starts up to download a dataset or backup onto the filesystem. An eventHandler is a simple object with two fields - an **exec** (array of strings, ACE can append or override), and a **name** (there may be only one eventHandler of a given name), which must be one of:
+* **app** (object, optional) if present, defines the default parameters that can be used to execute this image as an application.
+    * **exec** (list of strings, required) executable to launch and any flags (must be non-empty; the executable must be an absolute path within the app rootfs; ACE can append or override)
+    * **user**, **group** (string, required) indicates either the UID/GID or the username/group name the app should run as inside the container (freeform string). If the user or group field begins with a "/", the owner and group of the file found at that absolute path inside the rootfs is used as the UID/GID of the process.
+    * **eventHandlers** (list of objects, optional) allows the app to have several hooks based on lifecycle events. For example, you may want to execute a script before the main process starts up to download a dataset or backup onto the filesystem. An eventHandler is a simple object with two fields - an **exec** (array of strings, ACE can append or override), and a **name** (there may be only one eventHandler of a given name), which must be one of:
         * **pre-start** - executed and must exit before the long running main **exec** binary is launched
         * **post-stop** - executed if the main **exec** process is killed. This can be used to cleanup resources in the case of clean application shutdown, but cannot be relied upon in the face of machine failure.
-    * **workingDirectory** (optional) working directory of the launched application, relative to the application image's root (must be an absolute path, defaults to "/", ACE can override). If the directory does not exist in the application's assembled rootfs (including any dependent images and mounted volumes), the ACE must fail execution.
-    * **environment** (optional) a list of name / value objects representing the app's environment variables (ACE can append). The **name** must consist solely of letters, digits, and underscores '_' as outlined in [IEEE Std 1003.1-2001](http://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap08.html).
-    * **mountPoints** (optional) locations where a container is expecting external data to be mounted. The name indicates an executor-defined label to look up a mount point, and the path stipulates where it should actually be mounted inside the rootfs. The name is restricted to the AC Name Type formatting. "readOnly" should be a boolean indicating whether or not the mount point should be read-only (defaults to "false" if unsupplied).
-    * **ports** (optional) protocols and port numbers that the container will be listening on once started. The key is restricted to the AC Name formatting. This information is primarily informational to help the user find ports that are not well known. It could also optionally be used to limit the inbound connections to the container via firewall rules to only ports that are explicitly exposed.
-        * **socketActivated** (optional) if set to true, the application expects to be [socket activated](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) on these ports. The ACE must pass file descriptors using the [socket activation protocol](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) that are listening on these ports when starting this container. If multiple apps in the same container are using socket activation then the ACE must match the sockets to the correct apps using getsockopt() and getsockname().
-    * **isolators** (optional) list of well-known isolation steps that should be applied to the app. **name** is restricted to the [AC Name](#ac-name-type) formatting and **value** can be a freeform string. Any isolators specified in the Image Manifest can be overridden at runtime via the Container Runtime Manifest. The executor can either ignore isolator keys it does not understand or error. In practice this means there might be certain isolators (for example, an AppArmor policy) that an executor doesn't understand so it will simply skip that entry.
-* **dependencies** (optional) list of dependent application images that need to be placed down into the rootfs before the files from this image (if any). The ordering is significant. See [Dependency Matching](#dependency-matching) for how dependencies should be retrieved.
-    * **app** (required) name of the dependent app container image.
-    * **imageID** (optional) content hash of the dependency. If provided, the retrieved dependency must match the hash. This can be used to produce deterministic, repeatable builds of an App Image that has dependencies.
-    * **labels** (optional) list of label objects of the same form as in the top level ImageManifest. See [Dependency Matching](#dependency-matching) for how these are used.
-* **pathWhitelist** (optional, list of strings) complete whitelist of paths that should exist in the rootfs after assembly (i.e. unpacking the files in this image and overlaying its dependencies, in order). Paths that end in slash will ensure the directory is present but empty. This field is only required if the app has dependencies and you wish to remove files from the rootfs before running the container; an empty value means that all files in this image and any dependencies will be available in the rootfs.
-* **annotations** (optional) list of annotation objects (where the *name* is restricted to the [AC Name](#ac-name-type) formatting and *value* is an arbitrary string). Annotation names must be unique within the list. Annotations can be used by systems outside of the ACE (ACE can override). If you are defining new annotations, please consider submitting them to the specification. If you intend for your field to remain special to your application please be a good citizen and prefix an appropriate namespace to your key names. Recognized annotations include:
+    * **workingDirectory** (string, optional) working directory of the launched application, relative to the application image's root (must be an absolute path, defaults to "/", ACE can override). If the directory does not exist in the application's assembled rootfs (including any dependent images and mounted volumes), the ACE must fail execution.
+    * **environment** (list of objects, optional) represents the app's environment variables (ACE can append). The listed objects must have two key-value pairs: **name** and **value**. The **name** must consist solely of letters, digits, and underscores '_' as outlined in [IEEE Std 1003.1-2001](http://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap08.html). The **value** is an arbitrary string.
+    * **isolators** (optional) list of isolation steps that should be applied to the app.
+        * **name** is restricted to the [AC Name](#ac-name-type) formatting
+    * **mountPoints** (list of objects, optional) locations where a container is expecting external data to be mounted. The listed objects should contain three key-value pairs: the **name** indicates an executor-defined label to look up a mount point, and the **path** stipulates where it should actually be mounted inside the rootfs. The name is restricted to the AC Name Type formatting. **readOnly" should be a boolean indicating whether or not the mount point should be read-only (defaults to "false" if unsupplied).
+    * **ports** (list of objects, optional) are protocols and port numbers that the container will be listening on once started. All of the keys in the listed objects are restricted to the AC Name formatting. This information is primarily to help the user find ports that are not well known. It could also optionally be used to limit the inbound connections to the container via firewall rules to only ports that are explicitly exposed.
+        * **socketActivated** (boolean, optional) if set to true, the application expects to be [socket activated](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) on these ports. The ACE must pass file descriptors using the [socket activation protocol](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) that are listening on these ports when starting this container. If multiple apps in the same container are using socket activation then the ACE must match the sockets to the correct apps using getsockopt() and getsockname().
+* **dependencies** (list of objects, optional) dependent application images that need to be placed down into the rootfs before the files from this image (if any). The ordering is significant. See [Dependency Matching](#dependency-matching) for how dependencies should be retrieved.
+    * **app** (string, required) name of the dependent app container image.
+    * **imageID** (string, optional) content hash of the dependency. If provided, the retrieved dependency must match the hash. This can be used to produce deterministic, repeatable builds of an App Image that has dependencies.
+    * **labels** (list of objects, optional) a list of the very same form as the aforementioned label objects in the top level ImageManifest. See [Dependency Matching](#dependency-matching) for how these are used.
+* **pathWhitelist** (list of strings, optional) complete whitelist of paths that should exist in the rootfs after assembly (i.e. unpacking the files in this image and overlaying its dependencies, in order). Paths that end in slash will ensure the directory is present but empty. This field is only required if the app has dependencies and you wish to remove files from the rootfs before running the container; an empty value means that all files in this image and any dependencies will be available in the rootfs.
+* **annotations** (list of objects, optional) any extra metadata you wish to add to the image. Each object has two key-value pairs: the *name* is restricted to the [AC Name](#ac-name-type) formatting and *value* is an arbitrary string. Annotation names must be unique within the list. Annotations can be used by systems outside of the ACE (ACE can override). If you are defining new annotations, please consider submitting them to the specification. If you intend for your field to remain special to your application please be a good citizen and prefix an appropriate namespace to your key names. Recognized annotations include:
     * **created** date on which this container was built (string, must be in [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) format)
     * **authors** contact details of the people or organization responsible for the containers (freeform string)
     * **homepage** URL to find more information on the container (string, must be a URL with scheme HTTP or HTTPS)
@@ -566,21 +714,66 @@ JSON Schema for the Container Runtime Manifest (container manifest), conforming 
     "uuid": "6733C088-A507-4694-AABF-EDBE4FC5266F",
     "apps": [
         {
-            "app": "example.com/reduce-worker-1.0.0",
-            "imageID": "sha512-...",
+            "name": "reduce-worker",
+            "image": {
+                "name": "example.com/reduce-worker",
+                "id": "sha512-...",
+                "labels": [
+                    {
+                        "name":  "version",
+                        "value": "1.0.0"
+                    }
+                ]
+            },
+            "app": {
+                "exec": [
+                    "/bin/reduce-worker",
+                    "--debug=true",
+                    "--data-dir=/mnt/foo"
+                ],
+                "group": "0",
+                "user": "0",
+                "mountPoints": [
+                    {
+                        "name": "work",
+                        "path": "/mnt/foo"
+                    }
+                ]
+            },
             "mounts": [
-                 {"volume": "work", "mountPoint": "work"}
+                {"volume": "work", "mountPoint": "work"}
             ]
         },
         {
-            "app": "example.com/worker-backup-1.0.0",
-            "imageID": "sha512-...",
-            "isolators": [
-                {
-                    "name": "memory/limit",
-                    "value": "1G"
-                }
-            ],
+            "name": "backup",
+            "image": {
+                "name": "example.com/worker-backup",
+                "id": "sha512-...",
+                "labels": [
+                    {
+                        "name": "version",
+                        "value": "1.0.0"
+                    }
+                ],
+                "isolators": [
+                    {
+                        "name": "resource/memory",
+                        "value": {
+                            "request": "1G",
+                            "limit": "2G"
+                        }
+                    }
+                ],
+                "annotations": [
+                    {
+                        "name": "foo",
+                        "value": "bax"
+                    }
+                ],
+                "mounts": [
+                    {"volume": "work", "mountPoint": "backup"}
+                ]
+            }
             "annotations": [
                 {
                     "name": "foo",
@@ -592,8 +785,17 @@ JSON Schema for the Container Runtime Manifest (container manifest), conforming 
             ]
         },
         {
-            "app": "example.com/reduce-worker-register-1.0.0",
-            "imageID": "sha512-..."
+            "name": "register",
+            "image": {
+                "name": "example.com/reduce-worker-register",
+                "id": "sha512-...",
+                "labels": [
+                    {
+                        "name": "version",
+                        "value": "1.0.0"
+                    }
+                ]
+            }
         }
     ],
     "volumes": [
@@ -601,14 +803,16 @@ JSON Schema for the Container Runtime Manifest (container manifest), conforming 
             "name": "work",
             "kind": "host",
             "source": "/opt/tenant1/work",
-            "readOnly": true
+            "readOnly": true,
         }
     ],
     "isolators": [
         {
-           "name": "memory/limit",
-           "value": "4G"
-        }
+            "name": "resource/memory",
+            "value": {
+                "limit": "4G"
+            }
+        },
     ],
     "annotations": [
         {
@@ -619,21 +823,24 @@ JSON Schema for the Container Runtime Manifest (container manifest), conforming 
 }
 ```
 
-* **acVersion** (required) represents the version of the schema spec (string, must be in [semver](http://semver.org/) format)
-* **acKind** (required) must be set to "ContainerRuntimeManifest"
-* **uuid** (required) must be an [RFC4122 UUID](http://www.ietf.org/rfc/rfc4122.txt) that represents this instance of the container (string, must be in [RFC4122](http://www.ietf.org/rfc/rfc4122.txt) format)
-* **apps** (required) list of apps that will execute inside of this container
-    * **app** (optional) name of the app (string, restricted to AC Name formatting)
-    * **imageID** (required) content hash of the image that this app will execute inside of (string, must be of the format "type-value", where "type" is "sha512" and value is the hex encoded string of the hash)
-    * **mounts** (optional) list of mounts mapping an app mountPoint to a volume
-      * **volume** name of the volume that will fulfill this mount (string, restricted to the AC Name formatting)
-      * **mountPoint** name of the app mount point to place the volume on (string, restricted to the AC Name formatting)
-    * **isolators** (optional) list of isolators that should be applied to this app (key is restricted to the AC Name formatting and the value can be a freeform string)
-    * **annotations** (optional) arbitrary metadata appended to the app. Should be a list of annotation objects (where the *name* is restricted to the [AC Name](#ac-name-type) formatting and *value* is an arbitrary string). Annotation names must be unique within the list. These will be merged with annotations provided by the image manifest when queried via the metadata service; values in this list take precedence over those in the image manifest.
-* **volumes** (optional) list of volumes which should be mounted into each application's filesystem
-    * **name** (required) used to map the volume to an app's mountPoint at runtime. (string, restricted to the AC Name formatting)
-    * **kind** (required) either "empty" or "host". "empty" fulfills a mount point by ensuring the path exists (writes go to container). "host" fulfills a mount point with a bind mount from a **source**.
-    * **source** (required if **kind** is "host") absolute path on host to be bind mounted into the container under a mount point.
-    * **readOnly** (optional if **kind** is "host") whether or not the volume should be mounted read only.
-* **isolators** (optional) list of isolators that will apply to all apps in this container (name is restricted to the AC Name formatting and the value can be a freeform string)
-* **annotations** (optional) arbitrary metadata the executor should make available to applications via the metadata service. Should be a list of annotation objects (where the *name* is restricted to the [AC Name](#ac-name-type) formatting and *value* is an arbitrary string). Annotation names must be unique within the list.
+* **acVersion** (string, required) represents the version of the schema spec (must be in [semver](http://semver.org/) format)
+* **acKind** (string, required) must be set to "ContainerRuntimeManifest"
+* **uuid** (string, required) must be an [RFC4122 UUID](http://www.ietf.org/rfc/rfc4122.txt) that represents this instance of the container (must be in [RFC4122](http://www.ietf.org/rfc/rfc4122.txt) format)
+* **apps** (list of objects, required) list of apps that will execute inside of this container. Each app object has the following set of key-value pairs:
+    * **name** (string, optional) name of the app (restricted to AC Name formatting)
+    * **image** (object, required) identifiers of the image providing this app
+        * **id** (string, required) content hash of the image that this app will execute inside of (must be of the format "type-value", where "type" is "sha512" and value is the hex encoded string of the hash)
+        * **name** (string, optional) name of the image (restricted to AC Name formatting)
+        * **labels** (list of objects, optional) additional labels characterizing the image
+    * **app** (object, optional) substitute for the app object of the referred image's ImageManifest. See [Image Manifest Schema](#image-manifest-schema) for what the app object contains.
+    * **mounts** (list of objects, optional) list of mounts mapping an app mountPoint to a volume. Each mount has the following set of key-value pairs:
+      * **volume** (string, required) name of the volume that will fulfill this mount (restricted to the AC Name formatting)
+      * **mountPoint** (string, required) name of the app mount point to place the volume on (restricted to the AC Name formatting)
+    * **annotations** (list of objects, optional) arbitrary metadata appended to the app. The annotation objects must have a *name* key that has a value that is restricted to the [AC Name](#ac-name-type) formatting and *value* key that is an arbitrary string). Annotation names must be unique within the list. These will be merged with annotations provided by the image manifest when queried via the metadata service; values in this list take precedence over those in the image manifest.
+* **volumes** (list of objects, optional) list of volumes which should be mounted into each application's filesystem
+    * **name** (string, required) used to map the volume to an app's mountPoint at runtime. (restricted to the AC Name formatting)
+    * **kind** (string, required) either "empty" or "host". "empty" fulfills a mount point by ensuring the path exists (writes go to container). "host" fulfills a mount point with a bind mount from a **source**.
+    * **source** (string, required if **kind** is "host") absolute path on host to be bind mounted into the container under a mount point.
+    * **readOnly** (boolean, optional if **kind** is "host") whether or not the volume should be mounted read only.
+* **isolators** (list of objects, optional) list of isolators that will apply to all apps in this container. Each object has two key value pairs: **name** is restricted to the AC Name formatting and **value** can be a freeform string)
+* **annotations** (list of objects, optional) arbitrary metadata the executor should make available to applications via the metadata service. Objects must contain two key-value pairs: **name** is restricted to the [AC Name](#ac-name-type) formatting and **value** is an arbitrary string). Annotation names must be unique within the list.
