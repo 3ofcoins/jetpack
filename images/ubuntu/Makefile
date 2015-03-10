@@ -1,5 +1,9 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
+.ifndef VERSION
+.error "You need to define VERSION="
+.endif
+
 PARENT_IMAGE =	ubuntu/cloudimg:${VERSION}
 BUILD_COMMAND =	./build.sh ${VERSION}
 CLEAN_FILES +=	_bin manifest.json
