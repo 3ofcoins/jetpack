@@ -272,7 +272,7 @@ func Show(prefix string, objs ...interface{}) error {
 		if isolators := obj.([]types.Isolator); len(isolators) > 0 {
 			tbl := make([][]string, len(isolators))
 			for i, isolator := range isolators {
-				tbl[i] = []string{string(isolator.Name), string(isolator.ValueRaw)}
+				tbl[i] = []string{string(isolator.Name), string(*isolator.ValueRaw)}
 			}
 			return ShowSection(prefix, "Isolators", tbl)
 		}
