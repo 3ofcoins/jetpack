@@ -1,5 +1,5 @@
 code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUIDs
-github.com/appc/spec 480f581 Merge pull request #222 from philips/constants-for-resource-names
-github.com/juju/errors 036046b Merge pull request #16 from mattyw/minor-panic-fix
-github.com/magiconair/properties 70f4111 Added GetParsedDuration()/MustGetParsedDuration()
-golang.org/x/sys 5b68325 x/sys/windows: Add GetComputerNameEx
+github.com/appc/spec bf255ef (HEAD, tag: v0.4.1) version: bump to v0.4.1
+github.com/juju/errors 036046b (HEAD, origin/master, origin/HEAD, master) Merge pull request #16 from mattyw/minor-panic-fix
+github.com/magiconair/properties 70f4111 (HEAD, tag: v1.5.1, origin/master, origin/HEAD, master) Added GetParsedDuration()/MustGetParsedDuration()
+golang.org/x/sys 5b68325 (HEAD, origin/master, origin/HEAD, master) x/sys/windows: Add GetComputerNameEx

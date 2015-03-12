@@ -190,13 +190,17 @@ Note that logging mechanisms other than stdout and stderr are not required by th
 
 #### Execution Environment
 
-* **Working directory** defaults to the root of the application image, overridden with "workingDirectory"
+The following environment variables MUST be set for each application's main process and any lifecycle processes:
 * **PATH** `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`
 * **USER, LOGNAME** username of the user executing this app
 * **HOME** home directory of the user
 * **SHELL** login shell of the user
 * **AC_APP_NAME** name of the application, as defined in the image manifest
 * **AC_METADATA_URL** URL where the metadata service for this container can be found
+
+An executor MAY set additional environment variables for the application processes.
+
+Additionally, processes must have their **working directory** set to the value of the application's **workingDirectory** option, if specified, or the root of the application image by default.
 
 ### Isolators
 
@@ -205,8 +209,8 @@ Isolators may be scoped to individual applications, to whole containers, or to b
 Some well known isolators can be verified by the specification.
 Additional isolators will be added to this specification over time.
 
-An isolator is a standalone JSON object with only one required field: "name".
-All other fields are specific to the isolator.
+An isolator is a JSON object with two required fields: "name" and "value".
+"name" is a string restricted to AC Name formatting. "value" can be an arbitrary JSON value.
 
 An executor MAY ignore isolators that it does not understand and run the container without them.
 But, an executor MUST make information about which isolators were ignored, enforced or modified available to the user.
@@ -217,7 +221,7 @@ An executor MAY implement a "strict mode" where an image cannot run unless all i
 These isolators are specific to the Linux kernel and are impossible to represent as a 1-to-1 mapping on other kernels.
 The first example is "capabilities" but this will be expanded to include things such as SELinux, SMACK or AppArmor.
 
-#### linux/capabilities-remove-set
+#### os/linux/capabilities-remove-set
 
 * Scope: app
 
@@ -228,12 +232,12 @@ The first example is "capabilities" but this will be expanded to include things 
 "name": "os/linux/capabilities-remove-set",
 "value": {
   "set": [
-    "CAP_SYS_PTRACE",
+    "CAP_SYS_PTRACE"
   ]
 }
 ```
 
-#### linux/capabilities-retain-set
+#### os/linux/capabilities-retain-set
 
 * Scope: app
 
@@ -252,13 +256,20 @@ The first example is "capabilities" but this will be expanded to include things 
 
 ### Resource Isolators
 
-A resource is something that can be consumed by a container such as memory (RAM), CPU, and network bandwidth. These resource isolators will have a request and limit quantity:
+A _resource_ is something that can be consumed by a container such as memory (RAM), CPU, and network bandwidth.
+Resource isolators have a *request* and *limit* quantity:
 
-- request will be the guaranteed quantity resources given to the container. Going over the request may result in throttling or denial. If request is omitted, it defaults to limit.
+- **request** is the minimum amount of a resource guaranteed to be available to the container.
+If the container attempts to consume a resource in excess of its request, it may be throttled or denied.
+If **request** is omitted, it defaults to the value of **limit**.
 
-- limit is the cap on the maximum amount of resources that will be made available to the container. If more resources than the limit are consumed, it may be terminated or throttled to no more than the limit.
+- **limit** is the maximum amount of a resource available to the container.
+If the container consumes a resource in excess of its limit, it must be terminated or throttled to no more than the limit.
 
-Limit and requests will always be a resource type's natural base units (e.g., bytes, not MB). These quantities may either be unsuffixed, have suffices (E, P, T, G, M, K, m) or power-of-two suffices (Ei, Pi, Ti, Gi, Mi, Ki). For example, the following represent roughly the same value: 128974848, "129e6", "129M" , "123Mi". Small quantities can be represented directly as decimals (e.g., 0.3), or using milli-units (e.g., "300m").
+Limit and request values will always be of a resource type's natural base units (e.g., bytes, not MB).
+These quantities may either be unsuffixed, have suffices (E, P, T, G, M, K, m) or power-of-two suffices (Ei, Pi, Ti, Gi, Mi, Ki).
+For example, the following represent roughly the same value: 128974848, "129e6", "129M" , "123Mi".
+Small quantities can be represented directly as decimals (e.g., 0.3), or using milli-units (e.g., "300m").
 
 #### resource/block-bandwidth
 
@@ -269,7 +280,7 @@ Limit and requests will always be a resource type's natural base units (e.g., by
 * **limit** read/write bytes per second
 
 ```
-"name": "resouce/block-bandwidth",
+"name": "resource/block-bandwidth",
 "value": {
   "default": true,
   "limit": "2M"
@@ -529,7 +540,7 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
 ```
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.3.0",
+    "acVersion": "0.4.1",
     "name": "example.com/reduce-worker",
     "labels": [
         {
@@ -590,7 +601,7 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
                 }
             },
             {
-                "name": "linux/capabilities-retain-set",
+                "name": "os/linux/capabilities-retain-set",
                 "value": {
                     "set": ["CAP_NET_BIND_SERVICE", "CAP_SYS_ADMIN"]
                 }
@@ -661,7 +672,7 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
 * **name** (string, required) used as a human readable index to the container image. (string, restricted to the AC Name formatting)
 * **labels** (list of objects, optional) used during image discovery and dependency resolution. The listed objects must have two key-value pairs: *name* is restricted to the AC Name formatting and *value* is an arbitrary string. Label names must be unique within the list, and (to avoid confusion with the image's name) cannot be "name". Several well-known labels are defined:
     * **version** when combined with "name", this should be unique for every build of an app (on a given "os"/"arch" combination).
-    * **os**, **arch** can together be considered to describe the syscall ABI this image requires. **arch** is meaningful only if **os** is provided. If one or both values are not provided, the image is assumed to be OS- and/or architecture-independent. Currently supported combinations are listed in the [`types.ValidOSArch`](schema/types/labels.go) variable, which can be updated by an implementation that supports other combinations. The combinations whitelisted by default are (in format `os/arch`): `linux/amd64`, `linux/i386`, `freebsd/amd64`, `freebsd/i386`, `freebsd/arm`, `darwin/x86_64`, `darwin/i386`.
+    * **os**, **arch** can together be considered to describe the syscall ABI this image requires. **arch** is meaningful only if **os** is provided. If one or both values are not provided, the image is assumed to be OS- and/or architecture-independent. Currently supported combinations are listed in the [`types.ValidOSArch`](schema/types/labels.go) variable, which can be updated by an implementation that supports other combinations. The combinations whitelisted by default are (in format `os/arch`): `linux/amd64`, `linux/i386`, `freebsd/amd64`, `freebsd/i386`, `freebsd/arm`, `darwin/x86_64`, `darwin/i386`. See the [Operating System spec](OS-SPEC.md) for the environment apps can expect to run in given a known **os** label.
 * **app** (object, optional) if present, defines the default parameters that can be used to execute this image as an application.
     * **exec** (list of strings, required) executable to launch and any flags (must be non-empty; the executable must be an absolute path within the app rootfs; ACE can append or override)
     * **user**, **group** (string, required) indicates either the UID/GID or the username/group name the app should run as inside the container (freeform string). If the user or group field begins with a "/", the owner and group of the file found at that absolute path inside the rootfs is used as the UID/GID of the process.
@@ -709,7 +720,7 @@ JSON Schema for the Container Runtime Manifest (container manifest), conforming 
 ```
 {
 
-    "acVersion": "0.3.0",
+    "acVersion": "0.4.1",
     "acKind": "ContainerRuntimeManifest",
     "uuid": "6733C088-A507-4694-AABF-EDBE4FC5266F",
     "apps": [

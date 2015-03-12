@@ -62,11 +62,14 @@ jetpack/const.go: .PHONY
 integration/const.go: .PHONY
 	echo 'package jetpack_integration ${const.integration:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
 
+APPC_SPEC_VERSION=v0.4.1
+
 vendor.refetch: .PHONY
 	rm -rf vendor
 	go get -d
+	cd ${.CURDIR}/vendor/src/github.com/appc/spec && git checkout ${APPC_SPEC_VERSION}
 	set -e ; \
-	    cd vendor/src ; \
+	    cd ${.CURDIR}/vendor/src ; \
 	    for d in code.google.com/p/* ; do \
 	        echo "$$d $$(cd $$d ; hg log -l 1 --template '{node|short} {desc|firstline}')" >> $(.CURDIR)/vendor/manifest.txt ; \
 	        rm -rf $$d/.hg ; \
@@ -75,7 +78,7 @@ vendor.refetch: .PHONY
 	        if test -L $$d ; then \
 	            continue ; \
 	        fi ; \
-	        echo "$$d $$(cd $$d; git log -n 1 --oneline)" >> $(.CURDIR)/vendor/manifest.txt ; \
+	        echo "$$d $$(cd $$d; git log -n 1 --oneline --decorate)" >> $(.CURDIR)/vendor/manifest.txt ; \
 	        rm -rf $$d/.git ; \
             done
 
