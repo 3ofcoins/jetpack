@@ -194,6 +194,10 @@ func (h *Host) nextIP() (net.IP, error) {
 	}
 }
 
+func (h *Host) NewContainer() *Container {
+	return NewContainer(h, nil)
+}
+
 func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container, error) {
 	if len(crm.Apps) != 1 {
 		return nil, errors.New("Only single application containers are supported")
@@ -262,11 +266,11 @@ func (h *Host) CloneContainer(img *Image) (*Container, error) {
 }
 
 func (h *Host) GetContainer(id uuid.UUID) (*Container, error) {
-	c := NewContainer(h, id)
-	if err := c.Load(); err != nil {
+	if c, err := LoadContainer(h, id); err != nil {
 		return nil, errors.Trace(err)
+	} else {
+		return c, nil
 	}
-	return c, nil
 }
 
 func (h *Host) FindContainer(query string) (*Container, error) {

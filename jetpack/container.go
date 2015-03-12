@@ -49,11 +49,13 @@ type Container struct {
 	UUID     uuid.UUID
 	Host     *Host
 	Manifest schema.ContainerRuntimeManifest
+
+	sealed bool
 }
 
 func NewContainer(h *Host, id uuid.UUID) *Container {
 	if id == nil {
-		panic("Container UUID can't be nil!")
+		id = uuid.NewRandom()
 	}
 	c := &Container{Host: h, UUID: id, Manifest: *schema.BlankContainerRuntimeManifest()}
 	if mid, err := types.NewUUID(id.String()); err != nil {
@@ -63,6 +65,29 @@ func NewContainer(h *Host, id uuid.UUID) *Container {
 		c.Manifest.UUID = *mid
 	}
 	return c
+}
+
+func LoadContainer(h *Host, id uuid.UUID) (*Container, error) {
+	if id == nil {
+		panic("Container UUID can't be nil!")
+	}
+	c := NewContainer(h, id)
+	if err := c.Load(); err != nil {
+		return nil, errors.Trace(err)
+	}
+	return c, nil
+}
+
+// Constructing a container (manifest)
+
+func (c *Container) Save() error {
+	if manifestJSON, err := json.Marshal(c.Manifest); err != nil {
+		return errors.Trace(err)
+	} else if err := ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0400); err != nil {
+		return errors.Trace(err)
+	}
+	c.sealed = true
+	return nil
 }
 
 func (c *Container) Path(elem ...string) string {
@@ -82,7 +107,24 @@ func (c *Container) Exists() bool {
 	return true
 }
 
+func (c *Container) readManifest() error {
+	manifestJSON, err := ioutil.ReadFile(c.Path("manifest"))
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if err = json.Unmarshal(manifestJSON, &c.Manifest); err != nil {
+		return errors.Trace(err)
+	}
+
+	return nil
+}
+
 func (c *Container) Load() error {
+	if c.sealed {
+		panic("tried to load an already sealed container")
+	}
+
 	if !c.Exists() {
 		return ErrNotFound
 	}
@@ -102,28 +144,9 @@ func (c *Container) Load() error {
 	if len(c.Manifest.Isolators) != 0 {
 		return errors.Errorf("TODO: isolators are not supported")
 	}
+
+	c.sealed = true
 	return nil
-}
-
-func (c *Container) readManifest() error {
-	manifestJSON, err := ioutil.ReadFile(c.Path("manifest"))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if err = json.Unmarshal(manifestJSON, &c.Manifest); err != nil {
-		return errors.Trace(err)
-	}
-
-	return nil
-}
-
-func (c *Container) Save() error {
-	manifestJSON, err := json.Marshal(c.Manifest)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	return errors.Trace(ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0400))
 }
 
 func (c *Container) jailConf() string {
@@ -391,6 +414,10 @@ func (c *Container) Stage2(rtapp schema.RuntimeApp) error {
 	app := rtapp.App
 	if app == nil {
 		app = img.Manifest.App
+	}
+
+	if app == nil {
+		app = ConsoleApp("root")
 	}
 
 	jid := c.Jid()

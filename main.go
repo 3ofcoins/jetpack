@@ -3,15 +3,12 @@ package main
 import "encoding/json"
 import "flag"
 import "fmt"
-import "io/ioutil"
 import "os"
 import "path/filepath"
 import "sort"
 import "strconv"
 
-import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
-import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 import "./jetpack"
@@ -44,6 +41,15 @@ func image(name string) *jetpack.Image {
 	}
 	die(err)
 	return img
+}
+
+func getRuntimeApp(name string) (*schema.RuntimeApp, error) {
+	if img, err := Host.FindImage(name); err != nil {
+		return nil, err
+	} else {
+		rta := img.RuntimeApp()
+		return &rta, nil
+	}
 }
 
 func main() {
@@ -81,7 +87,9 @@ Commands:
                                           Output to stdout if no PATH given
   image IMAGE destroy                     Destroy image
   container list                          List containers
-  container create IMAGE                  Create new container from image
+  container create [FLAGS] IMAGE [IMAGE FLAGS] [IMAGE [IMAGE FLAGS] ...]
+                                          Create new container from image
+                   -help                  Show detailed help
   container CONTAINER show                Display container details
   container CONTAINER run                 Run container's application
   container CONTAINER console [USER]      Open console inside the container
@@ -106,7 +114,8 @@ Helpful Aliases:
   image, images -- image list
   container, containers -- container list
   image build|show|export|destroy IMAGE ... -- image IMAGE build|show|... ...
-`)
+`,
+			filepath.Base(os.Args[0]), configPath)
 		return
 	}
 
@@ -210,34 +219,34 @@ Helpful Aliases:
 	case "container", "c":
 		switch command, args := subcommand("list", args); command {
 		case "create":
-			var crm *schema.ContainerRuntimeManifest
+			var dryRun, doRun, doDestroy bool
+			fl := flag.NewFlagSet("jetpack container create", flag.ContinueOnError)
+			fl.BoolVar(&dryRun, "n", false, "Dry run (don't actually create container, just show manifest)")
+			fl.BoolVar(&doRun, "run", false, "Run container immediately")
+			fl.BoolVar(&doDestroy, "destroy", false, "Destroy container after running (meaningless without -run)")
 
-			if args[0][0] == '.' || args[0][0] == '/' {
-				// JSON manifest
-				crm = schema.BlankContainerRuntimeManifest()
-				if id, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
+			if crm, err := ConstructCRM(args, fl, getRuntimeApp); err == flag.ErrHelp {
+				// It's all right. Help has been shown.
+			} else if err != nil {
+				panic(err)
+			} else if dryRun {
+				if jb, err := json.MarshalIndent(crm, "", "  "); err != nil {
 					panic(err)
 				} else {
-					crm.UUID = *id
-				}
-
-				if crmf, err := ioutil.ReadFile(args[0]); err != nil {
-					die(err)
-				} else {
-					die(json.Unmarshal(crmf, crm))
+					fmt.Println(string(jb))
 				}
 			} else {
-				// TODO: generalized/parameterized manifest building
-				imgs := make([]*jetpack.Image, len(args))
-				for i, img := range args {
-					imgs[i] = image(img)
+				container, err := Host.CreateContainer(crm)
+				die(err)
+				if doRun {
+					die(container.Run(container.Manifest.Apps[0]))
+					if doDestroy {
+						die(container.Destroy())
+					}
+				} else {
+					show(container)
 				}
-				crm = jetpack.ContainerRuntimeManifest(imgs)
 			}
-
-			container, err := Host.CreateContainer(crm)
-			die(err)
-			show(container)
 		case "list":
 			if containers := Host.Containers(); len(containers) == 0 {
 				show("No containers")
