@@ -11,15 +11,15 @@ import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 
-type crmFlag struct {
+type podFlag struct {
 	v *schema.PodManifest
 }
 
-func (cf crmFlag) String() string {
+func (cf podFlag) String() string {
 	return "PATH"
 }
 
-func (cf crmFlag) Set(val string) error {
+func (cf podFlag) Set(val string) error {
 	if data, err := ioutil.ReadFile(val); err != nil {
 		return err
 	} else {
@@ -106,9 +106,9 @@ func runtimeAppFlagSet(ra *schema.RuntimeApp) *flag.FlagSet {
 	return fl
 }
 
-func constructCRMHelp(fl *flag.FlagSet) func() {
+func constructPodHelp(fl *flag.FlagSet) func() {
 	return func() {
-		fmt.Fprintln(os.Stderr, `Usage: jetpack container create [FLAGS] IMAGE [IMAGE FLAGS] [IMAGE [IMAGE FLAGS] ...]
+		fmt.Fprintln(os.Stderr, `Usage: jetpack pod create [FLAGS] IMAGE [IMAGE FLAGS] [IMAGE [IMAGE FLAGS] ...]
 
 Flags: `)
 		fl.PrintDefaults()
@@ -117,11 +117,11 @@ Flags: `)
 	}
 }
 
-func ConstructCRM(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*schema.RuntimeApp, error)) (*schema.PodManifest, error) {
+func ConstructPod(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*schema.RuntimeApp, error)) (*schema.PodManifest, error) {
 	if fl == nil {
-		fl = flag.NewFlagSet("ConstructCRM", flag.ContinueOnError)
+		fl = flag.NewFlagSet("ConstructPod", flag.ContinueOnError)
 	}
-	fl.Usage = constructCRMHelp(fl)
+	fl.Usage = constructPodHelp(fl)
 
 	pm := schema.BlankPodManifest()
 	if newUUID, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
@@ -131,7 +131,7 @@ func ConstructCRM(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*
 		pm.UUID = *newUUID
 	}
 
-	fl.Var(crmFlag{pm}, "f", "Load JSON with (partial or full) container manifest")
+	fl.Var(podFlag{pm}, "f", "Load JSON with (partial or full) pod manifest")
 	fl.Var(volumesFlag{&pm.Volumes}, "v", "Add volume")
 	fl.Var(annotationsFlag{&pm.Annotations}, "a", "Add annotation")
 	// TODO: isolatorsFlag

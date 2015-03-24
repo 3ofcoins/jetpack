@@ -216,12 +216,12 @@ func (img *Image) loadManifest() error {
 	return nil
 }
 
-func (img *Image) Containers() (children ContainerSlice) {
+func (img *Image) Pods() (children PodSlice) {
 	snap := img.getRootfs().SnapshotName(imageSnapshotName)
-	for _, container := range img.Host.Containers() {
+	for _, pod := range img.Host.Pods() {
 		// FIXME: getDataset
-		if container.getDataset().Origin == snap {
-			children = append(children, container)
+		if pod.getDataset().Origin == snap {
+			children = append(children, pod)
 		}
 	}
 	return
@@ -281,18 +281,18 @@ func (img *Image) GetApp() *types.App {
 }
 
 func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
-	var buildContainer *Container
-	if c, err := img.Host.CloneContainer(img); err != nil {
+	var buildPod *Pod
+	if c, err := img.Host.ClonePod(img); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		buildContainer = c
+		buildPod = c
 	}
 
 	// This is needed by freebsd-update at least, should be okay to
 	// allow this in builders.
-	buildContainer.Manifest.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
+	buildPod.Manifest.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
 
-	destroot := buildContainer.Path("rootfs")
+	destroot := buildPod.Path("rootfs")
 
 	workDir, err := ioutil.TempDir(destroot, ".jetpack.build.")
 	if err != nil {
@@ -323,7 +323,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		}, buildExec...),
 	}
 
-	if err := buildContainer.Run(buildApp); err != nil {
+	if err := buildPod.Run(buildApp); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -340,15 +340,15 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	// Pivot container into an image
-	childImage := NewImage(img.Host, buildContainer.UUID)
+	// Pivot pod into an image
+	childImage := NewImage(img.Host, buildPod.UUID)
 
-	ds := buildContainer.getDataset() // FIXME: getDataset()
+	ds := buildPod.getDataset() // FIXME: getDataset()
 	if err := ds.Set("mountpoint", childImage.Path("rootfs")); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	if err := buildContainer.getDataset().Rename(img.Host.Dataset.ChildName(path.Join("images", childImage.UUID.String()))); err != nil {
+	if err := buildPod.getDataset().Rename(img.Host.Dataset.ChildName(path.Join("images", childImage.UUID.String()))); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -358,11 +358,11 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	// We don't need build container anymore
-	if err := os.RemoveAll(buildContainer.Path()); err != nil {
+	// We don't need build pod anymore
+	if err := os.RemoveAll(buildPod.Path()); err != nil {
 		return nil, errors.Trace(err)
 	}
-	buildContainer = nil
+	buildPod = nil
 
 	if _, ok := childImage.Manifest.Annotations.Get("timestamp"); !ok {
 		if ts, err := time.Now().MarshalText(); err != nil {

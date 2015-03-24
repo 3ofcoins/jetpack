@@ -215,12 +215,12 @@ func TestMain(m *testing.M) {
 func TestForSmoke(t *testing.T) {
 	RollbackDataset(t)
 
-	if out, err := run.Command("jetpack", "container", "list").OutputString(); err != nil {
+	if out, err := run.Command("jetpack", "pod", "list").OutputString(); err != nil {
 		t.Error(err)
 	} else {
 		t.Logf("jetpack list =>\n%v\n", out)
-		if out != "No containers" {
-			t.Fatalf("Expected no containers")
+		if out != "No pods" {
+			t.Fatalf("Expected no pods")
 		}
 	}
 

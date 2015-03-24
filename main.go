@@ -86,17 +86,17 @@ Commands:
   image IMAGE export [PATH]               Export image to an AMI file
                                           Output to stdout if no PATH given
   image IMAGE destroy                     Destroy image
-  container list                          List containers
-  container create [FLAGS] IMAGE [IMAGE FLAGS] [IMAGE [IMAGE FLAGS] ...]
-                                          Create new container from image
-                   -help                  Show detailed help
-  container CONTAINER show                Display container details
-  container CONTAINER run                 Run container's application
-  container CONTAINER console [USER]      Open console inside the container
-  container CONTAINER ps|top|killall [OPTIONS...]
-                                          Manage container's processes
-  container CONTAINER kill                Kill running container
-  container CONTAINER destroy             Destroy container
+  pod list                                List pods
+  pod create [FLAGS] IMAGE [IMAGE FLAGS] [IMAGE [IMAGE FLAGS] ...]
+                                          Create new pod from image
+             -help                        Show detailed help
+  pod POD show                            Display pod details
+  pod POD run                             Run pod's application
+  pod POD console [USER]                  Open console inside the pod
+  pod POD ps|top|killall [OPTIONS...]
+                                          Manage pod's processes
+  pod POD kill                Kill running pod
+  pod POD destroy             Destroy pod
 Needs Explanation:
   ARCHIVE, MANIFEST  May be filesystem paths or URLs.
             cp=PATH  This option can be given multiple times
@@ -107,12 +107,12 @@ Needs Explanation:
                       - an UUID (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXX),
                       - a checksum (sha512-...), or
                       - a QUERY (which can't be ambiguous).
-          CONTAINER  Has to be an UUID for now
+          POD  Has to be an UUID for now
 Helpful Aliases:
-  i ... -- image ...
-  c ... -- container ...
+  i|img ... -- image ...
+  p ... -- pod ...
   image, images -- image list
-  container, containers -- container list
+  pod, pods -- pod list
   image build|show|export|destroy IMAGE ... -- image IMAGE build|show|... ...
 `,
 			filepath.Base(os.Args[0]), configPath)
@@ -149,7 +149,7 @@ Helpful Aliases:
 		command = "image"
 		args = append([]string{"list"}, args...)
 		fallthrough
-	case "image", "i":
+	case "image", "img", "i":
 		switch command, args := subcommand("list", args); command {
 		case "import":
 			var archive, manifest string
@@ -212,20 +212,20 @@ Helpful Aliases:
 				die(errors.Errorf("Unknown command %#v", command))
 			}
 		}
-	case "containers":
-		command = "container"
+	case "pods":
+		command = "pod"
 		args = append([]string{"list"}, args...)
 		fallthrough
-	case "container", "c":
+	case "pod", "p":
 		switch command, args := subcommand("list", args); command {
 		case "create":
 			var dryRun, doRun, doDestroy bool
-			fl := flag.NewFlagSet("jetpack container create", flag.ContinueOnError)
-			fl.BoolVar(&dryRun, "n", false, "Dry run (don't actually create container, just show manifest)")
-			fl.BoolVar(&doRun, "run", false, "Run container immediately")
-			fl.BoolVar(&doDestroy, "destroy", false, "Destroy container after running (meaningless without -run)")
+			fl := flag.NewFlagSet("jetpack pod create", flag.ContinueOnError)
+			fl.BoolVar(&dryRun, "n", false, "Dry run (don't actually create pod, just show manifest)")
+			fl.BoolVar(&doRun, "run", false, "Run pod immediately")
+			fl.BoolVar(&doDestroy, "destroy", false, "Destroy pod after running (meaningless without -run)")
 
-			if pm, err := ConstructCRM(args, fl, getRuntimeApp); err == flag.ErrHelp {
+			if pm, err := ConstructPod(args, fl, getRuntimeApp); err == flag.ErrHelp {
 				// It's all right. Help has been shown.
 			} else if err != nil {
 				panic(err)
@@ -236,51 +236,51 @@ Helpful Aliases:
 					fmt.Println(string(jb))
 				}
 			} else {
-				container, err := Host.CreateContainer(pm)
+				pod, err := Host.CreatePod(pm)
 				die(err)
 				if doRun {
-					die(container.Run(container.Manifest.Apps[0]))
+					die(pod.Run(pod.Manifest.Apps[0]))
 					if doDestroy {
-						die(container.Destroy())
+						die(pod.Destroy())
 					}
 				} else {
-					show(container)
+					show(pod)
 				}
 			}
 		case "list":
-			if containers := Host.Containers(); len(containers) == 0 {
-				show("No containers")
+			if pods := Host.Pods(); len(pods) == 0 {
+				show("No pods")
 			} else {
-				sort.Sort(containers)
-				show(containers.Table()) // FIXME: Table() doesn't really belong in containers
+				sort.Sort(pods)
+				show(pods.Table()) // FIXME: Table() doesn't really belong in pods
 			}
 		case "show", "run", "ps", "top", "killall", "kill", "destroy":
 			// be nice to people who prefer to type UUID after command
 			command, args[0] = args[0], command
 			fallthrough
 		default:
-			container, err := Host.FindContainer(command)
+			pod, err := Host.FindPod(command)
 			if err == jetpack.ErrNotFound {
-				die(errors.Errorf("No such container: %#v", command))
+				die(errors.Errorf("No such pod: %#v", command))
 			}
 			die(err)
 			switch command, args := subcommand("show", args); command {
 			case "show":
-				show(container)
+				show(pod)
 			case "run":
-				die(container.Run(container.Manifest.Apps[0]))
+				die(pod.Run(pod.Manifest.Apps[0]))
 			case "console":
 				user := "root"
 				if len(args) != 0 {
 					user = args[0]
 				}
-				rtapp := container.Manifest.Apps[0]
+				rtapp := pod.Manifest.Apps[0]
 				rtapp.App = jetpack.ConsoleApp(user)
-				die(container.Run(rtapp))
+				die(pod.Run(rtapp))
 			case "ps", "top", "killall":
-				jid := container.Jid()
+				jid := pod.Jid()
 				if jid == 0 {
-					die(errors.New("Container is not running"))
+					die(errors.New("Pod is not running"))
 				}
 
 				flag := "-J"
@@ -290,9 +290,9 @@ Helpful Aliases:
 
 				die(run.Command(command, append([]string{flag, strconv.Itoa(jid)}, args...)...).Run())
 			case "kill":
-				die(container.Kill())
+				die(pod.Kill())
 			case "destroy":
-				die(container.Destroy())
+				die(pod.Destroy())
 			default:
 				die(errors.Errorf("Unknown command %#v", command))
 			}

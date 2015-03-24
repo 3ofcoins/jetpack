@@ -39,8 +39,8 @@ type Host struct {
 	jailStatusTimestamp time.Time
 	jailStatusCache     map[string]JailStatus
 
-	containersDS *zfs.Dataset
-	imagesDS     *zfs.Dataset
+	podsDS   *zfs.Dataset
+	imagesDS *zfs.Dataset
 }
 
 func NewHost(configPath string) (*Host, error) {
@@ -68,10 +68,10 @@ func NewHost(configPath string) (*Host, error) {
 		h.imagesDS = ds
 	}
 
-	if ds, err := h.Dataset.GetDataset("containers"); err != nil {
+	if ds, err := h.Dataset.GetDataset("pods"); err != nil {
 		return nil, err
 	} else {
-		h.containersDS = ds
+		h.podsDS = ds
 	}
 
 	return &h, nil
@@ -117,10 +117,10 @@ func (h *Host) Initialize() error {
 		h.imagesDS = ds
 	}
 
-	if ds, err := h.Dataset.CreateDataset("containers", h.zfsOptions("containers.zfs.")...); err != nil {
+	if ds, err := h.Dataset.CreateDataset("pods", h.zfsOptions("pods.zfs.")...); err != nil {
 		return errors.Trace(err)
 	} else {
-		h.containersDS = ds
+		h.podsDS = ds
 	}
 
 	return nil
@@ -171,7 +171,7 @@ func (h *Host) nextIP() (net.IP, error) {
 				return nil, errors.Trace(err)
 			} else {
 				ips := make(map[string]bool)
-				for _, c := range h.Containers() {
+				for _, c := range h.Pods() {
 					if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
 						ips[ip] = true
 					}
@@ -194,16 +194,16 @@ func (h *Host) nextIP() (net.IP, error) {
 	}
 }
 
-func (h *Host) NewContainer() *Container {
-	return NewContainer(h, nil)
+func (h *Host) NewPod() *Pod {
+	return NewPod(h, nil)
 }
 
-func (h *Host) CreateContainer(pm *schema.PodManifest) (*Container, error) {
+func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 	if len(pm.Apps) != 1 {
-		return nil, errors.New("Only single application containers are supported")
+		return nil, errors.New("Only single application pods are supported")
 	}
 
-	c := NewContainer(h, uuid.Parse(pm.UUID.String()))
+	c := NewPod(h, uuid.Parse(pm.UUID.String()))
 	c.Manifest = *pm
 
 	for _, app := range pm.Apps {
@@ -222,9 +222,9 @@ func (h *Host) CreateContainer(pm *schema.PodManifest) (*Container, error) {
 			return nil, errors.Trace(err)
 		}
 
-		// FIXME: code until end of `for` depends on len(crm.Apps)==1
+		// FIXME: code until end of `for` depends on len(pm.Apps)==1
 
-		ds, err := img.Clone(path.Join(h.containersDS.Name, c.UUID.String()), c.Path("rootfs"))
+		ds, err := img.Clone(path.Join(h.podsDS.Name, c.UUID.String()), c.Path("rootfs"))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -260,31 +260,31 @@ func (h *Host) CreateContainer(pm *schema.PodManifest) (*Container, error) {
 	return c, nil
 }
 
-func (h *Host) CloneContainer(img *Image) (*Container, error) {
+func (h *Host) ClonePod(img *Image) (*Pod, error) {
 	// DEPRECATED
-	return h.CreateContainer(PodManifest([]*Image{img}))
+	return h.CreatePod(PodManifest([]*Image{img}))
 }
 
-func (h *Host) GetContainer(id uuid.UUID) (*Container, error) {
-	if c, err := LoadContainer(h, id); err != nil {
+func (h *Host) GetPod(id uuid.UUID) (*Pod, error) {
+	if c, err := LoadPod(h, id); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		return c, nil
 	}
 }
 
-func (h *Host) FindContainer(query string) (*Container, error) {
+func (h *Host) FindPod(query string) (*Pod, error) {
 	if id := uuid.Parse(query); id != nil {
-		return h.GetContainer(id)
+		return h.GetPod(id)
 	}
 	return nil, ErrNotFound
 }
 
-func (h *Host) Containers() ContainerSlice {
-	mm, _ := filepath.Glob(h.Path("containers/*/manifest"))
-	rv := make(ContainerSlice, 0, len(mm))
+func (h *Host) Pods() PodSlice {
+	mm, _ := filepath.Glob(h.Path("pods/*/manifest"))
+	rv := make(PodSlice, 0, len(mm))
 	for _, m := range mm {
-		if c, err := h.GetContainer(uuid.Parse(filepath.Base(filepath.Dir(m)))); err != nil {
+		if c, err := h.GetPod(uuid.Parse(filepath.Base(filepath.Dir(m)))); err != nil {
 			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.UUID, err)
 		} else {
 			rv = append(rv, c)

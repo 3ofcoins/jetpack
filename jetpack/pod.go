@@ -22,30 +22,30 @@ import "github.com/juju/errors"
 import "../run"
 import "../zfs"
 
-type ContainerStatus uint
+type PodStatus uint
 
 const (
-	ContainerStatusInvalid ContainerStatus = iota
-	ContainerStatusRunning
-	ContainerStatusDying
-	ContainerStatusStopped
+	PodStatusInvalid PodStatus = iota
+	PodStatusRunning
+	PodStatusDying
+	PodStatusStopped
 )
 
-var containerStatusNames = []string{
-	ContainerStatusInvalid: "invalid",
-	ContainerStatusRunning: "running",
-	ContainerStatusDying:   "dying",
-	ContainerStatusStopped: "stopped",
+var podStatusNames = []string{
+	PodStatusInvalid: "invalid",
+	PodStatusRunning: "running",
+	PodStatusDying:   "dying",
+	PodStatusStopped: "stopped",
 }
 
-func (cs ContainerStatus) String() string {
-	if int(cs) < len(containerStatusNames) {
-		return containerStatusNames[cs]
+func (cs PodStatus) String() string {
+	if int(cs) < len(podStatusNames) {
+		return podStatusNames[cs]
 	}
-	return fmt.Sprintf("ContainerStatus[%d]", cs)
+	return fmt.Sprintf("PodStatus[%d]", cs)
 }
 
-type Container struct {
+type Pod struct {
 	UUID     uuid.UUID
 	Host     *Host
 	Manifest schema.PodManifest
@@ -53,11 +53,11 @@ type Container struct {
 	sealed bool
 }
 
-func NewContainer(h *Host, id uuid.UUID) *Container {
+func NewPod(h *Host, id uuid.UUID) *Pod {
 	if id == nil {
 		id = uuid.NewRandom()
 	}
-	c := &Container{Host: h, UUID: id, Manifest: *schema.BlankPodManifest()}
+	c := &Pod{Host: h, UUID: id, Manifest: *schema.BlankPodManifest()}
 	if mid, err := types.NewUUID(id.String()); err != nil {
 		// CAN'T HAPPEN
 		panic(err)
@@ -67,20 +67,18 @@ func NewContainer(h *Host, id uuid.UUID) *Container {
 	return c
 }
 
-func LoadContainer(h *Host, id uuid.UUID) (*Container, error) {
+func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
 	if id == nil {
-		panic("Container UUID can't be nil!")
+		panic("Pod UUID can't be nil!")
 	}
-	c := NewContainer(h, id)
+	c := NewPod(h, id)
 	if err := c.Load(); err != nil {
 		return nil, errors.Trace(err)
 	}
 	return c, nil
 }
 
-// Constructing a container (manifest)
-
-func (c *Container) Save() error {
+func (c *Pod) Save() error {
 	if manifestJSON, err := json.Marshal(c.Manifest); err != nil {
 		return errors.Trace(err)
 	} else if err := ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0400); err != nil {
@@ -90,14 +88,14 @@ func (c *Container) Save() error {
 	return nil
 }
 
-func (c *Container) Path(elem ...string) string {
+func (c *Pod) Path(elem ...string) string {
 	return c.Host.Path(append(
-		[]string{"containers", c.UUID.String()},
+		[]string{"pods", c.UUID.String()},
 		elem...,
 	)...)
 }
 
-func (c *Container) Exists() bool {
+func (c *Pod) Exists() bool {
 	if _, err := os.Stat(c.Path("manifest")); err != nil {
 		if os.IsNotExist(err) {
 			return false
@@ -107,7 +105,7 @@ func (c *Container) Exists() bool {
 	return true
 }
 
-func (c *Container) readManifest() error {
+func (c *Pod) readManifest() error {
 	manifestJSON, err := ioutil.ReadFile(c.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
@@ -120,9 +118,9 @@ func (c *Container) readManifest() error {
 	return nil
 }
 
-func (c *Container) Load() error {
+func (c *Pod) Load() error {
 	if c.sealed {
-		panic("tried to load an already sealed container")
+		panic("tried to load an already sealed pod")
 	}
 
 	if !c.Exists() {
@@ -138,7 +136,7 @@ func (c *Container) Load() error {
 	}
 
 	if len(c.Manifest.Apps) > 1 {
-		return errors.Errorf("TODO: Multi-application containers are not supported")
+		return errors.Errorf("TODO: Multi-application pods are not supported")
 	}
 
 	if len(c.Manifest.Isolators) != 0 {
@@ -149,7 +147,7 @@ func (c *Container) Load() error {
 	return nil
 }
 
-func (c *Container) jailConf() string {
+func (c *Pod) jailConf() string {
 	parameters := map[string]string{
 		"devfs_ruleset": "4",
 		"exec.clean":    "true",
@@ -169,7 +167,7 @@ func (c *Container) jailConf() string {
 	if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
 		parameters["ip4.addr"] = ip
 	} else {
-		panic(fmt.Sprintf("No IP address for container %v", c.Manifest.UUID))
+		panic(fmt.Sprintf("No IP address for pod %v", c.Manifest.UUID))
 	}
 
 	for _, antn := range c.Manifest.Annotations {
@@ -187,9 +185,9 @@ func (c *Container) jailConf() string {
 	return fmt.Sprintf("%#v {\n%v\n}\n", c.jailName(), strings.Join(lines, "\n"))
 }
 
-func (c *Container) prepJail() error {
+func (c *Pod) prepJail() error {
 	if len(c.Manifest.Apps) != 1 {
-		return errors.New("FIXME: Only one-app containers are supported!")
+		return errors.New("FIXME: Only one-app pods are supported!")
 	}
 
 	var fstab []string
@@ -249,7 +247,7 @@ func (c *Container) prepJail() error {
 
 			fulfilledMountPoints[mnt.MountPoint] = true
 
-			containerPath := c.Path("rootfs", mntPoint.Path)
+			podPath := c.Path("rootfs", mntPoint.Path)
 			hostPath := vol.Source
 
 			if vol.Kind == "empty" {
@@ -258,7 +256,7 @@ func (c *Container) prepJail() error {
 					return errors.Trace(err)
 				}
 				var st unix.Stat_t
-				if err := unix.Stat(containerPath, &st); err != nil {
+				if err := unix.Stat(podPath, &st); err != nil {
 					if !os.IsNotExist(err) {
 						return errors.Trace(err)
 					} else {
@@ -284,7 +282,7 @@ func (c *Container) prepJail() error {
 			}
 
 			fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 0 0\n",
-				hostPath, containerPath, opts))
+				hostPath, podPath, opts))
 		}
 
 		var unfulfilled []types.ACName
@@ -310,21 +308,21 @@ func (c *Container) prepJail() error {
 		ioutil.WriteFile(c.Path("jail.conf"), []byte(c.jailConf()), 0400))
 }
 
-func (c *Container) Status() ContainerStatus {
+func (c *Pod) Status() PodStatus {
 	if status, err := c.jailStatus(false); err != nil {
 		panic(err)
 	} else {
 		if status == NoJailStatus {
-			return ContainerStatusStopped
+			return PodStatusStopped
 		}
 		if status.Dying {
-			return ContainerStatusDying
+			return PodStatusDying
 		}
-		return ContainerStatusRunning
+		return PodStatusRunning
 	}
 }
 
-func (c *Container) runJail(op string) error {
+func (c *Pod) runJail(op string) error {
 	if err := c.prepJail(); err != nil {
 		return err
 	}
@@ -335,53 +333,53 @@ func (c *Container) runJail(op string) error {
 	return run.Command("jail", "-f", c.Path("jail.conf"), verbosity, op, c.jailName()).Run()
 }
 
-func (c *Container) Kill() error {
+func (c *Pod) Kill() error {
 	t0 := time.Now()
 retry:
 	switch status := c.Status(); status {
-	case ContainerStatusStopped:
+	case PodStatusStopped:
 		// All's fine
 		return nil
-	case ContainerStatusRunning:
+	case PodStatusRunning:
 		if err := c.runJail("-r"); err != nil {
 			return errors.Trace(err)
 		}
 		goto retry
-	case ContainerStatusDying:
+	case PodStatusDying:
 		// TODO: UI? Log?
-		fmt.Printf("Container dying since %v, waiting...\n", time.Now().Sub(t0))
+		fmt.Printf("Pod dying since %v, waiting...\n", time.Now().Sub(t0))
 		time.Sleep(2500 * time.Millisecond)
 		goto retry
 	default:
-		return errors.Errorf("Container is %v, I am confused", status)
+		return errors.Errorf("Pod is %v, I am confused", status)
 	}
 }
 
-// FIXME: multi-app containers
-func (c *Container) getDataset() *zfs.Dataset {
-	ds, err := c.Host.Dataset.GetDataset(path.Join("containers", c.UUID.String()))
+// FIXME: multi-app pods
+func (c *Pod) getDataset() *zfs.Dataset {
+	ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.UUID.String()))
 	if err != nil {
 		panic(err)
 	}
 	return ds
 }
 
-func (c *Container) Destroy() error {
+func (c *Pod) Destroy() error {
 	if err := c.getDataset().Destroy("-r"); err != nil {
 		return errors.Trace(err)
 	}
 	return errors.Trace(os.RemoveAll(c.Path()))
 }
 
-func (c *Container) jailName() string {
+func (c *Pod) jailName() string {
 	return c.Host.Properties.MustGetString("jail.namePrefix") + c.Manifest.UUID.String()
 }
 
-func (c *Container) jailStatus(refresh bool) (JailStatus, error) {
+func (c *Pod) jailStatus(refresh bool) (JailStatus, error) {
 	return c.Host.getJailStatus(c.jailName(), refresh)
 }
 
-func (c *Container) Jid() int {
+func (c *Pod) Jid() int {
 	if status, err := c.jailStatus(false); err != nil {
 		panic(err) // do we need to?
 	} else {
@@ -389,7 +387,7 @@ func (c *Container) Jid() int {
 	}
 }
 
-func (c *Container) Run(rtapp schema.RuntimeApp) (err1 error) {
+func (c *Pod) Run(rtapp schema.RuntimeApp) (err1 error) {
 	if err := errors.Trace(c.runJail("-c")); err != nil {
 		return errors.Trace(err)
 	}
@@ -405,7 +403,7 @@ func (c *Container) Run(rtapp schema.RuntimeApp) (err1 error) {
 	return c.Stage2(rtapp)
 }
 
-func (c *Container) Stage2(rtapp schema.RuntimeApp) error {
+func (c *Pod) Stage2(rtapp schema.RuntimeApp) error {
 	img, err := c.Host.GetImageByHash(rtapp.Image.ID)
 	if err != nil {
 		return errors.Trace(err)
@@ -450,15 +448,15 @@ func (c *Container) Stage2(rtapp schema.RuntimeApp) error {
 	return run.Command(filepath.Join(LibexecPath, "stage2"), args...).Run()
 }
 
-type ContainerSlice []*Container
+type PodSlice []*Pod
 
-func (cc ContainerSlice) Len() int { return len(cc) }
-func (cc ContainerSlice) Less(i, j int) bool {
+func (cc PodSlice) Len() int { return len(cc) }
+func (cc PodSlice) Less(i, j int) bool {
 	return bytes.Compare(cc[i].Manifest.UUID[:], cc[j].Manifest.UUID[:]) < 0
 }
-func (cc ContainerSlice) Swap(i, j int) { cc[i], cc[j] = cc[j], cc[i] }
+func (cc PodSlice) Swap(i, j int) { cc[i], cc[j] = cc[j], cc[i] }
 
-func (cc ContainerSlice) Table() [][]string {
+func (cc PodSlice) Table() [][]string {
 	rows := make([][]string, len(cc)+1)
 	rows[0] = []string{"UUID", "IMAGE", "APP", "IP", "STATUS"}
 	for i, c := range cc {

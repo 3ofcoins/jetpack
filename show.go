@@ -144,16 +144,16 @@ func Show(prefix string, objs ...interface{}) error {
 
 			items := []interface{}{metadata, img.Manifest}
 
-			if cc := img.Containers(); len(cc) > 0 {
+			if cc := img.Pods(); len(cc) > 0 {
 				sort.Sort(cc)
-				items = append(items, Section("Containers:", cc.Table()))
+				items = append(items, Section("Pods:", cc.Table()))
 			}
 
 			return errors.Trace(ShowSection(prefix, fmt.Sprintf("Image %v", img.UUID), items...))
 		}
 
-	case *jetpack.Container:
-		c := obj.(*jetpack.Container)
+	case *jetpack.Pod:
+		c := obj.(*jetpack.Pod)
 		items := []interface{}{c.Manifest}
 		for _, app := range c.Manifest.Apps {
 			if img, err := c.Host.GetImageByHash(app.Image.ID); err != nil {
@@ -163,7 +163,7 @@ func Show(prefix string, objs ...interface{}) error {
 			}
 		}
 
-		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Container %v", c.Manifest.UUID), items...))
+		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Pod %v", c.Manifest.UUID), items...))
 
 	case schema.ImageManifest:
 		manifest := obj.(schema.ImageManifest)
