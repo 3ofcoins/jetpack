@@ -12,7 +12,7 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 
 type crmFlag struct {
-	v *schema.ContainerRuntimeManifest
+	v *schema.PodManifest
 }
 
 func (cf crmFlag) String() string {
@@ -117,23 +117,23 @@ Flags: `)
 	}
 }
 
-func ConstructCRM(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*schema.RuntimeApp, error)) (*schema.ContainerRuntimeManifest, error) {
+func ConstructCRM(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*schema.RuntimeApp, error)) (*schema.PodManifest, error) {
 	if fl == nil {
 		fl = flag.NewFlagSet("ConstructCRM", flag.ContinueOnError)
 	}
 	fl.Usage = constructCRMHelp(fl)
 
-	crm := schema.BlankContainerRuntimeManifest()
+	pm := schema.BlankPodManifest()
 	if newUUID, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
 		// CAN'T HAPPEN
 		panic(err)
 	} else {
-		crm.UUID = *newUUID
+		pm.UUID = *newUUID
 	}
 
-	fl.Var(crmFlag{crm}, "f", "Load JSON with (partial or full) container manifest")
-	fl.Var(volumesFlag{&crm.Volumes}, "v", "Add volume")
-	fl.Var(annotationsFlag{&crm.Annotations}, "a", "Add annotation")
+	fl.Var(crmFlag{pm}, "f", "Load JSON with (partial or full) container manifest")
+	fl.Var(volumesFlag{&pm.Volumes}, "v", "Add volume")
+	fl.Var(annotationsFlag{&pm.Annotations}, "a", "Add annotation")
 	// TODO: isolatorsFlag
 
 	if err := fl.Parse(args); err != nil {
@@ -148,9 +148,9 @@ func ConstructCRM(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*
 			if err := fl.Parse(args[1:]); err != nil {
 				return nil, err
 			}
-			crm.Apps = append(crm.Apps, *rapp)
+			pm.Apps = append(pm.Apps, *rapp)
 		}
 	}
 
-	return crm, nil
+	return pm, nil
 }

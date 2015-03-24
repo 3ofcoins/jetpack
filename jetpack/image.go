@@ -257,7 +257,7 @@ func (img *Image) Clone(dest, mountpoint string) (*zfs.Dataset, error) {
 func (img *Image) RuntimeApp() schema.RuntimeApp {
 	app := schema.RuntimeApp{
 		Name:  img.Manifest.Name,
-		Image: schema.RuntimeImage{Name: img.Manifest.Name},
+		Image: schema.RuntimeImage{Name: &img.Manifest.Name},
 	}
 	app.Annotations.Set("jetpack/image-uuid", img.UUID.String())
 	if img.Hash != nil {

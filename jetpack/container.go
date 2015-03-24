@@ -48,7 +48,7 @@ func (cs ContainerStatus) String() string {
 type Container struct {
 	UUID     uuid.UUID
 	Host     *Host
-	Manifest schema.ContainerRuntimeManifest
+	Manifest schema.PodManifest
 
 	sealed bool
 }
@@ -57,7 +57,7 @@ func NewContainer(h *Host, id uuid.UUID) *Container {
 	if id == nil {
 		id = uuid.NewRandom()
 	}
-	c := &Container{Host: h, UUID: id, Manifest: *schema.BlankContainerRuntimeManifest()}
+	c := &Container{Host: h, UUID: id, Manifest: *schema.BlankPodManifest()}
 	if mid, err := types.NewUUID(id.String()); err != nil {
 		// CAN'T HAPPEN
 		panic(err)
@@ -279,7 +279,7 @@ func (c *Container) prepJail() error {
 			}
 
 			opts := "rw"
-			if vol.ReadOnly || mntPoint.ReadOnly {
+			if (vol.ReadOnly != nil && *vol.ReadOnly) || mntPoint.ReadOnly {
 				opts = "ro"
 			}
 
@@ -485,29 +485,30 @@ func (cc ContainerSlice) Table() [][]string {
 	return rows
 }
 
-func ContainerRuntimeManifest(imgs []*Image) *schema.ContainerRuntimeManifest {
+func PodManifest(imgs []*Image) *schema.PodManifest {
 	if len(imgs) != 1 {
 		panic("FIXME: only one-image manifests are supported")
 	}
-	crm := schema.BlankContainerRuntimeManifest()
+	pm := schema.BlankPodManifest()
 
 	if id, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
 		panic(err)
 	} else {
-		crm.UUID = *id
+		pm.UUID = *id
 	}
 
-	crm.Apps = make([]schema.RuntimeApp, len(imgs))
+	pm.Apps = make([]schema.RuntimeApp, len(imgs))
 	for i, img := range imgs {
-		crm.Apps[i] = img.RuntimeApp()
+		pm.Apps[i] = img.RuntimeApp()
 		if img.Manifest.App != nil {
 			for _, mnt := range img.Manifest.App.MountPoints {
-				crm.Volumes = append(crm.Volumes, types.Volume{
+				ro := mnt.ReadOnly
+				pm.Volumes = append(pm.Volumes, types.Volume{
 					Kind:     "empty",
 					Name:     mnt.Name,
-					ReadOnly: mnt.ReadOnly,
+					ReadOnly: &ro,
 				})
-				crm.Apps[i].Mounts = append(crm.Apps[i].Mounts, schema.Mount{
+				pm.Apps[i].Mounts = append(pm.Apps[i].Mounts, schema.Mount{
 					Volume:     mnt.Name,
 					MountPoint: mnt.Name,
 				})
@@ -515,5 +516,5 @@ func ContainerRuntimeManifest(imgs []*Image) *schema.ContainerRuntimeManifest {
 		}
 	}
 
-	return crm
+	return pm
 }

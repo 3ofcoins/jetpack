@@ -173,8 +173,8 @@ func Show(prefix string, objs ...interface{}) error {
 			manifest.Annotations,
 			manifest.Dependencies)
 
-	case schema.ContainerRuntimeManifest:
-		manifest := obj.(schema.ContainerRuntimeManifest)
+	case schema.PodManifest:
+		manifest := obj.(schema.PodManifest)
 		return ShowSection(prefix, "Manifest",
 			manifest.Apps,
 			manifest.Volumes,
@@ -234,7 +234,7 @@ func Show(prefix string, objs ...interface{}) error {
 			tbl := make([]interface{}, len(vols))
 			for i, vol := range vols {
 				hdr := string(vol.Name)
-				if vol.ReadOnly {
+				if vol.ReadOnly != nil && *vol.ReadOnly {
 					hdr += " (ro)"
 				}
 

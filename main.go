@@ -225,18 +225,18 @@ Helpful Aliases:
 			fl.BoolVar(&doRun, "run", false, "Run container immediately")
 			fl.BoolVar(&doDestroy, "destroy", false, "Destroy container after running (meaningless without -run)")
 
-			if crm, err := ConstructCRM(args, fl, getRuntimeApp); err == flag.ErrHelp {
+			if pm, err := ConstructCRM(args, fl, getRuntimeApp); err == flag.ErrHelp {
 				// It's all right. Help has been shown.
 			} else if err != nil {
 				panic(err)
 			} else if dryRun {
-				if jb, err := json.MarshalIndent(crm, "", "  "); err != nil {
+				if jb, err := json.MarshalIndent(pm, "", "  "); err != nil {
 					panic(err)
 				} else {
 					fmt.Println(string(jb))
 				}
 			} else {
-				container, err := Host.CreateContainer(crm)
+				container, err := Host.CreateContainer(pm)
 				die(err)
 				if doRun {
 					die(container.Run(container.Manifest.Apps[0]))

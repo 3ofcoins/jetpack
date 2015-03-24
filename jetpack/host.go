@@ -198,15 +198,15 @@ func (h *Host) NewContainer() *Container {
 	return NewContainer(h, nil)
 }
 
-func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container, error) {
-	if len(crm.Apps) != 1 {
+func (h *Host) CreateContainer(pm *schema.PodManifest) (*Container, error) {
+	if len(pm.Apps) != 1 {
 		return nil, errors.New("Only single application containers are supported")
 	}
 
-	c := NewContainer(h, uuid.Parse(crm.UUID.String()))
-	c.Manifest = *crm
+	c := NewContainer(h, uuid.Parse(pm.UUID.String()))
+	c.Manifest = *pm
 
-	for _, app := range crm.Apps {
+	for _, app := range pm.Apps {
 		uuid_str, err := os.Readlink(h.imagesDS.Path(app.Image.ID.String()))
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -262,7 +262,7 @@ func (h *Host) CreateContainer(crm *schema.ContainerRuntimeManifest) (*Container
 
 func (h *Host) CloneContainer(img *Image) (*Container, error) {
 	// DEPRECATED
-	return h.CreateContainer(ContainerRuntimeManifest([]*Image{img}))
+	return h.CreateContainer(PodManifest([]*Image{img}))
 }
 
 func (h *Host) GetContainer(id uuid.UUID) (*Container, error) {
