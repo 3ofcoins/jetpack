@@ -1,5 +1,5 @@
 code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUIDs
-github.com/appc/spec bf255ef (HEAD, tag: v0.4.1) version: bump to v0.4.1
+github.com/appc/spec cffea39 (HEAD, tag: v0.5.0) version: bump to v0.5.0
 github.com/juju/errors 036046b (HEAD, origin/master, origin/HEAD, master) Merge pull request #16 from mattyw/minor-panic-fix
 github.com/magiconair/properties 70f4111 (HEAD, tag: v1.5.1, origin/master, origin/HEAD, master) Added GetParsedDuration()/MustGetParsedDuration()
 golang.org/x/sys bfff0ae (HEAD, origin/master, origin/HEAD, master) unix: Add UnlinkAt on Linux with third flags argument

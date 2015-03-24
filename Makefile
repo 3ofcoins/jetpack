@@ -62,7 +62,7 @@ jetpack/const.go: .PHONY
 integration/const.go: .PHONY
 	echo 'package jetpack_integration ${const.integration:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
 
-APPC_SPEC_VERSION=v0.4.1
+APPC_SPEC_VERSION=v0.5.0
 
 vendor.refetch: .PHONY
 	rm -rf vendor
