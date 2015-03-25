@@ -64,7 +64,7 @@ lines to `/etc/rc.conf`:
 
 The main IP address of the interface will be used as the host
 address. Remaining addresses within its IP range (in this case,
-172.23.0.2 to 172.23.255.254) will be assigned to the containers. IPv6
+172.23.0.2 to 172.23.255.254) will be assigned to the pods. IPv6
 is currently not supported.
 
 The simplest way to provide internet access to the jails is to NAT the
@@ -75,12 +75,12 @@ would be:
     nat pass on $ext_if from lo1:network to any -> $ext_if
 
 where `$ext_if` is your external network interface. A more
-sopihisticated setup can be desired to limit containers'
+sopihisticated setup can be desired to limit pods'
 connectivity. In the long run, Jetpack will probably manage its own
 `pf` anchor.
 
 Currently, Jetpack copies `/etc/resolv.conf` file from host to
-containers. In future, it will be possible to configure custom DNS
+pods. In future, it will be possible to configure custom DNS
 servers (like a local unbound or dnsmasq).
 
 ### Using Jetpack
@@ -106,36 +106,35 @@ You will probably want to build `freebsd-base.release` image (pure
 FreeBSD-10.1 system from `base.txz` distfile), and then `freebsd-base`
 (which runs `freebsd-update` on the previous one). After that, you can
 build `example.showenv`, which runs a basic smoke test (shows details
-of its container's inside).
+of its pod's inside).
 
 Run `jetpack image list` or `jetpack images` to list available images.
 
-You create containers from images, then run the containers:
+You create pods from images, then run the pods:
 
-    jetpack container create freebsd-base
+    jetpack pod create freebsd-base
 
-Note the container UUID printed by the above command (no user-friendly
-container names yet) or get it from the container list (run `jetpack
-container list` or `jetpack containers` to see the list). Then run the
-container:
+Note the pod UUID printed by the above command (no user-friendly pod
+names yet) or get it from the pod list (run `jetpack pod list` or
+`jetpack pods` to see the list). Then run the pod:
 
-    jetpack container $UUID run
+    jetpack pod $UUID run
 
-The above command will drop you into root console of the
-container. After you're finished, you can run the container
-again. Once you're done with the container, you can destroy it:
+The above command will drop you into root console of the pod. After
+you're finished, you can run the pod again. Once you're done with the
+pod, you can destroy it:
 
-    jetpack container $UUID destroy
+    jetpack pod $UUID destroy
 
 You can also look at the "showenv" example:
 
-    jetpack container create example/showenv
-    jetpack container $UUID run
+    jetpack pod create example/showenv
+    jetpack pod $UUID run
 
-To poke inside a container that, like the "showenv" example, runs a
-useful command instead of a console, use the `console` subcommand:
+To poke inside a pod that, like the "showenv" example, runs a useful
+command instead of a console, use the `console` subcommand:
 
-    jetpack container $UUID console
+    jetpack pod $UUID console
 
 Run `jetpack help` to see info on remaining available commands, and if
 something needs clarification, create an issue at
@@ -153,14 +152,14 @@ Features, or The Laundry List
  - Stage0
    - [x] Image import from ACI
    - [x] Image building
-   - [x] Clone container from image and run it
-   - [ ] Full container lifecycle (Stage0/Stage1 interaction)
-   - [ ] Multi-application containers
+   - [x] Clone pod from image and run it
+   - [ ] Full pod lifecycle (Stage0/Stage1 interaction)
+   - [ ] Multi-application pods
    - [ ] Image discovery
  - Stage1
    - [x] Isolation via jails
    - [ ] Volumes
-   - [ ] Multi-application containers
+   - [ ] Multi-application pods
    - [ ] Firewall integration
    - [ ] Metadata endpoint
    - [ ] Isolators
@@ -171,7 +170,7 @@ Features, or The Laundry List
    - [ ] Event Handlers
    - [ ] Isolators
  - CLI
-   - [X] Specify image/container by name & labels, not only UUID
+   - [X] Specify image/pod by name & labels, not only UUID
    - [ ] Consistent options for specifying application options (CLI,
          JSON file)
  - General TODO
@@ -187,7 +186,7 @@ Features, or The Laundry List
          - [ ] Maybe some variant of tags that would be unique per
                name?
    - [ ] `/etc/rc.d/jetpack` (`/etc/rc.d/jetpack_` for individual
-         containers?) to start containers at boot time, and generally
+         pods?) to start pods at boot time, and generally
          manage them as services
    - If/when we get enough live runtime data to make it complicated,
      maybe a centralized indexed storage, like SQLite? This could also
