@@ -380,7 +380,21 @@ func (c *Pod) Jid() int {
 	}
 }
 
-func (c *Pod) Run(rtapp schema.RuntimeApp) (err1 error) {
+func (c *Pod) RunNamedApp(name types.ACName) error {
+	if rta := c.Manifest.Apps.Get(name); rta != nil {
+		return c.RunApp(rta)
+	}
+	return ErrNotFound
+}
+
+func (c *Pod) RunNthApp(idx int) error {
+	if len(c.Manifest.Apps) <= idx {
+		return ErrNotFound
+	}
+	return c.RunApp(&c.Manifest.Apps[idx])
+}
+
+func (c *Pod) RunApp(rtapp *schema.RuntimeApp) (err1 error) {
 	if err := errors.Trace(c.runJail("-c")); err != nil {
 		return errors.Trace(err)
 	}
@@ -393,23 +407,21 @@ func (c *Pod) Run(rtapp schema.RuntimeApp) (err1 error) {
 			}
 		}
 	}()
-	return c.Stage2(rtapp)
-}
-
-func (c *Pod) Stage2(rtapp schema.RuntimeApp) error {
-	img, err := c.Host.GetImageByHash(rtapp.Image.ID)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
 	app := rtapp.App
 	if app == nil {
+		img, err := c.Host.GetImageByHash(rtapp.Image.ID)
+		if err != nil {
+			return errors.Trace(err)
+		}
 		app = img.Manifest.App
+		if app == nil {
+			app = ConsoleApp("root")
+		}
 	}
+	return c.Stage2(rtapp.Name, app)
+}
 
-	if app == nil {
-		app = ConsoleApp("root")
-	}
+func (c *Pod) Stage2(name types.ACName, app *types.App) error {
 
 	jid := c.Jid()
 	if jid == 0 {
@@ -425,7 +437,7 @@ func (c *Pod) Stage2(rtapp schema.RuntimeApp) error {
 		"-jid", strconv.Itoa(jid),
 		"-user", user,
 		"-group", app.Group,
-		"-name", string(rtapp.Name),
+		"-name", string(name),
 	}
 
 	if app.WorkingDirectory != "" {

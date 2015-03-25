@@ -239,7 +239,7 @@ Helpful Aliases:
 				pod, err := Host.CreatePod(pm)
 				die(err)
 				if doRun {
-					die(pod.Run(pod.Manifest.Apps[0]))
+					die(pod.RunNthApp(0))
 					if doDestroy {
 						die(pod.Destroy())
 					}
@@ -268,7 +268,7 @@ Helpful Aliases:
 			case "show":
 				show(pod)
 			case "run":
-				die(pod.Run(pod.Manifest.Apps[0]))
+				die(pod.RunNthApp(0))
 			case "console":
 				user := "root"
 				if len(args) != 0 {
@@ -276,7 +276,7 @@ Helpful Aliases:
 				}
 				rtapp := pod.Manifest.Apps[0]
 				rtapp.App = jetpack.ConsoleApp(user)
-				die(pod.Run(rtapp))
+				die(pod.RunApp(&rtapp))
 			case "ps", "top", "killall":
 				jid := pod.Jid()
 				if jid == 0 {
