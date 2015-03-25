@@ -13,7 +13,6 @@ import "strconv"
 import "strings"
 import "time"
 
-import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
@@ -195,7 +194,7 @@ func (h *Host) nextIP() (net.IP, error) {
 }
 
 func (h *Host) NewPod() *Pod {
-	return NewPod(h, nil)
+	return NewPod(h, ZeroUUID)
 }
 
 func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
@@ -203,8 +202,8 @@ func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 		return nil, errors.New("Only single application pods are supported")
 	}
 
-	c := NewPod(h, uuid.Parse(pm.UUID.String()))
-	c.Manifest = *pm
+	// FIXME: method for that?
+	c := &Pod{Host: h, Manifest: *pm}
 
 	for _, app := range pm.Apps {
 		uuid_str, err := os.Readlink(h.imagesDS.Path(app.Image.ID.String()))
@@ -212,19 +211,19 @@ func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 			return nil, errors.Trace(err)
 		}
 
-		uuid := uuid.Parse(uuid_str)
-		if uuid == nil {
+		id, err := types.NewUUID(uuid_str)
+		if err != nil {
 			panic(fmt.Sprintf("Invalid UUID: %#v", uuid_str))
 		}
 
-		img, err := h.GetImage(uuid)
+		img, err := h.GetImage(*id)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 
 		// FIXME: code until end of `for` depends on len(pm.Apps)==1
 
-		ds, err := img.Clone(path.Join(h.podsDS.Name, c.UUID.String()), c.Path("rootfs"))
+		ds, err := img.Clone(path.Join(h.podsDS.Name, c.Manifest.UUID.String()), c.Path("rootfs"))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -265,7 +264,7 @@ func (h *Host) ClonePod(img *Image) (*Pod, error) {
 	return h.CreatePod(PodManifest([]*Image{img}))
 }
 
-func (h *Host) GetPod(id uuid.UUID) (*Pod, error) {
+func (h *Host) GetPod(id types.UUID) (*Pod, error) {
 	if c, err := LoadPod(h, id); err != nil {
 		return nil, errors.Trace(err)
 	} else {
@@ -274,8 +273,8 @@ func (h *Host) GetPod(id uuid.UUID) (*Pod, error) {
 }
 
 func (h *Host) FindPod(query string) (*Pod, error) {
-	if id := uuid.Parse(query); id != nil {
-		return h.GetPod(id)
+	if id, err := types.NewUUID(query); err == nil {
+		return h.GetPod(*id)
 	}
 	return nil, ErrNotFound
 }
@@ -284,8 +283,10 @@ func (h *Host) Pods() PodSlice {
 	mm, _ := filepath.Glob(h.Path("pods/*/manifest"))
 	rv := make(PodSlice, 0, len(mm))
 	for _, m := range mm {
-		if c, err := h.GetPod(uuid.Parse(filepath.Base(filepath.Dir(m)))); err != nil {
-			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.UUID, err)
+		if id, err := types.NewUUID(filepath.Base(filepath.Dir(m))); err != nil {
+			panic(err)
+		} else if c, err := h.GetPod(*id); err != nil {
+			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.Manifest.UUID, err)
 		} else {
 			rv = append(rv, c)
 		}
@@ -293,16 +294,23 @@ func (h *Host) Pods() PodSlice {
 	return rv
 }
 
-func (h *Host) GetImage(id uuid.UUID) (*Image, error) {
+func (h *Host) GetImage(id types.UUID) (*Image, error) {
 	if lines, err := h.imagesDS.ZfsFields("list", "-tfilesystem", "-d1", "-oname"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		for _, ln := range lines {
-			if uuid.Equal(id, uuid.Parse(path.Base(ln[0]))) {
+			if ln[0] == h.imagesDS.Name {
+				continue
+			}
+			if curId, err := types.NewUUID(path.Base(ln[0])); err != nil {
+				return nil, errors.Trace(err)
+			} else if *curId == id {
 				if ds, err := zfs.GetDataset(ln[0]); err != nil {
 					return nil, errors.Trace(err)
+				} else if id, err := types.NewUUID(filepath.Base(ds.Name)); err != nil {
+					return nil, errors.Trace(err)
 				} else {
-					img := NewImage(h, uuid.Parse(filepath.Base(ds.Name)))
+					img := NewImage(h, *id)
 					if err := img.Load(); err != nil {
 						return nil, errors.Trace(err)
 					} else {
@@ -323,10 +331,10 @@ func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
 			return nil, errors.Trace(err)
 		}
 	} else {
-		if id := uuid.Parse(idStr); id == nil {
+		if id, err := types.NewUUID(idStr); err != nil {
 			return nil, errors.Errorf("Invalid UUID: %v", idStr)
 		} else {
-			return h.GetImage(id)
+			return h.GetImage(*id)
 		}
 	}
 }
@@ -346,8 +354,14 @@ func (h *Host) Images() ImageSlice {
 			}
 		}
 
-		if img, err := h.GetImage(uuid.Parse(filepath.Base(d))); err != nil {
-			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", img.UUID, err)
+		if id, err := types.NewUUID(filepath.Base(d)); err != nil {
+			panic(err)
+		} else if img, err := h.GetImage(*id); err != nil {
+			id := filepath.Base(d)
+			if img != nil {
+				id = img.UUID.String()
+			}
+			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", id, err)
 		} else {
 			rv = append(rv, img)
 		}
@@ -366,8 +380,8 @@ func (h *Host) FindImages(query string) (ImageSlice, error) {
 	}
 
 	// Try UUID
-	if uuid := uuid.Parse(query); uuid != nil {
-		if img, err := h.GetImage(uuid); err != nil {
+	if id, err := types.NewUUID(query); err == nil {
+		if img, err := h.GetImage(*id); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			return ImageSlice{img}, nil
@@ -432,8 +446,8 @@ images:
 
 func (h *Host) FindImage(query string) (*Image, error) {
 	// Optimize for simple case
-	if id := uuid.Parse(query); id != nil {
-		if img, err := h.GetImage(id); err != nil {
+	if id, err := types.NewUUID(query); err == nil {
+		if img, err := h.GetImage(*id); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			return img, nil
@@ -452,7 +466,7 @@ func (h *Host) FindImage(query string) (*Image, error) {
 }
 
 func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
-	newId := uuid.NewRandom()
+	newId := RandomUUID()
 	newIdStr := newId.String()
 	if _, err := h.imagesDS.CreateDataset(newIdStr, "-o", "mountpoint="+h.imagesDS.Path(newIdStr, "rootfs")); err != nil {
 		return nil, errors.Trace(err)

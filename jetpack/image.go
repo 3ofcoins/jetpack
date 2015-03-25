@@ -15,7 +15,6 @@ import "sort"
 import "strings"
 import "time"
 
-import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
@@ -26,7 +25,7 @@ import "../zfs"
 const imageSnapshotName = "seal"
 
 type Image struct {
-	UUID     uuid.UUID            `json:"-"`
+	UUID     types.UUID           `json:"-"`
 	Host     *Host                `json:"-"`
 	Manifest schema.ImageManifest `json:"-"`
 
@@ -37,9 +36,9 @@ type Image struct {
 	rootfs *zfs.Dataset
 }
 
-func NewImage(h *Host, id uuid.UUID) *Image {
-	if id == nil {
-		panic("Image UUID can't be nil!")
+func NewImage(h *Host, id types.UUID) *Image {
+	if id.Empty() {
+		panic(types.ErrNoEmptyUUID)
 	}
 	return &Image{Host: h, UUID: id, Manifest: *schema.BlankImageManifest()}
 }
@@ -266,18 +265,10 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 		// TODO: do we really need to store ACI tarballs to have an image ID on built images?
 		app.Image.ID.Set(fmt.Sprintf(
 			"sha512-000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000%032x",
-			[]byte(img.UUID),
+			img.UUID,
 		))
 	}
 	return app
-}
-
-func (img *Image) GetApp() *types.App {
-	if img.Manifest.App != nil {
-		return img.Manifest.App
-	} else {
-		return ConsoleApp("root")
-	}
 }
 
 func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
@@ -341,7 +332,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	// Pivot pod into an image
-	childImage := NewImage(img.Host, buildPod.UUID)
+	childImage := NewImage(img.Host, buildPod.Manifest.UUID)
 
 	ds := buildPod.getDataset() // FIXME: getDataset()
 	if err := ds.Set("mountpoint", childImage.Path("rootfs")); err != nil {
@@ -417,9 +408,11 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 // For sorting
 type ImageSlice []*Image
 
-func (imgs ImageSlice) Len() int           { return len(imgs) }
-func (imgs ImageSlice) Less(i, j int) bool { return bytes.Compare(imgs[i].UUID, imgs[j].UUID) < 0 }
-func (imgs ImageSlice) Swap(i, j int)      { imgs[i], imgs[j] = imgs[j], imgs[i] }
+func (imgs ImageSlice) Len() int { return len(imgs) }
+func (imgs ImageSlice) Less(i, j int) bool {
+	return bytes.Compare(imgs[i].UUID[:], imgs[j].UUID[:]) < 0
+}
+func (imgs ImageSlice) Swap(i, j int) { imgs[i], imgs[j] = imgs[j], imgs[i] }
 
 func (imgs ImageSlice) Table() [][]string {
 	rows := make([][]string, len(imgs)+1)

@@ -14,7 +14,6 @@ import "time"
 
 import "golang.org/x/sys/unix"
 
-import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
@@ -46,30 +45,24 @@ func (cs PodStatus) String() string {
 }
 
 type Pod struct {
-	UUID     uuid.UUID
 	Host     *Host
 	Manifest schema.PodManifest
 
 	sealed bool
 }
 
-func NewPod(h *Host, id uuid.UUID) *Pod {
-	if id == nil {
-		id = uuid.NewRandom()
+func NewPod(h *Host, id types.UUID) *Pod {
+	if id.Empty() {
+		id = RandomUUID()
 	}
-	c := &Pod{Host: h, UUID: id, Manifest: *schema.BlankPodManifest()}
-	if mid, err := types.NewUUID(id.String()); err != nil {
-		// CAN'T HAPPEN
-		panic(err)
-	} else {
-		c.Manifest.UUID = *mid
-	}
+	c := &Pod{Host: h, Manifest: *schema.BlankPodManifest()}
+	c.Manifest.UUID = id
 	return c
 }
 
-func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
-	if id == nil {
-		panic("Pod UUID can't be nil!")
+func LoadPod(h *Host, id types.UUID) (*Pod, error) {
+	if id.Empty() {
+		panic(types.ErrNoEmptyUUID)
 	}
 	c := NewPod(h, id)
 	if err := c.Load(); err != nil {
@@ -90,7 +83,7 @@ func (c *Pod) Save() error {
 
 func (c *Pod) Path(elem ...string) string {
 	return c.Host.Path(append(
-		[]string{"pods", c.UUID.String()},
+		[]string{"pods", c.Manifest.UUID.String()},
 		elem...,
 	)...)
 }
@@ -357,7 +350,7 @@ retry:
 
 // FIXME: multi-app pods
 func (c *Pod) getDataset() *zfs.Dataset {
-	ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.UUID.String()))
+	ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.Manifest.UUID.String()))
 	if err != nil {
 		panic(err)
 	}
@@ -487,13 +480,7 @@ func PodManifest(imgs []*Image) *schema.PodManifest {
 	if len(imgs) != 1 {
 		panic("FIXME: only one-image manifests are supported")
 	}
-	pm := schema.BlankPodManifest()
-
-	if id, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
-		panic(err)
-	} else {
-		pm.UUID = *id
-	}
+	pm := NewPodManifest()
 
 	pm.Apps = make([]schema.RuntimeApp, len(imgs))
 	for i, img := range imgs {

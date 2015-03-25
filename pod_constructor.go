@@ -7,9 +7,10 @@ import "io/ioutil"
 import "os"
 import "strings"
 
-import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
+
+import "./jetpack"
 
 type podFlag struct {
 	v *schema.PodManifest
@@ -123,13 +124,7 @@ func ConstructPod(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*
 	}
 	fl.Usage = constructPodHelp(fl)
 
-	pm := schema.BlankPodManifest()
-	if newUUID, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
-		// CAN'T HAPPEN
-		panic(err)
-	} else {
-		pm.UUID = *newUUID
-	}
+	pm := jetpack.NewPodManifest()
 
 	fl.Var(podFlag{pm}, "f", "Load JSON with (partial or full) pod manifest")
 	fl.Var(volumesFlag{&pm.Volumes}, "v", "Add volume")

@@ -10,7 +10,9 @@ import "io"
 import "net"
 import "os"
 
+import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/aci"
+import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
@@ -23,6 +25,23 @@ func untilError(steps ...func() error) error {
 		}
 	}
 	return nil
+}
+
+var ZeroUUID = types.UUID{}
+
+func RandomUUID() types.UUID {
+	if newUUID, err := types.NewUUID(uuid.NewRandom().String()); err != nil {
+		// CAN'T HAPPEN
+		panic(err)
+	} else {
+		return *newUUID
+	}
+}
+
+func NewPodManifest() *schema.PodManifest {
+	pm := schema.BlankPodManifest()
+	pm.UUID = RandomUUID()
+	return pm
 }
 
 // FIXME: mostly copy/paste from github.com/appc/spec/actool/validate.go
