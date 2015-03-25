@@ -1,5 +1,5 @@
 JETPACK ?= jetpack
-BUILD_COMMAND ?= make .jetpack.build.
+BUILD_COMMAND ?= /usr/bin/make .jetpack.build.
 # BUILD_DIR ?= .
 CLEAN_FILES ?=
 # IMPORT_FILE
