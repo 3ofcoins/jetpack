@@ -269,22 +269,46 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 	return app
 }
 
-func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
-	var buildPod *Pod
-	if c, err := img.Host.ClonePod(img); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		buildPod = c
+func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
+	bpm := NewPodManifest()
+
+	// Figure out working path that doesn't exist in the image's rootfs
+	workDir := ".jetpack.build."
+	for {
+		if _, err := os.Stat(img.getRootfs().Path(workDir)); err != nil {
+			if os.IsNotExist(err) {
+				break
+			}
+			panic(err)
+		}
+		workDir = fmt.Sprintf(".jetpack.build.%v", RandomUUID())
 	}
+
+	bprta := img.RuntimeApp()
+	bprta.Name.Set("jetpack/build")
+	bprta.App = &types.App{
+		Exec:             exec,
+		WorkingDirectory: "/" + workDir,
+		User:             "0",
+		Group:            "0",
+	}
+	bpm.Apps = append(bpm.Apps, bprta)
 
 	// This is needed by freebsd-update at least, should be okay to
 	// allow this in builders.
-	buildPod.Manifest.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
+	bpm.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
 
-	destroot := buildPod.Path("rootfs")
+	return bpm
+}
 
-	workDir, err := ioutil.TempDir(destroot, ".jetpack.build.")
+func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
+	buildPod, err := img.Host.CreatePod(img.buildPodManifest(buildExec))
 	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	fullWorkDir := buildPod.Path("rootfs", buildPod.Manifest.Apps[0].App.WorkingDirectory)
+	if err := os.Mkdir(fullWorkDir, 0700); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -296,36 +320,26 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	if addFiles != nil {
 		cpArgs = append(cpArgs, addFiles...)
 	}
-	cpArgs = append(cpArgs, workDir)
+	cpArgs = append(cpArgs, fullWorkDir)
 
 	if err := run.Command("cp", cpArgs...).Run(); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	cWorkDir := filepath.Base(workDir)
-	buildApp := img.RuntimeApp()
-	buildApp.App = &types.App{
-		Exec: append([]string{
-			"/bin/sh", "-c",
-			fmt.Sprintf("cd '%s' && exec \"${@}\"", cWorkDir),
-			"jetpack-build@" + cWorkDir,
-		}, buildExec...),
-	}
-
-	if err := buildPod.Run(buildApp); err != nil {
+	if err := buildPod.Run(buildPod.Manifest.Apps[0]); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	manifestBytes, err := ioutil.ReadFile(filepath.Join(workDir, "manifest.json"))
+	manifestBytes, err := ioutil.ReadFile(filepath.Join(fullWorkDir, "manifest.json"))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	if err := os.RemoveAll(workDir); err != nil {
+	if err := os.RemoveAll(fullWorkDir); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	if err := os.Remove(filepath.Join(destroot, "/etc/resolv.conf")); err != nil {
+	if err := os.Remove(buildPod.Path("rootfs/etc/resolv.conf")); err != nil {
 		return nil, errors.Trace(err)
 	}
 

@@ -232,11 +232,6 @@ func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 	return c, nil
 }
 
-func (h *Host) ClonePod(img *Image) (*Pod, error) {
-	// DEPRECATED
-	return h.CreatePod(PodManifest([]*Image{img}))
-}
-
 func (h *Host) GetPod(id types.UUID) (*Pod, error) {
 	if c, err := LoadPod(h, id); err != nil {
 		return nil, errors.Trace(err)
@@ -442,7 +437,7 @@ func (h *Host) FindImage(query string) (*Image, error) {
 func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
 	newId := RandomUUID()
 	newIdStr := newId.String()
-	if _, err := h.Dataset.CreateDataset(Path.join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
+	if _, err := h.Dataset.CreateDataset(path.Join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
 		return nil, errors.Trace(err)
 	}
 
