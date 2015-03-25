@@ -1,7 +1,5 @@
 package jetpack
 
-// FIXME: refactor references to Host.imagesDS
-
 import "bytes"
 import "crypto/sha512"
 import "encoding/json"

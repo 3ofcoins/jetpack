@@ -37,9 +37,6 @@ type Host struct {
 
 	jailStatusTimestamp time.Time
 	jailStatusCache     map[string]JailStatus
-
-	podsDS   *zfs.Dataset
-	imagesDS *zfs.Dataset
 }
 
 func NewHost(configPath string) (*Host, error) {
@@ -59,18 +56,6 @@ func NewHost(configPath string) (*Host, error) {
 		return nil, err
 	} else {
 		h.Dataset = ds
-	}
-
-	if ds, err := h.Dataset.GetDataset("images"); err != nil {
-		return nil, err
-	} else {
-		h.imagesDS = ds
-	}
-
-	if ds, err := h.Dataset.GetDataset("pods"); err != nil {
-		return nil, err
-	} else {
-		h.podsDS = ds
 	}
 
 	return &h, nil
@@ -108,18 +93,6 @@ func (h *Host) Initialize() error {
 		return errors.Trace(err)
 	} else {
 		h.Dataset = ds
-	}
-
-	if ds, err := h.Dataset.CreateDataset("images", h.zfsOptions("images.zfs.")...); err != nil {
-		return errors.Trace(err)
-	} else {
-		h.imagesDS = ds
-	}
-
-	if ds, err := h.Dataset.CreateDataset("pods", h.zfsOptions("pods.zfs.")...); err != nil {
-		return errors.Trace(err)
-	} else {
-		h.podsDS = ds
 	}
 
 	return nil
@@ -206,7 +179,7 @@ func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 	c := &Pod{Host: h, Manifest: *pm}
 
 	for _, app := range pm.Apps {
-		uuid_str, err := os.Readlink(h.imagesDS.Path(app.Image.ID.String()))
+		uuid_str, err := os.Readlink(h.Dataset.Path("images", app.Image.ID.String()))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -223,7 +196,7 @@ func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 
 		// FIXME: code until end of `for` depends on len(pm.Apps)==1
 
-		ds, err := img.Clone(path.Join(h.podsDS.Name, c.Manifest.UUID.String()), c.Path("rootfs"))
+		ds, err := img.Clone(path.Join(h.Dataset.Name, "pods", c.Manifest.UUID.String()), c.Path("rootfs"))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -295,11 +268,12 @@ func (h *Host) Pods() PodSlice {
 }
 
 func (h *Host) GetImage(id types.UUID) (*Image, error) {
-	if lines, err := h.imagesDS.ZfsFields("list", "-tfilesystem", "-d1", "-oname"); err != nil {
+	dsName := h.Dataset.ChildName("images")
+	if lines, err := zfs.ZfsFields("list", "-tfilesystem", "-d1", "-oname", dsName); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		for _, ln := range lines {
-			if ln[0] == h.imagesDS.Name {
+			if ln[0] == dsName {
 				continue
 			}
 			if curId, err := types.NewUUID(path.Base(ln[0])); err != nil {
@@ -468,7 +442,7 @@ func (h *Host) FindImage(query string) (*Image, error) {
 func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
 	newId := RandomUUID()
 	newIdStr := newId.String()
-	if _, err := h.imagesDS.CreateDataset(newIdStr, "-o", "mountpoint="+h.imagesDS.Path(newIdStr, "rootfs")); err != nil {
+	if _, err := h.Dataset.CreateDataset(Path.join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
 		return nil, errors.Trace(err)
 	}
 
