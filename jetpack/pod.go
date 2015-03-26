@@ -390,9 +390,9 @@ func (c *Pod) Jid() int {
 	}
 }
 
-func (c *Pod) RunNamedApp(name types.ACName) error {
+func (c *Pod) RunApp(name types.ACName) error {
 	if rta := c.Manifest.Apps.Get(name); rta != nil {
-		return c.RunApp(rta)
+		return c.runRuntimeApp(rta)
 	}
 	return ErrNotFound
 }
@@ -401,10 +401,10 @@ func (c *Pod) RunNthApp(idx int) error {
 	if len(c.Manifest.Apps) <= idx {
 		return ErrNotFound
 	}
-	return c.RunApp(&c.Manifest.Apps[idx])
+	return c.runRuntimeApp(&c.Manifest.Apps[idx])
 }
 
-func (c *Pod) RunApp(rtapp *schema.RuntimeApp) error {
+func (c *Pod) runRuntimeApp(rtapp *schema.RuntimeApp) error {
 	app := rtapp.App
 	if app == nil {
 		img, err := c.Host.GetImageByHash(rtapp.Image.ID)
@@ -494,32 +494,4 @@ func (cc PodSlice) Table() [][]string {
 		}
 	}
 	return rows
-}
-
-func PodManifest(imgs []*Image) *schema.PodManifest {
-	if len(imgs) != 1 {
-		panic("FIXME: only one-image manifests are supported")
-	}
-	pm := NewPodManifest()
-
-	pm.Apps = make([]schema.RuntimeApp, len(imgs))
-	for i, img := range imgs {
-		pm.Apps[i] = img.RuntimeApp()
-		if img.Manifest.App != nil {
-			for _, mnt := range img.Manifest.App.MountPoints {
-				ro := mnt.ReadOnly
-				pm.Volumes = append(pm.Volumes, types.Volume{
-					Kind:     "empty",
-					Name:     mnt.Name,
-					ReadOnly: &ro,
-				})
-				pm.Apps[i].Mounts = append(pm.Apps[i].Mounts, schema.Mount{
-					Volume:     mnt.Name,
-					MountPoint: mnt.Name,
-				})
-			}
-		}
-	}
-
-	return pm
 }
