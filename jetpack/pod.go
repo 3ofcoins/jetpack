@@ -350,16 +350,26 @@ retry:
 
 // FIXME: multi-app pods
 func (c *Pod) getDataset() *zfs.Dataset {
-	ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.Manifest.UUID.String()))
-	if err != nil {
+	if ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.Manifest.UUID.String())); err == zfs.ErrNotFound {
+		return nil
+	} else if err != nil {
 		panic(err)
+	} else {
+		return ds
 	}
-	return ds
 }
 
 func (c *Pod) Destroy() error {
-	if err := c.getDataset().Destroy("-r"); err != nil {
-		return errors.Trace(err)
+	if jid := c.Jid(); jid != 0 {
+		if err := c.Kill(); err != nil {
+			// FIXME: plow through, ensure it's destroyed
+			return errors.Trace(err)
+		}
+	}
+	if ds := c.getDataset(); ds != nil {
+		if err := ds.Destroy("-r"); err != nil {
+			return errors.Trace(err)
+		}
 	}
 	return errors.Trace(os.RemoveAll(c.Path()))
 }
@@ -374,7 +384,7 @@ func (c *Pod) jailStatus(refresh bool) (JailStatus, error) {
 
 func (c *Pod) Jid() int {
 	if status, err := c.jailStatus(false); err != nil {
-		panic(err) // do we need to?
+		panic(err) // FIXME: better error flow
 	} else {
 		return status.Jid
 	}
@@ -394,19 +404,7 @@ func (c *Pod) RunNthApp(idx int) error {
 	return c.RunApp(&c.Manifest.Apps[idx])
 }
 
-func (c *Pod) RunApp(rtapp *schema.RuntimeApp) (err1 error) {
-	if err := errors.Trace(c.runJail("-c")); err != nil {
-		return errors.Trace(err)
-	}
-	defer func() {
-		if err := c.Kill(); err != nil {
-			if err1 != nil {
-				err1 = errors.Wrap(err1, errors.Trace(err))
-			} else {
-				err1 = errors.Trace(err)
-			}
-		}
-	}()
+func (c *Pod) RunApp(rtapp *schema.RuntimeApp) error {
 	app := rtapp.App
 	if app == nil {
 		img, err := c.Host.GetImageByHash(rtapp.Image.ID)
@@ -421,11 +419,21 @@ func (c *Pod) RunApp(rtapp *schema.RuntimeApp) (err1 error) {
 	return c.Stage2(rtapp.Name, app)
 }
 
-func (c *Pod) Stage2(name types.ACName, app *types.App) error {
+func (c *Pod) Console(name types.ACName, user string) error {
+	return c.Stage2(name, ConsoleApp(user))
+}
 
+func (c *Pod) Stage2(name types.ACName, app *types.App) error {
+	// Ensure jail is created
 	jid := c.Jid()
 	if jid == 0 {
-		return errors.New("Not started")
+		if err := errors.Trace(c.runJail("-c")); err != nil {
+			return errors.Trace(err)
+		}
+		jid = c.Jid()
+		if jid == 0 {
+			panic("Could not start jail")
+		}
 	}
 
 	user := app.User

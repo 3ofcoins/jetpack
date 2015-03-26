@@ -270,13 +270,7 @@ Helpful Aliases:
 			case "run":
 				die(pod.RunNthApp(0))
 			case "console":
-				user := "root"
-				if len(args) != 0 {
-					user = args[0]
-				}
-				rtapp := pod.Manifest.Apps[0]
-				rtapp.App = jetpack.ConsoleApp(user)
-				die(pod.RunApp(&rtapp))
+				die(pod.Console("", "root"))
 			case "ps", "top", "killall":
 				jid := pod.Jid()
 				if jid == 0 {
