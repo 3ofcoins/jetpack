@@ -15,7 +15,7 @@ build:
 	install -v -m 0600 entropy /entropy
 	patch /usr/sbin/freebsd-update < freebsd-update.patch
 	env PAGER=cat freebsd-update -s update6.freebsd.org fetch install
-	rm -rf /var/db/freebsd-update/* /etc/resolv.conf
+	rm -rf /var/db/freebsd-update/*
 
 manifest.json:
 	./manifest.json.sh > $@
