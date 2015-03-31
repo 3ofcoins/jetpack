@@ -163,7 +163,7 @@ func Show(prefix string, objs ...interface{}) error {
 			}
 		}
 
-		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Pod %v", c.Manifest.UUID), items...))
+		return errors.Trace(ShowSection(prefix, fmt.Sprintf("Pod %v", c.UUID), items...))
 
 	case schema.ImageManifest:
 		manifest := obj.(schema.ImageManifest)

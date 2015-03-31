@@ -14,6 +14,7 @@ import "time"
 
 import "golang.org/x/sys/unix"
 
+import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
@@ -45,24 +46,24 @@ func (cs PodStatus) String() string {
 }
 
 type Pod struct {
+	UUID     uuid.UUID
 	Host     *Host
 	Manifest schema.PodManifest
 
 	sealed bool
 }
 
-func NewPod(h *Host, id types.UUID) *Pod {
-	if id.Empty() {
-		id = RandomUUID()
+func NewPod(h *Host, id uuid.UUID) *Pod {
+	if id == nil {
+		id = uuid.NewRandom()
 	}
-	c := &Pod{Host: h, Manifest: *schema.BlankPodManifest()}
-	c.Manifest.UUID = id
+	c := &Pod{UUID: id, Host: h, Manifest: *schema.BlankPodManifest()}
 	return c
 }
 
-func LoadPod(h *Host, id types.UUID) (*Pod, error) {
-	if id.Empty() {
-		panic(types.ErrNoEmptyUUID)
+func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
+	if id == nil {
+		panic("No UUID provided")
 	}
 	c := NewPod(h, id)
 	if err := c.Load(); err != nil {
@@ -83,7 +84,7 @@ func (c *Pod) Save() error {
 
 func (c *Pod) Path(elem ...string) string {
 	return c.Host.Path(append(
-		[]string{"pods", c.Manifest.UUID.String()},
+		[]string{"pods", c.UUID.String()},
 		elem...,
 	)...)
 }
@@ -144,7 +145,7 @@ func (c *Pod) jailConf() string {
 	parameters := map[string]string{
 		"devfs_ruleset": "4",
 		"exec.clean":    "true",
-		"host.hostuuid": c.Manifest.UUID.String(),
+		"host.hostuuid": c.UUID.String(),
 		"interface":     c.Host.Properties.MustGetString("jail.interface"),
 		"mount.devfs":   "true",
 		"path":          c.Path("rootfs"),
@@ -160,7 +161,7 @@ func (c *Pod) jailConf() string {
 	if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
 		parameters["ip4.addr"] = ip
 	} else {
-		panic(fmt.Sprintf("No IP address for pod %v", c.Manifest.UUID))
+		panic(fmt.Sprintf("No IP address for pod %v", c.UUID))
 	}
 
 	for _, antn := range c.Manifest.Annotations {
@@ -350,7 +351,7 @@ retry:
 
 // FIXME: multi-app pods
 func (c *Pod) getDataset() *zfs.Dataset {
-	if ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.Manifest.UUID.String())); err == zfs.ErrNotFound {
+	if ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.UUID.String())); err == zfs.ErrNotFound {
 		return nil
 	} else if err != nil {
 		panic(err)
@@ -375,7 +376,7 @@ func (c *Pod) Destroy() error {
 }
 
 func (c *Pod) jailName() string {
-	return c.Host.Properties.MustGetString("jail.namePrefix") + c.Manifest.UUID.String()
+	return c.Host.Properties.MustGetString("jail.namePrefix") + c.UUID.String()
 }
 
 func (c *Pod) jailStatus(refresh bool) (JailStatus, error) {
@@ -465,7 +466,7 @@ type PodSlice []*Pod
 
 func (cc PodSlice) Len() int { return len(cc) }
 func (cc PodSlice) Less(i, j int) bool {
-	return bytes.Compare(cc[i].Manifest.UUID[:], cc[j].Manifest.UUID[:]) < 0
+	return bytes.Compare(cc[i].UUID, cc[j].UUID) < 0
 }
 func (cc PodSlice) Swap(i, j int) { cc[i], cc[j] = cc[j], cc[i] }
 
@@ -486,7 +487,7 @@ func (cc PodSlice) Table() [][]string {
 		}
 		ipAddress, _ := c.Manifest.Annotations.Get("ip-address")
 		rows[i+1] = []string{
-			c.Manifest.UUID.String(),
+			c.UUID.String(),
 			imageID,
 			appName,
 			ipAddress,

@@ -13,6 +13,7 @@ import "sort"
 import "strings"
 import "time"
 
+import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
@@ -23,7 +24,7 @@ import "../zfs"
 const imageSnapshotName = "seal"
 
 type Image struct {
-	UUID     types.UUID           `json:"-"`
+	UUID     uuid.UUID            `json:"-"`
 	Host     *Host                `json:"-"`
 	Manifest schema.ImageManifest `json:"-"`
 
@@ -34,11 +35,25 @@ type Image struct {
 	rootfs *zfs.Dataset
 }
 
-func NewImage(h *Host, id types.UUID) *Image {
-	if id.Empty() {
-		panic(types.ErrNoEmptyUUID)
+func NewImage(h *Host, id uuid.UUID) *Image {
+	if id == nil {
+		id = uuid.NewRandom()
 	}
 	return &Image{Host: h, UUID: id, Manifest: *schema.BlankImageManifest()}
+}
+
+func LoadImage(h *Host, id uuid.UUID) (*Image, error) {
+	if id == nil {
+		return nil, errors.New("No UUID given")
+	}
+	img := NewImage(h, id)
+	if img.IsEmpty() {
+		return nil, ErrNotFound
+	}
+	if err := img.Load(); err != nil {
+		return nil, err
+	}
+	return img, nil
 }
 
 func (img *Image) Path(elem ...string) string {
@@ -270,7 +285,7 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 }
 
 func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
-	bpm := NewPodManifest()
+	bpm := schema.BlankPodManifest()
 
 	// Figure out working path that doesn't exist in the image's rootfs
 	workDir := ".jetpack.build."
@@ -281,7 +296,7 @@ func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
 			}
 			panic(err)
 		}
-		workDir = fmt.Sprintf(".jetpack.build.%v", RandomUUID())
+		workDir = fmt.Sprintf(".jetpack.build.%v", uuid.NewRandom())
 	}
 
 	bprta := img.RuntimeApp()
@@ -344,7 +359,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	// Pivot pod into an image
-	childImage := NewImage(img.Host, buildPod.Manifest.UUID)
+	childImage := NewImage(img.Host, buildPod.UUID)
 
 	ds := buildPod.getDataset() // FIXME: getDataset()
 	if err := ds.Set("mountpoint", childImage.Path("rootfs")); err != nil {

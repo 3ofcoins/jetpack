@@ -10,8 +10,6 @@ import "strings"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 
-import "./jetpack"
-
 type podFlag struct {
 	v *schema.PodManifest
 }
@@ -124,7 +122,7 @@ func ConstructPod(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*
 	}
 	fl.Usage = constructPodHelp(fl)
 
-	pm := jetpack.NewPodManifest()
+	pm := schema.BlankPodManifest()
 
 	fl.Var(podFlag{pm}, "f", "Load JSON with (partial or full) pod manifest")
 	fl.Var(volumesFlag{&pm.Volumes}, "v", "Add volume")
