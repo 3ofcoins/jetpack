@@ -7,6 +7,8 @@ import "os"
 import "path/filepath"
 import "sort"
 import "strconv"
+import "strings"
+import "text/tabwriter"
 
 import "github.com/appc/spec/schema"
 import "github.com/juju/errors"
@@ -166,13 +168,49 @@ Helpful Aliases:
 			die(err)
 			show(image)
 		case "list":
+			var machineFriendly, showHash bool
+			fl := flag.NewFlagSet("image list", flag.ExitOnError)
+			fl.BoolVar(&machineFriendly, "H", false, "Machine-friendly output")
+			fl.BoolVar(&showHash, "hash", false, "Show image hash instead of UUID")
+			fl.Parse(args)
+
 			images := Host.Images()
 
 			if len(images) == 0 {
-				show("No images")
+				if !machineFriendly {
+					show("No images")
+				}
 			} else {
-				sort.Sort(images)
-				show(images.Table()) // FIXME: Table() doesn't really belong in images
+				lines := make([]string, len(images))
+				for i, img := range images {
+					labels := make([]string, len(img.Manifest.Labels))
+					for j, label := range img.Manifest.Labels {
+						labels[j] = fmt.Sprintf("%v=%#v", label.Name, label.Value)
+					}
+					sort.Strings(labels)
+					first := img.UUID.String()
+					if showHash {
+						first = img.Hash.String()
+					}
+					lines[i] = fmt.Sprintf("%v\t%v\t%v",
+						first,
+						img.Manifest.Name,
+						strings.Join(labels, ","))
+				}
+				sort.Strings(lines)
+				output := strings.Join(lines, "\n")
+
+				if machineFriendly {
+					fmt.Println(output)
+				} else {
+					first := "UUID"
+					if showHash {
+						first = "HASH"
+					}
+					w := tabwriter.NewWriter(os.Stdout, 2, 8, 2, ' ', 0)
+					fmt.Fprintf(w, "%v\tNAME\tLABELS\n%v\n", first, output)
+					die(w.Flush())
+				}
 			}
 		case "build", "show", "export", "destroy":
 			// be nice to people who prefer to type UUID after command

@@ -1,6 +1,5 @@
 package jetpack
 
-import "bytes"
 import "crypto/sha512"
 import "encoding/json"
 import "fmt"
@@ -9,8 +8,6 @@ import "io/ioutil"
 import "os"
 import "path"
 import "path/filepath"
-import "sort"
-import "strings"
 import "time"
 
 import "code.google.com/p/go-uuid/uuid"
@@ -434,27 +431,4 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	return childImage, nil
-}
-
-// For sorting
-type ImageSlice []*Image
-
-func (imgs ImageSlice) Len() int { return len(imgs) }
-func (imgs ImageSlice) Less(i, j int) bool {
-	return bytes.Compare(imgs[i].UUID[:], imgs[j].UUID[:]) < 0
-}
-func (imgs ImageSlice) Swap(i, j int) { imgs[i], imgs[j] = imgs[j], imgs[i] }
-
-func (imgs ImageSlice) Table() [][]string {
-	rows := make([][]string, len(imgs)+1)
-	rows[0] = []string{"UUID", "NAME", "LABELS"}
-	for i, img := range imgs {
-		labels := make([]string, len(img.Manifest.Labels))
-		for j, l := range img.Manifest.Labels {
-			labels[j] = fmt.Sprintf("%v=%#v", l.Name, l.Value)
-		}
-		sort.Strings(labels)
-		rows[i+1] = append([]string{img.UUID.String(), string(img.Manifest.Name)}, strings.Join(labels, ","))
-	}
-	return rows
 }

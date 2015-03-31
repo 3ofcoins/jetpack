@@ -291,9 +291,9 @@ func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
 	}
 }
 
-func (h *Host) Images() ImageSlice {
+func (h *Host) Images() []*Image {
 	mm, _ := filepath.Glob(h.Path("images/*/manifest"))
-	rv := make(ImageSlice, 0, len(mm))
+	rv := make([]*Image, 0, len(mm))
 	for _, m := range mm {
 		d := filepath.Dir(m)
 		if fi, err := os.Lstat(d); err != nil {
@@ -321,7 +321,7 @@ func (h *Host) Images() ImageSlice {
 	return rv
 }
 
-func (h *Host) FindImages(query string) (ImageSlice, error) {
+func (h *Host) FindImages(query string) ([]*Image, error) {
 	// Empty query means all images
 	if query == "" {
 		if imgs := h.Images(); len(imgs) == 0 {
@@ -336,7 +336,7 @@ func (h *Host) FindImages(query string) (ImageSlice, error) {
 		if img, err := h.GetImage(id); err != nil {
 			return nil, errors.Trace(err)
 		} else {
-			return ImageSlice{img}, nil
+			return []*Image{img}, nil
 		}
 	}
 
@@ -347,7 +347,7 @@ func (h *Host) FindImages(query string) (ImageSlice, error) {
 	if hash, err := types.NewHash(query); err == nil {
 		for _, img := range imgs {
 			if img.Hash != nil && *img.Hash == *hash {
-				return ImageSlice{img}, nil
+				return []*Image{img}, nil
 			}
 		}
 		return nil, ErrNotFound
@@ -365,7 +365,7 @@ func (h *Host) FindImages(query string) (ImageSlice, error) {
 	name := types.ACName(v["name"][0])
 	delete(v, "name")
 
-	rv := ImageSlice{}
+	rv := []*Image{}
 images:
 	for _, img := range imgs {
 		if img.Manifest.Name == name {
