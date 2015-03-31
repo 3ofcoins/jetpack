@@ -256,9 +256,9 @@ func (h *Host) FindPod(query string) (*Pod, error) {
 	return nil, ErrNotFound
 }
 
-func (h *Host) Pods() PodSlice {
+func (h *Host) Pods() []*Pod {
 	mm, _ := filepath.Glob(h.Path("pods/*/manifest"))
-	rv := make(PodSlice, 0, len(mm))
+	rv := make([]*Pod, 0, len(mm))
 	for _, m := range mm {
 		if id := uuid.Parse(filepath.Base(filepath.Dir(m))); id == nil {
 			panic(fmt.Sprintf("Invalid UUID: %#v", filepath.Base(filepath.Dir(m))))

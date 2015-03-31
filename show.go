@@ -2,7 +2,6 @@ package main
 
 import "bytes"
 import "fmt"
-import "sort"
 import "strconv"
 import "strings"
 import "text/tabwriter"
@@ -143,11 +142,6 @@ func Show(prefix string, objs ...interface{}) error {
 			metadata = append(metadata, []string{"Timestamp", img.Timestamp.String()})
 
 			items := []interface{}{metadata, img.Manifest}
-
-			if cc := img.Pods(); len(cc) > 0 {
-				sort.Sort(cc)
-				items = append(items, Section("Pods:", cc.Table()))
-			}
 
 			return errors.Trace(ShowSection(prefix, fmt.Sprintf("Image %v", img.UUID), items...))
 		}

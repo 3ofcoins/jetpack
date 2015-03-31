@@ -225,17 +225,6 @@ func (img *Image) loadManifest() error {
 	return nil
 }
 
-func (img *Image) Pods() (children PodSlice) {
-	snap := img.getRootfs().SnapshotName(imageSnapshotName)
-	for _, pod := range img.Host.Pods() {
-		// FIXME: getDataset
-		if pod.getDataset().Origin == snap {
-			children = append(children, pod)
-		}
-	}
-	return
-}
-
 func (img *Image) Destroy() (err error) {
 	err = errors.Trace(img.getRootfs().Destroy("-r"))
 	if img.Hash != nil {

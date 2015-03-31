@@ -1,6 +1,5 @@
 package jetpack
 
-import "bytes"
 import "encoding/json"
 import "fmt"
 import "io/ioutil"
@@ -460,39 +459,4 @@ func (c *Pod) Stage2(name types.ACName, app *types.App) error {
 	args = append(args, app.Exec...)
 
 	return run.Command(filepath.Join(LibexecPath, "stage2"), args...).Run()
-}
-
-type PodSlice []*Pod
-
-func (cc PodSlice) Len() int { return len(cc) }
-func (cc PodSlice) Less(i, j int) bool {
-	return bytes.Compare(cc[i].UUID, cc[j].UUID) < 0
-}
-func (cc PodSlice) Swap(i, j int) { cc[i], cc[j] = cc[j], cc[i] }
-
-func (cc PodSlice) Table() [][]string {
-	rows := make([][]string, len(cc)+1)
-	rows[0] = []string{"UUID", "IMAGE", "APP", "IP", "STATUS"}
-	for i, c := range cc {
-		imageID := ""
-		if img, err := c.Host.GetImageByHash(c.Manifest.Apps[0].Image.ID); err != nil {
-			imageID = fmt.Sprintf("[%v]", err)
-		} else {
-			imageID = img.UUID.String()
-		}
-
-		appName := ""
-		if len(c.Manifest.Apps) > 0 {
-			appName = string(c.Manifest.Apps[0].Name)
-		}
-		ipAddress, _ := c.Manifest.Annotations.Get("ip-address")
-		rows[i+1] = []string{
-			c.UUID.String(),
-			imageID,
-			appName,
-			ipAddress,
-			c.Status().String(),
-		}
-	}
-	return rows
 }

@@ -286,11 +286,41 @@ Helpful Aliases:
 				}
 			}
 		case "list":
-			if pods := Host.Pods(); len(pods) == 0 {
-				show("No pods")
+			var machineFriendly bool
+			fl := flag.NewFlagSet("pod list", flag.ExitOnError)
+			fl.BoolVar(&machineFriendly, "H", false, "Machine-friendly output")
+			fl.Parse(args)
+
+			pods := Host.Pods()
+
+			if len(pods) == 0 {
+				if !machineFriendly {
+					show("No pods")
+				}
 			} else {
-				sort.Sort(pods)
-				show(pods.Table()) // FIXME: Table() doesn't really belong in pods
+				lines := make([]string, len(pods))
+				for i, pod := range pods {
+					apps := make([]string, len(pod.Manifest.Apps))
+					for j, app := range pod.Manifest.Apps {
+						apps[j] = app.Name.String()
+					}
+					ipAddress, _ := pod.Manifest.Annotations.Get("ip-address")
+					lines[i] = fmt.Sprintf("%v\t%v\t%v\t%v",
+						pod.UUID,
+						pod.Status().String(),
+						ipAddress,
+						strings.Join(apps, " "))
+				}
+				sort.Strings(lines)
+				output := strings.Join(lines, "\n")
+
+				if machineFriendly {
+					fmt.Println(output)
+				} else {
+					w := tabwriter.NewWriter(os.Stdout, 2, 8, 2, ' ', 0)
+					fmt.Fprintf(w, "UUID\tSTATUS\tIP\tAPPS\n%v\n", output)
+					die(w.Flush())
+				}
 			}
 		case "show", "run", "ps", "top", "killall", "kill", "destroy":
 			// be nice to people who prefer to type UUID after command
