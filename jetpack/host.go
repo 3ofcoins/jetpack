@@ -185,7 +185,7 @@ func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 	}
 
 	// FIXME: method for that?
-	c := &Pod{Host: h, Manifest: *pm}
+	c := &Pod{Host: h, UUID: uuid.NewRandom(), Manifest: *pm}
 
 	for _, app := range pm.Apps {
 		uuid_str, err := os.Readlink(h.Dataset.Path("images", app.Image.ID.String()))

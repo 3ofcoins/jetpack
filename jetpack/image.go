@@ -345,6 +345,10 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
+	if err := buildPod.Kill(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	manifestBytes, err := ioutil.ReadFile(filepath.Join(fullWorkDir, "manifest.json"))
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -354,7 +358,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	if err := os.Remove(buildPod.Path("rootfs/etc/resolv.conf")); err != nil {
+	if err := os.Remove(buildPod.Path("rootfs/etc/resolv.conf")); err != nil && !os.IsNotExist(err) {
 		return nil, errors.Trace(err)
 	}
 
