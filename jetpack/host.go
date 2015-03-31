@@ -96,6 +96,14 @@ func (h *Host) Initialize() error {
 		h.Dataset = ds
 	}
 
+	if _, err := h.Dataset.CreateDataset("images", h.zfsOptions("images.zfs.")...); err != nil {
+		return errors.Trace(err)
+	}
+
+	if _, err := h.Dataset.CreateDataset("pods", h.zfsOptions("pods.zfs.")...); err != nil {
+		return errors.Trace(err)
+	}
+
 	return nil
 }
 
