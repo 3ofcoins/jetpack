@@ -309,7 +309,7 @@ Small quantities can be represented directly as decimals (e.g., 0.3), or using m
 }
 ```
 
-**TODO**: The default=true behvaior probably covers nearly 80% of all use cases but we need to define a way to target particular devices.
+**TODO**: The default=true behavior probably covers nearly 80% of all use cases but we need to define a way to target particular devices.
 
 #### resource/block-iops
 
@@ -327,7 +327,7 @@ Small quantities can be represented directly as decimals (e.g., 0.3), or using m
 }
 ```
 
-**TODO**: The default=true behvaior probably covers nearly 80% of all use cases but we need to define a way to target particular devices.
+**TODO**: The default=true behavior probably covers nearly 80% of all use cases but we need to define a way to target particular devices.
 
 
 #### resource/cpu
@@ -381,7 +381,7 @@ Small quantities can be represented directly as decimals (e.g., 0.3), or using m
 ```
 
 **NOTE**: Limits SHOULD NOT apply to localhost communication between apps in a pod.
-**TODO**: The default=true behvaior probably covers nearly 80% of all use cases but we need to define a network interface tagging spec for appc.
+**TODO**: The default=true behavior probably covers nearly 80% of all use cases but we need to define a network interface tagging spec for appc.
 
 ## App Container Image Discovery
 
@@ -565,7 +565,7 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
 ```
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.5.0",
+    "acVersion": "0.5.1",
     "name": "example.com/reduce-worker",
     "labels": [
         {
@@ -744,7 +744,7 @@ JSON Schema for the Pod Manifest, conforming to [RFC4627](https://tools.ietf.org
 
 ```
 {
-    "acVersion": "0.5.0",
+    "acVersion": "0.5.1",
     "acKind": "PodManifest",
     "apps": [
         {
