@@ -11,6 +11,7 @@ import "strings"
 import "text/tabwriter"
 
 import "github.com/appc/spec/schema"
+import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 import "./jetpack"
@@ -277,10 +278,10 @@ Helpful Aliases:
 				pod, err := Host.CreatePod(pm)
 				die(err)
 				if doRun {
-					die(pod.RunNthApp(0))
-					if doDestroy {
-						die(pod.Destroy())
+					if len(pod.Manifest.Apps) > 1 {
+						die(errors.New("Pod has multiple apps, cannot run"))
 					}
+					die(pod.RunApp(pod.Manifest.Apps[0].Name))
 				} else {
 					show(pod)
 				}
@@ -336,7 +337,17 @@ Helpful Aliases:
 			case "show":
 				show(pod)
 			case "run":
-				die(pod.RunNthApp(0))
+				switch len(args) {
+				case 0:
+					if len(pod.Manifest.Apps) > 1 {
+						die(errors.New("Pod has multiple apps, you need to specify one"))
+					}
+					die(pod.RunApp(pod.Manifest.Apps[0].Name))
+				case 1:
+					die(pod.RunApp(types.ACName(args[0])))
+				default:
+					die(errors.New("Command `run' takes at most one argument"))
+				}
 			case "console":
 				die(pod.Console("", "root"))
 			case "ps", "top", "killall":

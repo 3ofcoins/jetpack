@@ -5,10 +5,12 @@ import "io/ioutil"
 import "os"
 import "strconv"
 import "strings"
-import "syscall"
+import "syscall" // Exec() is only in syscall, wtf?
+
+import "golang.org/x/sys/unix"
 
 func JailAttach(jid int) error {
-	if _, _, err := syscall.Syscall(syscall.SYS_JAIL_ATTACH, uintptr(jid), 0, 0); err == 0 {
+	if _, _, err := unix.Syscall(unix.SYS_JAIL_ATTACH, uintptr(jid), 0, 0); err == 0 {
 		return nil
 	} else {
 		return err
@@ -16,13 +18,14 @@ func JailAttach(jid int) error {
 }
 
 var JID int
-var User, Group, AppName string
+var Chroot, User, Group, AppName string
 var Environment = make(dictFlag)
 var Exec []string
 var WorkingDirectory string
 
 func main() {
 	flag.IntVar(&JID, "jid", -1, "Jail ID")
+	flag.StringVar(&Chroot, "chroot", "/", "Chroot within jail")
 	flag.StringVar(&User, "user", "root", "User to run as")
 	flag.StringVar(&Group, "group", "", "Group to run as")
 	flag.StringVar(&AppName, "name", "", "Application name")
@@ -36,6 +39,12 @@ func main() {
 
 	if err := JailAttach(JID); err != nil {
 		panic(err)
+	}
+
+	if Chroot != "/" {
+		if err := unix.Chroot(Chroot); err != nil {
+			panic(err)
+		}
 	}
 
 	if err := os.Chdir(WorkingDirectory); err != nil {
@@ -139,15 +148,15 @@ func main() {
 		envv = append(envv, k+"="+v)
 	}
 
-	if err := syscall.Setgroups([]int{}); err != nil {
+	if err := unix.Setgroups([]int{}); err != nil {
 		panic(err)
 	}
 
-	if err := syscall.Setregid(Gid, Gid); err != nil {
+	if err := unix.Setregid(Gid, Gid); err != nil {
 		panic(err)
 	}
 
-	if err := syscall.Setreuid(Uid, Uid); err != nil {
+	if err := unix.Setreuid(Uid, Uid); err != nil {
 		panic(err)
 	}
 

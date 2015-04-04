@@ -176,65 +176,7 @@ func (h *Host) nextIP() (net.IP, error) {
 }
 
 func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
-	if len(pm.Apps) != 1 {
-		return nil, errors.New("Only single application pods are supported")
-	}
-
-	// FIXME: method for that?
-	c := &Pod{Host: h, UUID: uuid.NewRandom(), Manifest: *pm}
-
-	for _, app := range pm.Apps {
-		uuid_str, err := os.Readlink(h.Dataset.Path("images", app.Image.ID.String()))
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		id := uuid.Parse(uuid_str)
-		if id == nil {
-			panic(fmt.Sprintf("Invalid UUID: %#v", uuid_str))
-		}
-
-		img, err := h.GetImage(id)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		// FIXME: code until end of `for` depends on len(pm.Apps)==1
-
-		ds, err := img.Clone(path.Join(h.Dataset.Name, "pods", c.UUID.String()), c.Path("rootfs"))
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		if img.Manifest.App != nil {
-			for _, mnt := range img.Manifest.App.MountPoints {
-				// TODO: host volumes
-				if err := os.MkdirAll(ds.Path(mnt.Path), 0755); err != nil {
-					return nil, errors.Trace(err)
-				}
-			}
-			if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
-				for _, dir := range []string{"sys", "proc"} {
-					if err := os.MkdirAll(ds.Path(dir), 0755); err != nil && !os.IsExist(err) {
-						return nil, errors.Trace(err)
-					}
-				}
-			}
-		}
-	}
-
-	// TODO: lock until saved?
-	if ip, err := h.nextIP(); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		c.Manifest.Annotations.Set("ip-address", ip.String())
-	}
-
-	if err := c.Save(); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return c, nil
+	return CreatePod(h, pm)
 }
 
 func (h *Host) GetPod(id uuid.UUID) (*Pod, error) {

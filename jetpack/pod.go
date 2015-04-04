@@ -52,6 +52,76 @@ type Pod struct {
 	sealed bool
 }
 
+func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
+	if pm == nil {
+		return nil, errors.New("Pod manifest is nil")
+	}
+	if len(pm.Apps) == 0 {
+		return nil, errors.New("Pod manifes has no apps")
+	}
+	pod = &Pod{Host: h, UUID: uuid.NewRandom(), Manifest: *pm}
+
+	ds, err := h.Dataset.CreateDataset(path.Join("pods", pod.UUID.String()))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	// If we haven't finished successfully, clean up the remains
+	defer func() {
+		if rErr != nil {
+			ds.Destroy("-r")
+		}
+	}()
+
+	if err := os.Mkdir(ds.Path("rootfs"), 0700); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	for i, app := range pod.Manifest.Apps {
+		img, err := h.GetImageByHash(app.Image.ID)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		rootds, err := img.Clone(ds.ChildName(fmt.Sprintf("rootfs.%v", i)), ds.Path("rootfs", strconv.Itoa(i)))
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if err := rootds.Set("jetpack:name", string(app.Name)); err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if img.Manifest.App != nil {
+			for _, mnt := range img.Manifest.App.MountPoints {
+				if err := os.MkdirAll(rootds.Path(mnt.Path), 0755); err != nil && !os.IsExist(err) {
+					return nil, errors.Trace(err)
+				}
+			}
+		}
+		if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
+			for _, dir := range []string{"sys", "proc"} {
+				if err := os.MkdirAll(rootds.Path(dir), 0755); err != nil && !os.IsExist(err) {
+					return nil, errors.Trace(err)
+				}
+			}
+		}
+	}
+
+	// FIXME: smarter IP allocation?
+	if ip, err := h.nextIP(); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		pod.Manifest.Annotations.Set("ip-address", ip.String())
+	}
+
+	if err := pod.Save(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return pod, nil
+}
+
 func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
 	if id == nil {
 		panic("No UUID provided")
@@ -120,10 +190,6 @@ func (c *Pod) Load() error {
 		return errors.Errorf("No application set?")
 	}
 
-	if len(c.Manifest.Apps) > 1 {
-		return errors.Errorf("TODO: Multi-application pods are not supported")
-	}
-
 	if len(c.Manifest.Isolators) != 0 {
 		return errors.Errorf("TODO: isolators are not supported")
 	}
@@ -134,13 +200,12 @@ func (c *Pod) Load() error {
 
 func (c *Pod) jailConf() string {
 	parameters := map[string]string{
-		"devfs_ruleset": "4",
 		"exec.clean":    "true",
 		"host.hostuuid": c.UUID.String(),
 		"interface":     c.Host.Properties.MustGetString("jail.interface"),
-		"mount.devfs":   "true",
 		"path":          c.Path("rootfs"),
 		"persist":       "true",
+		"mount.fstab":   c.Path("fstab"),
 	}
 
 	if hostname, ok := c.Manifest.Annotations.Get("hostname"); ok {
@@ -171,13 +236,14 @@ func (c *Pod) jailConf() string {
 }
 
 func (c *Pod) prepJail() error {
-	if len(c.Manifest.Apps) != 1 {
-		return errors.New("FIXME: Only one-app pods are supported!")
-	}
-
 	var fstab []string
 
-	for _, app := range c.Manifest.Apps {
+	for i, app := range c.Manifest.Apps {
+		rootno := strconv.Itoa(i)
+
+		fstab = append(fstab, fmt.Sprintf(". %v devfs ruleset=4 0 0\n",
+			c.Path("rootfs", rootno, "dev")))
+
 		img, err := c.Host.GetImageByHash(app.Image.ID)
 		if err != nil {
 			// TODO: someday we may offer to install missing images
@@ -186,15 +252,15 @@ func (c *Pod) prepJail() error {
 
 		if os, _ := img.Manifest.GetLabel("os"); os == "linux" {
 			fstab = append(fstab,
-				fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Path("rootfs", "sys")),
-				fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Path("rootfs", "proc")),
+				fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Path("rootfs", rootno, "sys")),
+				fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Path("rootfs", rootno, "proc")),
 			)
 		}
 
 		if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
 			return errors.Trace(err)
 		} else {
-			if err := ioutil.WriteFile(c.Path("rootfs/etc/resolv.conf"), bb, 0644); err != nil {
+			if err := ioutil.WriteFile(c.Path("rootfs", rootno, "etc/resolv.conf"), bb, 0644); err != nil {
 				return errors.Trace(err)
 			}
 		}
@@ -232,7 +298,7 @@ func (c *Pod) prepJail() error {
 
 			fulfilledMountPoints[mnt.MountPoint] = true
 
-			podPath := c.Path("rootfs", mntPoint.Path)
+			podPath := c.Path("rootfs", rootno, mntPoint.Path)
 			hostPath := vol.Source
 
 			if vol.Kind == "empty" {
@@ -281,12 +347,8 @@ func (c *Pod) prepJail() error {
 		}
 	}
 
-	if len(fstab) > 0 {
-		fstabPath := c.Path("fstab")
-		if err := ioutil.WriteFile(fstabPath, []byte(strings.Join(fstab, "")), 0600); err != nil {
-			return errors.Trace(err)
-		}
-		c.Manifest.Annotations.Set("jetpack/jail.conf/mount.fstab", fstabPath)
+	if err := ioutil.WriteFile(c.Path("fstab"), []byte(strings.Join(fstab, "")), 0600); err != nil {
+		return errors.Trace(err)
 	}
 
 	return errors.Trace(
@@ -389,13 +451,6 @@ func (c *Pod) RunApp(name types.ACName) error {
 	return ErrNotFound
 }
 
-func (c *Pod) RunNthApp(idx int) error {
-	if len(c.Manifest.Apps) <= idx {
-		return ErrNotFound
-	}
-	return c.runRuntimeApp(&c.Manifest.Apps[idx])
-}
-
 func (c *Pod) runRuntimeApp(rtapp *schema.RuntimeApp) error {
 	app := rtapp.App
 	if app == nil {
@@ -413,6 +468,15 @@ func (c *Pod) runRuntimeApp(rtapp *schema.RuntimeApp) error {
 
 func (c *Pod) Console(name types.ACName, user string) error {
 	return c.Stage2(name, ConsoleApp(user))
+}
+
+func (c *Pod) getChroot(appName types.ACName) string {
+	for i, app := range c.Manifest.Apps {
+		if app.Name == appName {
+			return fmt.Sprintf("/%v", i)
+		}
+	}
+	return "/"
 }
 
 func (c *Pod) Stage2(name types.ACName, app *types.App) error {
@@ -435,6 +499,7 @@ func (c *Pod) Stage2(name types.ACName, app *types.App) error {
 
 	args := []string{
 		"-jid", strconv.Itoa(jid),
+		"-chroot", c.getChroot(name),
 		"-user", user,
 		"-group", app.Group,
 		"-name", string(name),
