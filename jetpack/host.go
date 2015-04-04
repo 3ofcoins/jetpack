@@ -175,10 +175,6 @@ func (h *Host) nextIP() (net.IP, error) {
 	}
 }
 
-func (h *Host) NewPod() *Pod {
-	return NewPod(h, nil)
-}
-
 func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 	if len(pm.Apps) != 1 {
 		return nil, errors.New("Only single application pods are supported")

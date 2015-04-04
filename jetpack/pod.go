@@ -52,23 +52,15 @@ type Pod struct {
 	sealed bool
 }
 
-func NewPod(h *Host, id uuid.UUID) *Pod {
-	if id == nil {
-		id = uuid.NewRandom()
-	}
-	c := &Pod{UUID: id, Host: h, Manifest: *schema.BlankPodManifest()}
-	return c
-}
-
 func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
 	if id == nil {
 		panic("No UUID provided")
 	}
-	c := NewPod(h, id)
-	if err := c.Load(); err != nil {
+	pod := &Pod{UUID: id, Host: h}
+	if err := pod.Load(); err != nil {
 		return nil, errors.Trace(err)
 	}
-	return c, nil
+	return pod, nil
 }
 
 func (c *Pod) Save() error {
