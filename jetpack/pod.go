@@ -77,6 +77,23 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		return nil, errors.Trace(err)
 	}
 
+	volumesDirCreated := false
+	for i, vol := range pod.Manifest.Volumes {
+		if vol.Kind == "empty" {
+			if !volumesDirCreated {
+				if err := os.Mkdir(ds.Path("volumes"), 0700); err != nil {
+					return nil, errors.Trace(err)
+				}
+				volumesDirCreated = true
+			}
+			if volds, err := ds.CreateDataset(fmt.Sprintf("volume.%v", i), "-omountpoint="+ds.Path("volumes", strconv.Itoa(i))); err != nil {
+				return nil, errors.Trace(err)
+			} else if err := volds.Set("jetpack:name", string(vol.Name)); err != nil {
+				return nil, errors.Trace(err)
+			}
+		}
+	}
+
 	for i, app := range pod.Manifest.Apps {
 		img, err := h.GetImageByHash(app.Image.ID)
 		if err != nil {
@@ -303,9 +320,6 @@ func (c *Pod) prepJail() error {
 
 			if vol.Kind == "empty" {
 				hostPath = c.Path("volumes", strconv.Itoa(volNo))
-				if err := os.MkdirAll(hostPath, 0700); err != nil {
-					return errors.Trace(err)
-				}
 				var st unix.Stat_t
 				if err := unix.Stat(podPath, &st); err != nil {
 					if !os.IsNotExist(err) {
