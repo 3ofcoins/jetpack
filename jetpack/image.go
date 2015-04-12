@@ -308,7 +308,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	fullWorkDir := buildPod.Path("rootfs", buildPod.Manifest.Apps[0].App.WorkingDirectory)
+	fullWorkDir := buildPod.Path("rootfs/0", buildPod.Manifest.Apps[0].App.WorkingDirectory)
 	if err := os.Mkdir(fullWorkDir, 0700); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -344,14 +344,18 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	if err := os.Remove(buildPod.Path("rootfs/etc/resolv.conf")); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(buildPod.Path("rootfs/0/etc/resolv.conf")); err != nil && !os.IsNotExist(err) {
 		return nil, errors.Trace(err)
 	}
 
 	// Pivot pod into an image
 	childImage := NewImage(img.Host, buildPod.UUID)
 
-	ds := buildPod.getDataset() // FIXME: getDataset()
+	ds, err := img.Host.Dataset.GetDataset(path.Join("pods", buildPod.UUID.String(), "rootfs.0"))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	if err := ds.Set("mountpoint", childImage.Path("rootfs")); err != nil {
 		return nil, errors.Trace(err)
 	}
