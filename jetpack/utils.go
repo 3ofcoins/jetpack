@@ -132,7 +132,7 @@ func UnpackImage(uri, path, saveAmiPath string) (hsh *types.Hash, err error) {
 
 func ConsoleApp(username string) *types.App {
 	return &types.App{
-		Exec: []string{"/usr/bin/login", "-f", username},
+		Exec: []string{"/usr/bin/login", "-fp", username},
 		User: "root",
 	}
 }
