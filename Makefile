@@ -33,7 +33,7 @@ const.integration = \
 	BinPath="${bindir}" \
 	ImagesPath="${examplesdir}"
 
-all: bin/jetpack bin/stage2 bin/test.integration .prefix
+all: bin/jetpack bin/stage2 bin/mds bin/test.integration .prefix
 
 .prefix: .PHONY
 	echo "${PREFIX:Udevelopment}" > $@
@@ -52,6 +52,9 @@ bin/jetpack: .PHONY jetpack/const.go integration/const.go
 
 bin/stage2: stage2/*.go
 	cd stage2 && go build -o ../bin/stage2
+
+bin/mds: mds/*.go
+	cd mds && go build -o ../bin/mds
 
 bin/test.integration: .PHONY jetpack/const.go
 	cd integration && go test -c -o ../bin/test.integration
@@ -89,7 +92,7 @@ install: .PHONY
 .else
 	install -m 0755 -d $(DESTDIR)$(bindir) $(DESTDIR)$(libexecdir) $(DESTDIR)$(sharedir) $(DESTDIR)$(examplesdir)
 	install -m 0755 -s bin/jetpack $(DESTDIR)$(bindir)/jetpack
-	install -m 0755 -s bin/stage2 bin/test.integration $(DESTDIR)$(libexecdir)
+	install -m 0755 -s bin/stage2 bin/mds bin/test.integration $(DESTDIR)$(libexecdir)
 	install -m 0644 share/* $(DESTDIR)$(sharedir)
 	install -m 0644 jetpack.conf.sample $(DESTDIR)$(sysconfdir)/jetpack.conf.sample
 	cp -R images/ $(DESTDIR)$(examplesdir)
