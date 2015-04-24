@@ -9,3 +9,4 @@ images.zfs.compress=lz4
 jail.interface = lo1
 jail.namePrefix = jetpack/
 debug = off
+mds.port = 80
