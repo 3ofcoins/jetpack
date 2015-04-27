@@ -21,7 +21,7 @@ var JID int
 var Chroot, User, Group, AppName string
 var Environment = make(dictFlag)
 var Exec []string
-var WorkingDirectory string
+var WorkingDirectory, MetadataURL string
 
 func main() {
 	flag.IntVar(&JID, "jid", -1, "Jail ID")
@@ -30,6 +30,7 @@ func main() {
 	flag.StringVar(&Group, "group", "", "Group to run as")
 	flag.StringVar(&AppName, "name", "", "Application name")
 	flag.StringVar(&WorkingDirectory, "cwd", "/", "Working directory")
+	flag.StringVar(&MetadataURL, "mds", "", "Metadata server URL")
 	flag.Var(&Environment, "setenv", "Environment variables")
 
 	flag.Parse()
@@ -141,7 +142,7 @@ func main() {
 	}
 
 	env["AC_APP_NAME"] = AppName
-	env["AC_METADATA_URL"] = ""
+	env["AC_METADATA_URL"] = MetadataURL
 
 	envv := make([]string, 0, len(env))
 	for k, v := range env {

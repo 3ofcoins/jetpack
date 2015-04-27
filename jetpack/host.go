@@ -141,37 +141,45 @@ func (h *Host) getJailStatus(name string, refresh bool) (JailStatus, error) {
 	return h.jailStatusCache[name], nil
 }
 
+func (h *Host) HostIP() (net.IP, *net.IPNet, error) {
+	ifi, err := net.InterfaceByName(h.Properties.MustGetString("jail.interface"))
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+
+	addrs, err := ifi.Addrs()
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+
+	ip, ipnet, err := net.ParseCIDR(addrs[0].String())
+	return ip, ipnet, errors.Trace(err)
+}
+
 func (h *Host) nextIP() (net.IP, error) {
-	if ifi, err := net.InterfaceByName(h.Properties.MustGetString("jail.interface")); err != nil {
+	ip, ipnet, err := h.HostIP()
+	if err != nil {
 		return nil, errors.Trace(err)
-	} else {
-		if addrs, err := ifi.Addrs(); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			if ip, ipnet, err := net.ParseCIDR(addrs[0].String()); err != nil {
-				return nil, errors.Trace(err)
-			} else {
-				ips := make(map[string]bool)
-				for _, c := range h.Pods() {
-					if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
-						ips[ip] = true
-					}
-				}
+	}
 
-				for ip = nextIP(ip); ip != nil && ips[ip.String()]; ip = nextIP(ip) {
-				}
-
-				if ip == nil {
-					return nil, errors.New("Out of IPs")
-				}
-
-				if ipnet.Contains(ip) {
-					return ip, nil
-				} else {
-					return nil, errors.New("Out of IPs")
-				}
-			}
+	ips := make(map[string]bool)
+	for _, c := range h.Pods() {
+		if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
+			ips[ip] = true
 		}
+	}
+
+	for ip = nextIP(ip); ip != nil && ips[ip.String()]; ip = nextIP(ip) {
+	}
+
+	if ip == nil {
+		return nil, errors.New("Out of IPs")
+	}
+
+	if ipnet.Contains(ip) {
+		return ip, nil
+	} else {
+		return nil, errors.New("Out of IPs")
 	}
 }
 
