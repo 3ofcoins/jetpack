@@ -7,6 +7,7 @@ import "log"
 import "net/http"
 import "os"
 import "strings"
+import "time"
 
 import "../jetpack"
 
@@ -21,7 +22,19 @@ func getPod(ip string) *jetpack.Pod {
 	return nil
 }
 
+func accesslog(r *http.Request) {
+	fmt.Printf("%v - %v [%v] \"%v %v\"\n",
+		strings.SplitN(r.RemoteAddr, ":", 2)[0],
+		"-", // user; TODO: pod UUID
+		time.Now(),
+		r.Method,
+		r.RequestURI,
+	)
+
+}
+
 func ServeMetadata(w http.ResponseWriter, r *http.Request) {
+	accesslog(r)
 	clientIP := strings.SplitN(r.RemoteAddr, ":", 2)[0]
 
 	if r.URL.Path == "/" {

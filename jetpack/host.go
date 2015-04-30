@@ -7,6 +7,7 @@ import "io/ioutil"
 import "net"
 import "net/url"
 import "os"
+import "os/user"
 import "path"
 import "path/filepath"
 import "strconv"
@@ -38,10 +39,11 @@ type Host struct {
 
 	jailStatusTimestamp time.Time
 	jailStatusCache     map[string]JailStatus
+	mdsUid, mdsGid      int
 }
 
 func NewHost(configPath string) (*Host, error) {
-	h := Host{}
+	h := Host{mdsUid: -1, mdsGid: -1}
 	h.Properties = properties.MustLoadFiles(
 		[]string{
 			filepath.Join(SharedPath, "jetpack.conf.defaults"),
@@ -105,6 +107,24 @@ func (h *Host) Initialize() error {
 	}
 
 	return nil
+}
+
+func (h *Host) GetMDSUGID() (int, int) {
+	if h.mdsUid < 0 {
+		u, err := user.Lookup(h.Properties.MustGetString("mds.user"))
+		if err != nil {
+			panic(err)
+		}
+		h.mdsUid, err = strconv.Atoi(u.Uid)
+		if err != nil {
+			panic(err)
+		}
+		h.mdsGid, err = strconv.Atoi(u.Gid)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return h.mdsUid, h.mdsGid
 }
 
 func (h *Host) getJailStatus(name string, refresh bool) (JailStatus, error) {

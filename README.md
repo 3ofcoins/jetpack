@@ -49,6 +49,12 @@ Jetpack will create a `zroot/jetpack` dataset and mount it at
 different locations, these defaults can be modified in the
 `jetpack.conf` file.
 
+You will need a user and group to own the runtime status files and
+avoid running the metadata service as root. If you stay with default
+settings, the username and group should be `_jetpack`:
+
+    pw useradd _jetpack -d /var/jetpack -s /usr/sbin/nologin
+
 You will also need a network interface that the jails will use, and
 this interface should have Internet access. By default, Jetpack uses
 `lo1`, but this can be changed in the `jetpack.conf` file. To create

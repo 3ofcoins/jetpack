@@ -103,6 +103,24 @@ func (img *Image) Seal() error {
 		return errors.Trace(err)
 	}
 
+	// Set access mode for the metadata server
+	_, mdsGID := img.Host.GetMDSUGID()
+	if err := os.Chown(img.Path(), 0, mdsGID); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := os.Chown(img.Path("manifest"), 0, mdsGID); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := os.Chmod(img.Path(), 0750); err != nil {
+		return errors.Trace(err)
+	}
+
+	if err := os.Chmod(img.Path("manifest"), 0440); err != nil {
+		return errors.Trace(err)
+	}
+
 	if img.Hash == nil {
 		amiPath := ""
 		if img.Host.Properties.GetBool("images.ami.store", false) {

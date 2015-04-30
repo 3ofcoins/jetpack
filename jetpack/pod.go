@@ -73,6 +73,15 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		}
 	}()
 
+	_, mdsGID := h.GetMDSUGID()
+	if err := os.Chown(ds.Mountpoint, 0, mdsGID); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := os.Chmod(ds.Mountpoint, 0750); err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	if err := os.Mkdir(ds.Path("rootfs"), 0700); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -151,9 +160,12 @@ func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
 }
 
 func (c *Pod) Save() error {
+	_, mdsGID := c.Host.GetMDSUGID()
 	if manifestJSON, err := json.Marshal(c.Manifest); err != nil {
 		return errors.Trace(err)
-	} else if err := ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0400); err != nil {
+	} else if err := ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0440); err != nil {
+		return errors.Trace(err)
+	} else if err := os.Chown(c.Path("manifest"), 0, mdsGID); err != nil {
 		return errors.Trace(err)
 	}
 	c.sealed = true
