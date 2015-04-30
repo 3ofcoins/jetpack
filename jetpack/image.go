@@ -360,7 +360,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	if err := buildPod.getDataset().Rename(img.Host.Dataset.ChildName(path.Join("images", childImage.UUID.String()))); err != nil {
+	if err := ds.Rename(img.Host.Dataset.ChildName(path.Join("images", childImage.UUID.String()))); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -371,7 +371,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	// We don't need build pod anymore
-	if err := os.RemoveAll(buildPod.Path()); err != nil {
+	if err := buildPod.Destroy(); err != nil {
 		return nil, errors.Trace(err)
 	}
 	buildPod = nil
