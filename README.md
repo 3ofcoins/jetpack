@@ -177,12 +177,12 @@ Features, or The Laundry List
    - [x] Image building
    - [x] Clone pod from image and run it
    - [ ] Full pod lifecycle (Stage0/Stage1 interaction)
-   - [ ] Multi-application pods
+   - [x] Multi-application pods
    - [ ] Image discovery
  - Stage1
    - [x] Isolation via jails
-   - [ ] Volumes
-   - [ ] Multi-application pods
+   - [x] Volumes
+   - [x] Multi-application pods
    - [ ] Firewall integration
    - [x] Metadata endpoint
    - [ ] Isolators
@@ -194,10 +194,10 @@ Features, or The Laundry List
    - [ ] Isolators
  - CLI
    - [X] Specify image/pod by name & labels, not only UUID
-   - [ ] Consistent options for specifying application options (CLI,
+   - [x] Consistent options for specifying application options (CLI,
          JSON file)
  - General TODO
-   - [ ] Refactor the Thing/ThingManager/Host sandwich to use embedded
+   - [x] Refactor the Thing/ThingManager/Host sandwich to use embedded
      fields
    - [ ] CLI-specified types.App fields for custom exec, maybe build
          parameters too?
@@ -211,6 +211,7 @@ Features, or The Laundry List
    - [ ] `/etc/rc.d/jetpack` (`/etc/rc.d/jetpack_` for individual
          pods?) to start pods at boot time, and generally
          manage them as services
+   - [ ] Port to install Jetpack system-wide
    - If/when we get enough live runtime data to make it complicated,
      maybe a centralized indexed storage, like SQLite? This could also
      solve some locking issues for long-running processes…
