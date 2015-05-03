@@ -12,6 +12,12 @@
      with_items:
      - "make"
      - "make install"
+
+   - name: add group
+     user: name=_jetpack system=yes
+
+   - name: add user
+     user: name=_jetpack group=_jetpack createhome=no home=/var/jetpack shell=/usr/sbin/nologin system=yes
    
    - name: init Jetpack
      command: "jetpack init"
