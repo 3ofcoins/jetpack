@@ -5,6 +5,7 @@ import "flag"
 import "fmt"
 import "log"
 import "net/http"
+import "net/url"
 import "os"
 import "strings"
 import "time"
@@ -22,97 +23,89 @@ func getPod(ip string) *jetpack.Pod {
 	return nil
 }
 
-func accesslog(r *http.Request) {
-	fmt.Printf("%v - %v [%v] \"%v %v\"\n",
-		strings.SplitN(r.RemoteAddr, ":", 2)[0],
-		"-", // user; TODO: pod UUID
-		time.Now(),
-		r.Method,
-		r.RequestURI,
-	)
-
+func clientIP(r *http.Request) string {
+	return strings.SplitN(r.RemoteAddr, ":", 2)[0]
 }
 
-func ServeMetadata(w http.ResponseWriter, r *http.Request) {
-	accesslog(r)
-	clientIP := strings.SplitN(r.RemoteAddr, ":", 2)[0]
+func resp200(v interface{}) (int, []byte) {
+	return http.StatusOK, []byte(fmt.Sprintf("%v", v))
+}
 
+func resp404() (int, []byte) {
+	return http.StatusNotFound, nil
+}
+
+func resp500(err error) (int, []byte) {
+	return http.StatusInternalServerError, []byte(err.Error())
+}
+
+func doServeMetadata(r *http.Request) (int, []byte) {
 	if r.URL.Path == "/" {
 		// Root URL. We introduce ourselves, no questions asked.
-		fmt.Fprintf(w, "Jetpack metadata service version %v (%v) built on %v\n",
+		return http.StatusOK, []byte(fmt.Sprintf(
+			"Jetpack metadata service version %v (%v) built on %v\n",
 			jetpack.Version,
 			jetpack.Revision,
-			jetpack.BuildTimestamp)
-		return
+			jetpack.BuildTimestamp))
 	}
 
 	if !strings.HasPrefix(r.URL.Path, "/acMetadata/v1/") {
 		// Not a metadata service request.
-		http.NotFound(w, r)
-		return
+		return resp404()
 	}
 
 	// API request. Ensure it has required `Metadata-Flavor:
 	// AppContainter' header and it comes from a container's IP.
 
 	if hdr, ok := r.Header["Metadata-Flavor"]; !ok || len(hdr) != 1 || hdr[0] != "AppContainer" {
-		log.Println("ERR: no Metadata-Flavor: header from", clientIP)
-		http.Error(w, "Metadata-Flavor header missing or invalid", http.StatusBadRequest)
-		return
+		return http.StatusBadRequest, []byte("Metadata-Flavor header missing or invalid")
 	}
 
-	pod := getPod(clientIP)
+	pod := getPod(clientIP(r))
 	if pod == nil {
-		log.Println("ERR: No pod for IP %v", clientIP)
-		http.Error(w, "Not a pod", http.StatusBadRequest)
-		return
+		return http.StatusTeapot, []byte("You are not a pod. For you, I am a teapot.")
 	}
+
+	// hack hack hack
+	r.URL.User = url.User(pod.UUID.String())
 
 	path := r.URL.Path[len("/acMetadata/v1/"):]
-	log.Println(clientIP, pod.UUID, path)
 	switch {
 
 	case path == "pod/uuid":
-		// Pod UUID
-		w.Write([]byte(pod.UUID.String()))
+		return resp200(pod.UUID)
 
 	case path == "pod/manifest":
 		// Pod manifest
 		if manifestJSON, err := json.Marshal(pod.Manifest); err != nil {
 			panic(err)
 		} else {
-			w.Write(manifestJSON)
+			return http.StatusOK, manifestJSON
 		}
 
 	case path == "pod/hmac/sign" || path == "pod/hmac/verify":
 		// HMAC sign/verify service.
-		http.Error(w, "Not implemented", http.StatusNotImplemented)
+		return http.StatusNotImplemented, nil
 
 	case strings.HasPrefix(path, "pod/annotations/"):
 		// Pod annotation. 404 on nonexistent one.
 		annName := r.URL.Path[len("pod/annotations/"):]
 		if val, ok := pod.Manifest.Annotations.Get(annName); ok {
-			w.Write([]byte(val))
+			return resp200(val)
 		} else {
-			http.NotFound(w, r)
+			return resp404()
 		}
 	case strings.HasPrefix(path, "apps/"):
 		// App metadata.
 		subpath := path[len("apps/"):]
 
-		// ALL VALID RESPONSES IN THE LOOP NEED TO RETURN. If no
-		// valid path is found for one app, we continue iterating,
-		// because one app's name may be a prefix of another app's
-		// name within same pod. We return 404 only if we can't
-		// find a valid URL for any of the apps, after the loop.
 		for _, app := range pod.Manifest.Apps {
 			appPrefix := string(app.Name) + "/"
 			if strings.HasPrefix(subpath, appPrefix) {
 				switch appPath := subpath[len(appPrefix):]; appPath {
 
 				case "image/id":
-					w.Write([]byte(app.Image.ID.String()))
-					return
+					return resp200(app.Image.ID)
 
 				case "image/manifest":
 					if img, err := Host.GetImageByHash(app.Image.ID); err != nil {
@@ -120,24 +113,50 @@ func ServeMetadata(w http.ResponseWriter, r *http.Request) {
 					} else if manifestJSON, err := json.Marshal(img.Manifest); err != nil {
 						panic(err)
 					} else {
-						w.Write(manifestJSON)
-						return
+						return http.StatusOK, manifestJSON
 					}
 
 				default:
 					if strings.HasPrefix(appPath, "annotations/") {
 						if val, ok := app.Annotations.Get(appPath[len("annotations/"):]); ok {
-							w.Write([]byte(val))
-							return
+							return resp200(val)
 						}
 					}
 				}
 			}
 		}
-		http.NotFound(w, r)
+		return resp404()
 
 	default:
-		http.NotFound(w, r)
+		return resp404()
+	}
+}
+
+func ServeMetadata(w http.ResponseWriter, r *http.Request) {
+	status, body := doServeMetadata(r)
+
+	if body == nil {
+		body = []byte(http.StatusText(status))
+	}
+
+	// log_format combined '$remote_addr - $remote_user [$time_local] ' '"$request" $status $body_bytes_sent ' '"$http_referer" "$http_user_agent"';
+	remote_user := "-"
+	if r.URL.User != nil {
+		remote_user = r.URL.User.Username()
+	}
+
+	fmt.Printf("%v - %v [%v] \"%v %v\" %d %d \"-\" \"-\"\n",
+		clientIP(r),
+		remote_user,
+		time.Now(),
+		r.Method,
+		r.RequestURI,
+		status,
+		len(body))
+
+	w.WriteHeader(status)
+	if _, err := w.Write(body); err != nil {
+		panic(err)
 	}
 }
 
