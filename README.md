@@ -55,6 +55,11 @@ settings, the username and group should be `_jetpack`:
 
     pw useradd _jetpack -d /var/jetpack -s /usr/sbin/nologin
 
+> **Note:** If you are upgrading from an earlier revision of Jetpack,
+> you will need to change ownership of files and directories:
+> `chgrp _jetpack /var/jetpack/pods/* /var/jetpack/images/*
+> /var/jetpack/*/*/manifest && chmod 0440 /var/jetpack/*/*/manifest`
+
 You will also need a network interface that the jails will use, and
 this interface should have Internet access. By default, Jetpack uses
 `lo1`, but this can be changed in the `jetpack.conf` file. To create
@@ -147,6 +152,18 @@ something needs clarification, create an issue at
 https://github.com/3ofcoins/jetpack/ and ask the question. If
 something is not clear, it's a bug in the documentation!
 
+#### Running the Metadata Service
+
+The metadata service is provided as a separate binary, and it should
+run as the user created in the system preparation phase. If you are
+running Jetpack in-place, it is located in the `./bin` directory; if
+you install Jetpack system-wide, it is in the libexec directory
+(`/usr/local/libexec/jetpack/` by default). To run it, use `chroot` or
+`sudo` to drop privileges:
+
+    # chroot -u _jetpack -g _jetpack / $LIBEXECDIR/mds
+    # sudo -H -u jetpack $LIBEXECDIR/mds
+
 Building Images
 ---------------
 
@@ -167,7 +184,7 @@ Features, or The Laundry List
    - [ ] Volumes
    - [ ] Multi-application pods
    - [ ] Firewall integration
-   - [ ] Metadata endpoint
+   - [x] Metadata endpoint
    - [ ] Isolators
  - Stage2
    - [x] Main entry point execution
