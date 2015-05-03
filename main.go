@@ -98,8 +98,8 @@ Commands:
   pod POD console [USER]                  Open console inside the pod
   pod POD ps|top|killall [OPTIONS...]
                                           Manage pod's processes
-  pod POD kill                Kill running pod
-  pod POD destroy             Destroy pod
+  pod POD kill                            Kill running pod
+  pod POD destroy                         Destroy pod
 Needs Explanation:
   ARCHIVE, MANIFEST  May be filesystem paths or URLs.
             cp=PATH  This option can be given multiple times
