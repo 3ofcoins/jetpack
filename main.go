@@ -94,8 +94,8 @@ Commands:
                                           Create new pod from image
              -help                        Show detailed help
   pod POD show                            Display pod details
-  pod POD run                             Run pod's application
-  pod POD console [USER]                  Open console inside the pod
+  pod POD run [APP]                       Run pod's application
+  pod POD console [APP]                   Open console inside the pod
   pod POD ps|top|killall [OPTIONS...]
                                           Manage pod's processes
   pod POD kill                            Kill running pod
@@ -349,7 +349,17 @@ Helpful Aliases:
 					die(errors.New("Command `run' takes at most one argument"))
 				}
 			case "console":
-				die(pod.Console("", "root"))
+				switch len(args) {
+				case 0:
+					if len(pod.Manifest.Apps) > 1 {
+						die(errors.New("Pod has multiple apps, you need to specify one"))
+					}
+					die(pod.Console(pod.Manifest.Apps[0].Name, "root"))
+				case 1:
+					die(pod.Console(types.ACName(args[0]), "root"))
+				default:
+					die(errors.New("Command `console' takes at most one argument"))
+				}
 			case "ps", "top", "killall":
 				jid := pod.Jid()
 				if jid == 0 {
