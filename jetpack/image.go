@@ -127,7 +127,7 @@ func (img *Image) Seal() error {
 			amiPath = img.Path("ami")
 		}
 
-		if hash, err := img.SaveAMI(amiPath, 0400); err != nil {
+		if hash, err := img.SaveAMI(amiPath, 0440); err != nil {
 			return errors.Trace(err)
 		} else {
 			img.Hash = hash
@@ -138,7 +138,7 @@ func (img *Image) Seal() error {
 	if metadataJSON, err := json.Marshal(img); err != nil {
 		return errors.Trace(err)
 	} else {
-		if err := ioutil.WriteFile(img.Path("metadata"), metadataJSON, 0400); err != nil {
+		if err := ioutil.WriteFile(img.Path("metadata"), metadataJSON, 0440); err != nil {
 			return errors.Trace(err)
 		}
 	}
