@@ -89,7 +89,7 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 
 	case strings.HasPrefix(path, "pod/annotations/"):
 		// Pod annotation. 404 on nonexistent one.
-		annName := r.URL.Path[len("pod/annotations/"):]
+		annName := path[len("pod/annotations/"):]
 		if val, ok := pod.Manifest.Annotations.Get(annName); ok {
 			return resp200(val)
 		} else {
