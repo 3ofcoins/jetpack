@@ -4,7 +4,7 @@ suite="$1"
 mirror="$2"
 if [ -z "$2" ]; then
     case "$suite" in
-    hamm|slink|potato|woody|sarge|etch|lenny)
+    potato|woody|sarge|etch|lenny)
         mirror="http://archive.debian.org/debian-archive/debian/"
         ;;
     squeeze|wheezy|jessie)
