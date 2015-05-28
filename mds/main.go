@@ -118,7 +118,12 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 
 				default:
 					if strings.HasPrefix(appPath, "annotations/") {
-						if val, ok := app.Annotations.Get(appPath[len("annotations/"):]); ok {
+						annName := appPath[len("annotations/"):]
+						if val, ok := app.Annotations.Get(annName); ok {
+							return resp200(val)
+						} else if img, err := Host.GetImageByHash(app.Image.ID); err != nil {
+							panic(err)
+						} else if val, ok := img.Manifest.Annotations.Get(annName); ok {
 							return resp200(val)
 						}
 					}
