@@ -1,5 +1,5 @@
 code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUIDs
 github.com/appc/spec 9a448f7 (HEAD, tag: v0.5.1) version: bump to v0.5.1
-github.com/juju/errors 4567a5e (HEAD, origin/master, origin/HEAD, master) Merge pull request #19 from cherylj/license_master
-github.com/magiconair/properties 70f4111 (HEAD, tag: v1.5.1, origin/master, origin/HEAD, master) Added GetParsedDuration()/MustGetParsedDuration()
-golang.org/x/sys ea75526 (HEAD, origin/master, origin/HEAD, master) unix: fix build for linux/386 and linux/arm
+github.com/juju/errors 4567a5e (HEAD -> master, origin/master, origin/HEAD) Merge pull request #19 from cherylj/license_master
+github.com/magiconair/properties d5929c6 (HEAD -> master, tag: v1.5.2, origin/master, origin/HEAD) Updated README for v1.5.2
+golang.org/x/sys 58e1096 (HEAD -> master, origin/master, origin/HEAD) unix: add darwin/arm64 support

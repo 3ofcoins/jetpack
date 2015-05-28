@@ -14,7 +14,7 @@ import (
 	"unsafe"
 )
 
-//go:generate go run $GOROOT/src/syscall/mksyscall_windows.go -output zsyscall_windows.go syscall_windows.go security_windows.go
+//go:generate go run $GOROOT/src/syscall/mksyscall_windows.go -output zsyscall_windows.go eventlog.go service.go syscall_windows.go security_windows.go
 
 type Handle uintptr
 
@@ -180,6 +180,9 @@ func NewCallbackCDecl(fn interface{}) uintptr
 // This function returns 1 byte BOOLEAN rather than the 4 byte BOOL.
 //sys	CreateSymbolicLink(symlinkfilename *uint16, targetfilename *uint16, flags uint32) (err error) [failretval&0xff==0] = CreateSymbolicLinkW
 //sys	CreateHardLink(filename *uint16, existingfilename *uint16, reserved uintptr) (err error) [failretval&0xff==0] = CreateHardLinkW
+//sys	GetCurrentThreadId() (id uint32)
+//sys	CreateEvent(eventAttrs *syscall.SecurityAttributes, manualReset uint32, initialState uint32, name *uint16) (handle Handle, err error) = kernel32.CreateEventW
+//sys	SetEvent(event Handle) (err error) = kernel32.SetEvent
 
 // syscall interface implementation for other packages
 
@@ -427,7 +430,7 @@ func Utimes(path string, tv []Timeval) (err error) {
 	}
 	h, e := CreateFile(pathp,
 		FILE_WRITE_ATTRIBUTES, FILE_SHARE_WRITE, nil,
-		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)
+		OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0)
 	if e != nil {
 		return e
 	}
@@ -447,7 +450,7 @@ func UtimesNano(path string, ts []Timespec) (err error) {
 	}
 	h, e := CreateFile(pathp,
 		FILE_WRITE_ATTRIBUTES, FILE_SHARE_WRITE, nil,
-		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)
+		OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0)
 	if e != nil {
 		return e
 	}
@@ -962,13 +965,22 @@ func Readlink(path string, buf []byte) (n int, err error) {
 	}
 
 	rdb := (*reparseDataBuffer)(unsafe.Pointer(&rdbbuf[0]))
-	if uintptr(bytesReturned) < unsafe.Sizeof(*rdb) ||
-		rdb.ReparseTag != IO_REPARSE_TAG_SYMLINK {
-		// the path is not a symlink but another type of reparse point
+	var s string
+	switch rdb.ReparseTag {
+	case IO_REPARSE_TAG_SYMLINK:
+		data := (*symbolicLinkReparseBuffer)(unsafe.Pointer(&rdb.reparseBuffer))
+		p := (*[0xffff]uint16)(unsafe.Pointer(&data.PathBuffer[0]))
+		s = UTF16ToString(p[data.PrintNameOffset/2 : (data.PrintNameLength-data.PrintNameOffset)/2])
+	case IO_REPARSE_TAG_MOUNT_POINT:
+		data := (*mountPointReparseBuffer)(unsafe.Pointer(&rdb.reparseBuffer))
+		p := (*[0xffff]uint16)(unsafe.Pointer(&data.PathBuffer[0]))
+		s = UTF16ToString(p[data.PrintNameOffset/2 : (data.PrintNameLength-data.PrintNameOffset)/2])
+	default:
+		// the path is not a symlink or junction but another type of reparse
+		// point
 		return -1, syscall.ENOENT
 	}
-
-	s := UTF16ToString((*[0xffff]uint16)(unsafe.Pointer(&rdb.PathBuffer[0]))[:rdb.PrintNameLength/2])
 	n = copy(buf, []byte(s))
+
 	return n, nil
 }

@@ -8,27 +8,28 @@ import "syscall"
 
 const (
 	// Windows errors.
-	ERROR_FILE_NOT_FOUND      syscall.Errno = 2
-	ERROR_PATH_NOT_FOUND      syscall.Errno = 3
-	ERROR_ACCESS_DENIED       syscall.Errno = 5
-	ERROR_NO_MORE_FILES       syscall.Errno = 18
-	ERROR_HANDLE_EOF          syscall.Errno = 38
-	ERROR_NETNAME_DELETED     syscall.Errno = 64
-	ERROR_FILE_EXISTS         syscall.Errno = 80
-	ERROR_BROKEN_PIPE         syscall.Errno = 109
-	ERROR_BUFFER_OVERFLOW     syscall.Errno = 111
-	ERROR_INSUFFICIENT_BUFFER syscall.Errno = 122
-	ERROR_MOD_NOT_FOUND       syscall.Errno = 126
-	ERROR_PROC_NOT_FOUND      syscall.Errno = 127
-	ERROR_ALREADY_EXISTS      syscall.Errno = 183
-	ERROR_ENVVAR_NOT_FOUND    syscall.Errno = 203
-	ERROR_MORE_DATA           syscall.Errno = 234
-	ERROR_OPERATION_ABORTED   syscall.Errno = 995
-	ERROR_IO_PENDING          syscall.Errno = 997
-	ERROR_NOT_FOUND           syscall.Errno = 1168
-	ERROR_PRIVILEGE_NOT_HELD  syscall.Errno = 1314
-	WSAEACCES                 syscall.Errno = 10013
-	WSAECONNRESET             syscall.Errno = 10054
+	ERROR_FILE_NOT_FOUND         syscall.Errno = 2
+	ERROR_PATH_NOT_FOUND         syscall.Errno = 3
+	ERROR_ACCESS_DENIED          syscall.Errno = 5
+	ERROR_NO_MORE_FILES          syscall.Errno = 18
+	ERROR_HANDLE_EOF             syscall.Errno = 38
+	ERROR_NETNAME_DELETED        syscall.Errno = 64
+	ERROR_FILE_EXISTS            syscall.Errno = 80
+	ERROR_BROKEN_PIPE            syscall.Errno = 109
+	ERROR_BUFFER_OVERFLOW        syscall.Errno = 111
+	ERROR_INSUFFICIENT_BUFFER    syscall.Errno = 122
+	ERROR_MOD_NOT_FOUND          syscall.Errno = 126
+	ERROR_PROC_NOT_FOUND         syscall.Errno = 127
+	ERROR_ALREADY_EXISTS         syscall.Errno = 183
+	ERROR_ENVVAR_NOT_FOUND       syscall.Errno = 203
+	ERROR_MORE_DATA              syscall.Errno = 234
+	ERROR_OPERATION_ABORTED      syscall.Errno = 995
+	ERROR_IO_PENDING             syscall.Errno = 997
+	ERROR_SERVICE_SPECIFIC_ERROR syscall.Errno = 1066
+	ERROR_NOT_FOUND              syscall.Errno = 1168
+	ERROR_PRIVILEGE_NOT_HELD     syscall.Errno = 1314
+	WSAEACCES                    syscall.Errno = 10013
+	WSAECONNRESET                syscall.Errno = 10054
 )
 
 const (
@@ -195,14 +196,15 @@ const (
 )
 
 const (
-	// do not reorder
-	FILE_NOTIFY_CHANGE_FILE_NAME = 1 << iota
-	FILE_NOTIFY_CHANGE_DIR_NAME
-	FILE_NOTIFY_CHANGE_ATTRIBUTES
-	FILE_NOTIFY_CHANGE_SIZE
-	FILE_NOTIFY_CHANGE_LAST_WRITE
-	FILE_NOTIFY_CHANGE_LAST_ACCESS
-	FILE_NOTIFY_CHANGE_CREATION
+	// filters for ReadDirectoryChangesW
+	FILE_NOTIFY_CHANGE_FILE_NAME   = 0x001
+	FILE_NOTIFY_CHANGE_DIR_NAME    = 0x002
+	FILE_NOTIFY_CHANGE_ATTRIBUTES  = 0x004
+	FILE_NOTIFY_CHANGE_SIZE        = 0x008
+	FILE_NOTIFY_CHANGE_LAST_WRITE  = 0x010
+	FILE_NOTIFY_CHANGE_LAST_ACCESS = 0x020
+	FILE_NOTIFY_CHANGE_CREATION    = 0x040
+	FILE_NOTIFY_CHANGE_SECURITY    = 0x100
 )
 
 const (
@@ -1088,12 +1090,7 @@ type TCPKeepalive struct {
 	Interval uint32
 }
 
-type reparseDataBuffer struct {
-	ReparseTag        uint32
-	ReparseDataLength uint16
-	Reserved          uint16
-
-	// SymbolicLinkReparseBuffer
+type symbolicLinkReparseBuffer struct {
 	SubstituteNameOffset uint16
 	SubstituteNameLength uint16
 	PrintNameOffset      uint16
@@ -1102,9 +1099,27 @@ type reparseDataBuffer struct {
 	PathBuffer           [1]uint16
 }
 
+type mountPointReparseBuffer struct {
+	SubstituteNameOffset uint16
+	SubstituteNameLength uint16
+	PrintNameOffset      uint16
+	PrintNameLength      uint16
+	PathBuffer           [1]uint16
+}
+
+type reparseDataBuffer struct {
+	ReparseTag        uint32
+	ReparseDataLength uint16
+	Reserved          uint16
+
+	// GenericReparseBuffer
+	reparseBuffer byte
+}
+
 const (
 	FSCTL_GET_REPARSE_POINT          = 0x900A8
 	MAXIMUM_REPARSE_DATA_BUFFER_SIZE = 16 * 1024
+	IO_REPARSE_TAG_MOUNT_POINT       = 0xA0000003
 	IO_REPARSE_TAG_SYMLINK           = 0xA000000C
 	SYMBOLIC_LINK_FLAG_DIRECTORY     = 0x1
 )

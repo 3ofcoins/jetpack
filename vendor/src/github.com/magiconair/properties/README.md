@@ -53,31 +53,36 @@ $ go get -u gopkg.in/check.v1
 History
 -------
 
+v1.5.2, 10 Apr 2015
+-------------------
+ * [Issue #3](https://github.com/magiconair/properties/issues/3): Don't print comments in [WriteComment()](http://godoc.org/github.com/magiconair/properties#Properties.WriteComment) if they are all empty
+ * Add clickable links to README
+
 v1.5.1, 08 Dec 2014
 -------------------
- * Added GetParsedDuration() and MustGetParsedDuration() for values specified compatible with
+ * Added [GetParsedDuration()](http://godoc.org/github.com/magiconair/properties#Properties.GetParsedDuration) and [MustGetParsedDuration()](http://godoc.org/github.com/magiconair/properties#Properties.MustGetParsedDuration) for values specified compatible with
    [time.ParseDuration()](http://golang.org/pkg/time/#ParseDuration).
 
 v1.5.0, 18 Nov 2014
 -------------------
  * Added support for single and multi-line comments (reading, writing and updating)
  * The order of keys is now preserved
- * Calling Set() with an empty key now silently ignores the call and does not create a new entry
- * Added a MustSet() method
- * Migrated test library from launchpad.net/gocheck to gopkg.in/check.v1
+ * Calling [Set()](http://godoc.org/github.com/magiconair/properties#Properties.Set) with an empty key now silently ignores the call and does not create a new entry
+ * Added a [MustSet()](http://godoc.org/github.com/magiconair/properties#Properties.MustSet) method
+ * Migrated test library from launchpad.net/gocheck to [gopkg.in/check.v1](http://gopkg.in/check.v1)
 
 v1.4.2, 15 Nov 2014
 -------------------
- * Issue #2: Fixed goroutine leak in parser which created two lexers but cleaned up only one
+ * [Issue #2](https://github.com/magiconair/properties/issues/2): Fixed goroutine leak in parser which created two lexers but cleaned up only one
 
 v1.4.1, 13 Nov 2014
 -------------------
- * Issue #1: Fixed bug in Keys() method which returned an empty string
+ * [Issue #1](https://github.com/magiconair/properties/issues/1): Fixed bug in Keys() method which returned an empty string
 
 v1.4.0, 23 Sep 2014
 -------------------
- * Added Keys() to get the keys
- * Added Filter(), FilterRegexp() and FilterPrefix() to get a subset of the properties
+ * Added [Keys()](http://godoc.org/github.com/magiconair/properties#Properties.Keys) to get the keys
+ * Added [Filter()](http://godoc.org/github.com/magiconair/properties#Properties.Filter), [FilterRegexp()](http://godoc.org/github.com/magiconair/properties#Properties.FilterRegexp) and [FilterPrefix()](http://godoc.org/github.com/magiconair/properties#Properties.FilterPrefix) to get a subset of the properties
 
 v1.3.0, 18 Mar 2014
 -------------------
@@ -105,7 +110,7 @@ v1.0.0, 7 Jan 2014
 License
 -------
 
-2 clause BSD license. See LICENSE file for details.
+2 clause BSD license. See [LICENSE](https://github.com/magiconair/properties/blob/master/LICENSE) file for details.
 
 ToDo
 ----

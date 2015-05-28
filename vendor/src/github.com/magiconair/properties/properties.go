@@ -539,21 +539,32 @@ func (p *Properties) WriteComment(w io.Writer, prefix string, enc Encoding) (n i
 
 		if prefix != "" {
 			if comments, ok := p.c[key]; ok {
-				// add a blank line between entries but not at the top
-				if len(comments) > 0 && n > 0 {
-					x, err = fmt.Fprintln(w)
-					if err != nil {
-						return
+				// don't print comments if they are all empty
+				allEmpty := true
+				for _, c := range comments {
+					if c != "" {
+						allEmpty = false
+						break
 					}
-					n += x
 				}
 
-				for _, c := range comments {
-					x, err = fmt.Fprintf(w, "%s%s\n", prefix, encode(c, "", enc))
-					if err != nil {
-						return
+				if !allEmpty {
+					// add a blank line between entries but not at the top
+					if len(comments) > 0 && n > 0 {
+						x, err = fmt.Fprintln(w)
+						if err != nil {
+							return
+						}
+						n += x
 					}
-					n += x
+
+					for _, c := range comments {
+						x, err = fmt.Fprintf(w, "%s%s\n", prefix, encode(c, "", enc))
+						if err != nil {
+							return
+						}
+						n += x
+					}
 				}
 			}
 		}

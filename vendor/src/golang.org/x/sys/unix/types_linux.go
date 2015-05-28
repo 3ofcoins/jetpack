@@ -77,7 +77,7 @@ struct sockaddr_any {
 // copied from /usr/include/linux/un.h
 struct my_sockaddr_un {
 	sa_family_t sun_family;
-#ifdef __ARM_EABI__
+#if defined(__ARM_EABI__) || defined(__powerpc64__)
 	// on ARM char is by default unsigned
 	signed char sun_path[108];
 #else
@@ -87,6 +87,10 @@ struct my_sockaddr_un {
 
 #ifdef __ARM_EABI__
 typedef struct user_regs PtraceRegs;
+#elif defined(__aarch64__)
+typedef struct user_pt_regs PtraceRegs;
+#elif defined(__powerpc64__)
+typedef struct pt_regs PtraceRegs;
 #else
 typedef struct user_regs_struct PtraceRegs;
 #endif
@@ -385,7 +389,9 @@ type Ustat_t C.struct_ustat
 type EpollEvent C.struct_my_epoll_event
 
 const (
-	_AT_FDCWD = C.AT_FDCWD
+	AT_FDCWD            = C.AT_FDCWD
+	AT_REMOVEDIR        = C.AT_REMOVEDIR
+	AT_SYMLINK_NOFOLLOW = C.AT_SYMLINK_NOFOLLOW
 )
 
 // Terminal handling

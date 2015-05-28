@@ -116,6 +116,7 @@ var commentTests = []struct {
 	comments          []string
 }{
 	{"key=value", "key", "value", nil},
+	{"#\nkey=value", "key", "value", []string{""}},
 	{"#comment\nkey=value", "key", "value", []string{"comment"}},
 	{"# comment\nkey=value", "key", "value", []string{"comment"}},
 	{"#  comment\nkey=value", "key", "value", []string{"comment"}},
@@ -176,6 +177,8 @@ var writeCommentTests = []struct {
 }{
 	// ISO-8859-1 tests
 	{"key = value", "key = value\n", "ISO-8859-1"},
+	{"#\nkey = value", "key = value\n", "ISO-8859-1"},
+	{"#\n#\n#\nkey = value", "key = value\n", "ISO-8859-1"},
 	{"# comment\nkey = value", "# comment\nkey = value\n", "ISO-8859-1"},
 	{"\n# comment\nkey = value", "# comment\nkey = value\n", "ISO-8859-1"},
 	{"# comment\n\nkey = value", "# comment\nkey = value\n", "ISO-8859-1"},
@@ -247,11 +250,11 @@ var parsedDurationTests = []struct {
 	def, value time.Duration
 }{
 	// valid values
-	{"key = -1ns", "key", 999, -1*time.Nanosecond},
-	{"key = 300ms", "key", 999, 300*time.Millisecond},
-	{"key = 5s", "key", 999, 5*time.Second},
-	{"key = 3h", "key", 999, 3*time.Hour},
-	{"key = 2h45m", "key", 999, 2*time.Hour+45*time.Minute},
+	{"key = -1ns", "key", 999, -1 * time.Nanosecond},
+	{"key = 300ms", "key", 999, 300 * time.Millisecond},
+	{"key = 5s", "key", 999, 5 * time.Second},
+	{"key = 3h", "key", 999, 3 * time.Hour},
+	{"key = 2h45m", "key", 999, 2*time.Hour + 45*time.Minute},
 
 	// invalid values
 	{"key = 0xff", "key", 999, 999},
