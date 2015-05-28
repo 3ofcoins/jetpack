@@ -40,3 +40,13 @@ if test -f /opt/data/post-stop-id.txt ; then
 else
     echo 'post-stop id: NONE (first run?)'
 fi
+
+cat <<EOF
+
+Metadata:
+ - Pod UUID: $(ac-mdc uuid)
+ - Image ID: $(ac-mdc image-id)
+ - Image Timestamp (image annotation): $(ac-mdc app-annotation timestamp)
+ - IP Address (pod annotation): $(ac-mdc annotation ip-address)
+ - Render: $(ac-mdc expand '[Hello from Pod {{.UUID}} running app {{.AppImageID}} at {{.PodAnnotation "ip-address"}}]')
+EOF
