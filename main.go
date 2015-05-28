@@ -290,7 +290,14 @@ Helpful Aliases:
 					if len(pod.Manifest.Apps) > 1 {
 						die(errors.New("Pod has multiple apps, cannot run"))
 					}
-					die(pod.RunApp(pod.Manifest.Apps[0].Name))
+					err := pod.RunApp(pod.Manifest.Apps[0].Name)
+					if doDestroy {
+						err1 := pod.Destroy()
+						if err == nil {
+							err = err1
+						}
+					}
+					die(err)
 				} else {
 					show(pod)
 				}
