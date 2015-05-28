@@ -7,7 +7,7 @@ import (
 )
 
 var ValidOSArch = map[string][]string{
-	"linux":   {"amd64", "i386"},
+	"linux":   {"amd64", "i386", "aarch64", "armv7l", "armv7b"},
 	"freebsd": {"amd64", "i386", "arm"},
 	"darwin":  {"x86_64", "i386"},
 }
@@ -92,6 +92,16 @@ func (l Labels) Get(name string) (val string, ok bool) {
 	return "", false
 }
 
+// ToMap creates a map[ACName]string.
+func (l Labels) ToMap() map[ACName]string {
+	labelsMap := make(map[ACName]string)
+	for _, lbl := range l {
+		labelsMap[lbl.Name] = lbl.Value
+	}
+	return labelsMap
+}
+
+// LabelsFromMap creates Labels from a map[ACName]string
 func LabelsFromMap(labelsMap map[ACName]string) (Labels, error) {
 	labels := Labels{}
 	for n, v := range labelsMap {

@@ -90,7 +90,7 @@ func GetRenderedACIFromList(imgs Images, ap ACIProvider) (RenderedACI, error) {
 		return nil, fmt.Errorf("image list empty")
 	}
 
-	allFiles := make(map[string]struct{})
+	allFiles := make(map[string]byte)
 	renderedACI := RenderedACI{}
 
 	first := true
@@ -129,7 +129,7 @@ func getUpperPWLM(imgs Images, pos int) map[string]struct{} {
 
 // getACIFiles returns the ACIFiles struct for the given image. All files
 // outside rootfs are excluded (at the moment only "manifest").
-func getACIFiles(img Image, ap ACIProvider, allFiles map[string]struct{}, pwlm map[string]struct{}) (*ACIFiles, error) {
+func getACIFiles(img Image, ap ACIProvider, allFiles map[string]byte, pwlm map[string]struct{}) (*ACIFiles, error) {
 	rs, err := ap.ReadStream(img.Key)
 	if err != nil {
 		return nil, err
@@ -139,6 +139,7 @@ func getACIFiles(img Image, ap ACIProvider, allFiles map[string]struct{}, pwlm m
 	hash := sha512.New()
 	r := io.TeeReader(rs, hash)
 
+	thispwlm := pwlToMap(img.Im.PathWhitelist)
 	ra := &ACIFiles{FileMap: make(map[string]struct{})}
 	if err = Walk(tar.NewReader(r), func(hdr *tar.Header) error {
 		name := hdr.Name
@@ -153,7 +154,6 @@ func getACIFiles(img Image, ap ACIProvider, allFiles map[string]struct{}, pwlm m
 		// If the file is a directory continue also if not in PathWhiteList
 		if hdr.Typeflag != tar.TypeDir {
 			if len(img.Im.PathWhitelist) > 0 {
-				thispwlm := pwlToMap(img.Im.PathWhitelist)
 				if _, ok := thispwlm[cleanName]; !ok {
 					return nil
 				}
@@ -169,8 +169,17 @@ func getACIFiles(img Image, ap ACIProvider, allFiles map[string]struct{}, pwlm m
 		if _, ok := allFiles[cleanName]; ok {
 			return nil
 		}
+		// Check that the parent dirs are also of type dir in the upper
+		// images
+		parentDir := filepath.Dir(cleanName)
+		for parentDir != "." && parentDir != "/" {
+			if ft, ok := allFiles[parentDir]; ok && ft != tar.TypeDir {
+				return nil
+			}
+			parentDir = filepath.Dir(parentDir)
+		}
 		ra.FileMap[cleanName] = struct{}{}
-		allFiles[cleanName] = struct{}{}
+		allFiles[cleanName] = hdr.Typeflag
 		return nil
 	}); err != nil {
 		return nil, err
@@ -199,8 +208,7 @@ func pwlToMap(pwl []string) map[string]struct{} {
 	}
 	m := make(map[string]struct{}, len(pwl))
 	for _, name := range pwl {
-		cleanName := filepath.Clean(name)
-		relpath := filepath.Join("rootfs/", cleanName)
+		relpath := filepath.Join("rootfs", name)
 		m[relpath] = struct{}{}
 	}
 	return m
