@@ -3,6 +3,7 @@ package main
 import "encoding/json"
 import "flag"
 import "fmt"
+import "io/ioutil"
 import "os"
 import "path/filepath"
 import "sort"
@@ -268,10 +269,12 @@ Helpful Aliases:
 		switch command, args := subcommand("list", args); command {
 		case "create":
 			var dryRun, doRun, doDestroy bool
+			var saveId string
 			fl := flag.NewFlagSet("jetpack pod create", flag.ContinueOnError)
 			fl.BoolVar(&dryRun, "n", false, "Dry run (don't actually create pod, just show manifest)")
 			fl.BoolVar(&doRun, "run", false, "Run pod immediately")
 			fl.BoolVar(&doDestroy, "destroy", false, "Destroy pod after running (meaningless without -run)")
+			fl.StringVar(&saveId, "saveid", "", "Save pod UUID to file")
 
 			if pm, err := ConstructPod(args, fl, getRuntimeApp); err == flag.ErrHelp {
 				// It's all right. Help has been shown.
@@ -286,6 +289,9 @@ Helpful Aliases:
 			} else {
 				pod, err := Host.CreatePod(pm)
 				die(err)
+				if saveId != "" {
+					die(ioutil.WriteFile(saveId, []byte(pod.UUID.String()), 0644))
+				}
 				if doRun {
 					if len(pod.Manifest.Apps) > 1 {
 						die(errors.New("Pod has multiple apps, cannot run"))
