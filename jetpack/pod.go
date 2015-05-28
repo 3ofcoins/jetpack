@@ -489,11 +489,11 @@ func (c *Pod) runRuntimeApp(rtapp *schema.RuntimeApp) error {
 			app = ConsoleApp("root")
 		}
 	}
-	return c.Stage2(rtapp.Name, app)
+	return c.runApp(rtapp.Name, app)
 }
 
 func (c *Pod) Console(name types.ACName, user string) error {
-	return c.Stage2(name, ConsoleApp(user))
+	return c.runApp(name, ConsoleApp(user))
 }
 
 func (c *Pod) getChroot(appName types.ACName) string {
@@ -505,7 +505,38 @@ func (c *Pod) getChroot(appName types.ACName) string {
 	return "/"
 }
 
-func (c *Pod) Stage2(name types.ACName, app *types.App) error {
+func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
+	env := []string{}
+
+	for _, env_var := range app.Environment {
+		env = append(env, "-setenv", env_var.Name+"="+env_var.Value)
+	}
+
+	for _, eh := range app.EventHandlers {
+		switch eh.Name {
+		case "pre-start":
+			// TODO: log
+			if err := c.stage2(name, "0", "0", app.WorkingDirectory, env, eh.Exec...); err != nil {
+				return errors.Trace(err)
+			}
+		case "post-stop":
+			defer func(exec []string) {
+				// TODO: log
+				if err := c.stage2(name, "0", "0", app.WorkingDirectory, env, exec...); err != nil {
+					if re != nil {
+						re = errors.Trace(err)
+					} // else? log?
+				}
+			}(eh.Exec)
+		default:
+			return errors.Errorf("Unrecognized eventHandler: %v", eh.Name)
+		}
+	}
+
+	return errors.Trace(c.stage2(name, app.User, app.Group, app.WorkingDirectory, env, app.Exec...))
+}
+
+func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []string, exec ...string) error {
 	hostip, _, err := c.Host.HostIP()
 	if err != nil {
 		return errors.Trace(err)
@@ -523,34 +554,36 @@ func (c *Pod) Stage2(name types.ACName, app *types.App) error {
 		}
 	}
 
-	user := app.User
-	if user == "" {
-		user = "root"
-	}
-
 	mds := fmt.Sprintf("http://%v", hostip)
 	if mdport := c.Host.Properties.MustGetInt("mds.port"); mdport != 80 {
 		mds = fmt.Sprintf("%v:%v", mds, mdport)
 	}
 
-	args := []string{
-		"-jid", strconv.Itoa(jid),
-		"-chroot", c.getChroot(name),
-		"-user", user,
-		"-group", app.Group,
-		"-name", string(name),
-		"-mds", mds,
+	if user == "" {
+		user = "0"
 	}
 
-	if app.WorkingDirectory != "" {
-		args = append(args, "-cwd", app.WorkingDirectory)
+	if group == "" {
+		group = "0"
 	}
 
-	for _, env_var := range app.Environment {
-		args = append(args, "-setenv", env_var.Name+"="+env_var.Value)
+	if cwd == "" {
+		cwd = "/"
 	}
 
-	args = append(args, app.Exec...)
-
-	return run.Command(filepath.Join(LibexecPath, "stage2"), args...).Run()
+	return run.Command(
+		filepath.Join(LibexecPath, "stage2"),
+		append(
+			append(
+				[]string{
+					"-jid", strconv.Itoa(jid),
+					"-chroot", c.getChroot(name),
+					"-name", string(name),
+					"-mds", mds,
+					"-user", user,
+					"-group", group,
+					"-cwd", cwd,
+				},
+				env...),
+			exec...)...).Run()
 }

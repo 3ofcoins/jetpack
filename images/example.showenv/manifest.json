@@ -1,7 +1,7 @@
 {
   "name": "example/showenv",
   "labels": [
-    { "name": "version", "value": "1.1.1" }
+    { "name": "version", "value": "1.2.0" }
   ],
   "app": {
     "exec": [
@@ -13,6 +13,10 @@
     ],
     "user": "games",
     "group": "guest",
+    "eventHandlers": [
+      { "name": "pre-start", "exec": [ "/bin/sh", "-c", "id > /opt/data/pre-start-id.txt" ] },
+      { "name": "post-stop", "exec": [ "/bin/sh", "-c", "id > /opt/data/post-stop-id.txt" ] }
+    ],
     "workingDirectory": "/opt/data",
     "mountPoints": [
       {"name": "data", "path": "/opt/data"}

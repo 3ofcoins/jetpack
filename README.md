@@ -190,7 +190,7 @@ Features, or The Laundry List
    - [x] Main entry point execution
    - [x] Setting UID/GID
    - [x] Setting environment variables
-   - [ ] Event Handlers
+   - [x] Event Handlers
    - [ ] Isolators
  - CLI
    - [X] Specify image/pod by name & labels, not only UUID
