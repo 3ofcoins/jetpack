@@ -169,15 +169,24 @@ Helpful Aliases:
 			die(err)
 			show(image)
 		case "list":
-			var machineFriendly, showHash bool
+			var machineFriendly, showHash, idOnly bool
 			fl := flag.NewFlagSet("image list", flag.ExitOnError)
 			fl.BoolVar(&machineFriendly, "H", false, "Machine-friendly output")
 			fl.BoolVar(&showHash, "hash", false, "Show image hash instead of UUID")
+			fl.BoolVar(&idOnly, "q", false, "Show only ID")
 			fl.Parse(args)
 
 			images := Host.Images()
 
-			if len(images) == 0 {
+			if idOnly {
+				for _, img := range images {
+					if showHash {
+						fmt.Println(img.Hash)
+					} else {
+						fmt.Println(img.UUID)
+					}
+				}
+			} else if len(images) == 0 {
 				if !machineFriendly {
 					show("No images")
 				}
@@ -287,14 +296,19 @@ Helpful Aliases:
 				}
 			}
 		case "list":
-			var machineFriendly bool
+			var machineFriendly, idOnly bool
 			fl := flag.NewFlagSet("pod list", flag.ExitOnError)
 			fl.BoolVar(&machineFriendly, "H", false, "Machine-friendly output")
+			fl.BoolVar(&idOnly, "q", false, "Show only ID")
 			fl.Parse(args)
 
 			pods := Host.Pods()
 
-			if len(pods) == 0 {
+			if idOnly {
+				for _, pod := range pods {
+					fmt.Println(pod.UUID)
+				}
+			} else if len(pods) == 0 {
 				if !machineFriendly {
 					show("No pods")
 				}
