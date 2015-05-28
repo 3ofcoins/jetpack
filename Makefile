@@ -59,6 +59,9 @@ bin/mds: mds/*.go
 bin/test.integration: .PHONY jetpack/const.go
 	cd integration && go test -c -o ../bin/test.integration
 
+bin/actool: vendor/src/github.com/appc/spec/actool/actool.go
+	cd vendor/src/github.com/appc/spec/actool/ && go build -o ${.CURDIR}/bin/actool
+
 jetpack/const.go: .PHONY
 	echo 'package jetpack ${const.jetpack:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
 
