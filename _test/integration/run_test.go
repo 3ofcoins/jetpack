@@ -8,8 +8,8 @@ import "path/filepath"
 import "strings"
 import "testing"
 
-import "../run"
-import "../zfs"
+import "lib/run"
+import "lib/zfs"
 
 const datasetFile = "dataset.zfs"
 const snapshotName = "initialized"
