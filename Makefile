@@ -63,7 +63,7 @@ APPC_SPEC_VERSION=v0.5.2
 
 vendor.refetch: .PHONY
 	rm -rf vendor
-	go get -d
+	cd ${.CURDIR}/src ; env GOPATH=${.CURDIR}/vendor:${.CURDIR} go get -d ./...
 	cd ${.CURDIR}/vendor/src/github.com/appc/spec && git checkout ${APPC_SPEC_VERSION}
 	set -e ; \
 	    cd ${.CURDIR}/vendor/src ; \
