@@ -29,14 +29,16 @@ const.jetpack = \
 	BuildTimestamp="${%FT%TZ:L:gmtime}" \
 	Revision="${revision}"
 
-const.integration = \
-	BinPath="${bindir}" \
-	ImagesPath="${examplesdir}"
+const.go := src/lib/jetpack/const.go
 
-const.go := src/lib/jetpack/const.go src/test/integration/const.go
+libexec = ${echo src/libexec/*:L:sh:S/^src\///}
+libexec += github.com/appc/spec/actool
 
 all: .prefix ${const.go}
 	gb build ${PREFIX:D-r }bin/jetpack ${libexec}
+
+${const.go}: .PHONY
+	echo 'package jetpack ${const.jetpack:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
 
 .prefix: .PHONY
 	echo "${PREFIX:Udevelopment}" > $@
@@ -46,26 +48,16 @@ all: .prefix ${const.go}
 .prefix := (no prefix saved)
 .endif
 
-src/lib/jetpack/const.go: .PHONY
-	echo 'package jetpack ${const.jetpack:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
-
-src/test/integration/const.go: .PHONY
-	echo 'package jetpack_integration ${const.integration:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
+# Convenience
 
 bin/jetpack: .PHONY ${const.go}
 	gb build bin/jetpack ${libexec}
-
-libexec = ${echo src/libexec/*:L:sh:S/^src\///}
-libexec += github.com/appc/spec/actool
 
 .for libexec1 in ${libexec}
 libexec.bin += ${libexec1:T}
 bin/${libexec1:T}: .PHONY ${const.go}
 	gb build ${libexec1}
 .endfor
-
-bin/test.integration: .PHONY ${const.go}
-	cd integration && go test -c -o ../bin/test.integration
 
 APPC_SPEC_VERSION=v0.5.2
 

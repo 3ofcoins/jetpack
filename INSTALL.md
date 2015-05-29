@@ -10,6 +10,7 @@ Prerequisites
  - FreeBSD OS (developed and tested on 10.1 with current updates)
  - Git (to check out this repository)
  - Go (developed and tested on Go 1.4)
+ - [gb](http://getgb.io/) (FIXME: needs a fix for [#160](https://github.com/constabulary/gb/pull/160))
  
  To install prerequisites, run:
 
