@@ -20,8 +20,8 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 import "github.com/magiconair/properties"
 
-import "../run"
-import "../zfs"
+import "lib/run"
+import "lib/zfs"
 
 var ErrNotFound = stderrors.New("Not found")
 var ErrManyFound = stderrors.New("Multiple results found")

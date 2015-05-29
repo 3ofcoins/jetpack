@@ -1,3 +1,5 @@
+//go:generate ./e.sh
+
 package main
 
 import "encoding/json"
@@ -15,8 +17,8 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "./jetpack"
-import "./run"
+import "lib/jetpack"
+import "lib/run"
 
 var Host *jetpack.Host
 

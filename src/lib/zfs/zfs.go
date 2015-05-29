@@ -7,7 +7,7 @@ import "path"
 import "path/filepath"
 import "strings"
 
-import "../run"
+import "lib/run"
 
 func ZPools() ([]string, error) {
 	return run.Command("/sbin/zpool", "list", "-Hp", "-oname").OutputLines()

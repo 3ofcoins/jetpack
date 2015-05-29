@@ -18,8 +18,8 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "../run"
-import "../zfs"
+import "lib/run"
+import "lib/zfs"
 
 type PodStatus uint
 

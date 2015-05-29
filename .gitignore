@@ -5,3 +5,4 @@
 /jetpack.conf
 /.vagrant
 /vendor/pkg
+/pkg

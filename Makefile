@@ -33,7 +33,10 @@ const.integration = \
 	BinPath="${bindir}" \
 	ImagesPath="${examplesdir}"
 
-all: bin/jetpack bin/stage2 bin/mds bin/test.integration .prefix
+const.go := src/lib/jetpack/const.go src/test/integration/const.go
+
+all: .prefix ${const.go}
+	gb build ${PREFIX:D-r }bin/jetpack ${libexec}
 
 .prefix: .PHONY
 	echo "${PREFIX:Udevelopment}" > $@
@@ -43,30 +46,26 @@ all: bin/jetpack bin/stage2 bin/mds bin/test.integration .prefix
 .prefix := (no prefix saved)
 .endif
 
-CC=clang
-GOPATH=$(.CURDIR)/vendor
-.export CC GOPATH
-
-bin/jetpack: .PHONY jetpack/const.go integration/const.go
-	go build -o $@
-
-bin/stage2: stage2/*.go
-	cd stage2 && go build -o ../bin/stage2
-
-bin/mds: mds/*.go
-	cd mds && go build -o ../bin/mds
-
-bin/test.integration: .PHONY jetpack/const.go
-	cd integration && go test -c -o ../bin/test.integration
-
-bin/actool: vendor/src/github.com/appc/spec/actool/actool.go
-	cd vendor/src/github.com/appc/spec/actool/ && go build -o ${.CURDIR}/bin/actool
-
-jetpack/const.go: .PHONY
+src/lib/jetpack/const.go: .PHONY
 	echo 'package jetpack ${const.jetpack:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
 
-integration/const.go: .PHONY
+src/test/integration/const.go: .PHONY
 	echo 'package jetpack_integration ${const.integration:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
+
+bin/jetpack: .PHONY ${const.go}
+	gb build bin/jetpack ${libexec}
+
+libexec = ${echo src/libexec/*:L:sh:S/^src\///}
+libexec += github.com/appc/spec/actool
+
+.for libexec1 in ${libexec}
+libexec.bin += ${libexec1:T}
+bin/${libexec1:T}: .PHONY ${const.go}
+	gb build ${libexec1}
+.endfor
+
+bin/test.integration: .PHONY ${const.go}
+	cd integration && go test -c -o ../bin/test.integration
 
 APPC_SPEC_VERSION=v0.5.2
 
@@ -114,7 +113,7 @@ reinstall: .PHONY uninstall .WAIT install
 .endif
 
 clean: .PHONY
-	rm -rf bin tmp .prefix jetpack/const.go integration/const.go
+	rm -rf bin pkg tmp .prefix ${const.go}
 
 # development helpers
 cloc:

@@ -14,7 +14,7 @@ import "github.com/appc/spec/aci"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-import "../run"
+import "lib/run"
 
 func untilError(steps ...func() error) error {
 	for _, step := range steps {

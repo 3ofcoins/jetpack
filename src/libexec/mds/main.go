@@ -10,7 +10,7 @@ import "os"
 import "strings"
 import "time"
 
-import "../jetpack"
+import "lib/jetpack"
 
 var Host *jetpack.Host
 
