@@ -7,7 +7,6 @@ import "os"
 import "path/filepath"
 
 import "github.com/appc/spec/schema/types"
-import "golang.org/x/crypto/openpgp"
 
 import "testing"
 
@@ -85,10 +84,7 @@ func TestGetKeyring(t *testing.T) {
 	} {
 		if kr, err := ks.GetKeyring(name); err != nil {
 			t.Errorf("Error getting keyring for %v: %v\n", name, err)
-
-		} else if el, ok := kr.(openpgp.EntityList); !ok {
-			t.Errorf("CAN'T HAPPEN: keyring for %v not an entity list", name)
-		} else if actualKeys := len(el); actualKeys != expectedKeys {
+		} else if actualKeys := len(kr); actualKeys != expectedKeys {
 			t.Errorf("Expected %d keys for %v, got %d instead\n", expectedKeys, name, actualKeys)
 		}
 	}
@@ -111,12 +107,55 @@ func TestGetKeyring(t *testing.T) {
 	} {
 		if kr, err := ks.GetKeyring(name); err != nil {
 			t.Errorf("Error getting keyring for %v: %v\n", name, err)
-
-		} else if el, ok := kr.(openpgp.EntityList); !ok {
-			t.Errorf("CAN'T HAPPEN: keyring for %v not an entity list", name)
-		} else if actualKeys := len(el); actualKeys != expectedKeys {
+		} else if actualKeys := len(kr); actualKeys != expectedKeys {
 			t.Errorf("Expected %d keys for %v, got %d instead\n", expectedKeys, name, actualKeys)
 		}
+	}
+}
+
+func TestGetAllKeyrings(t *testing.T) {
+	storePath, err := ioutil.TempDir(workDir, "store")
+	if err != nil {
+		panic(err)
+	}
+
+	ks := New(storePath)
+
+	prefix := types.ACName("example.com/foo")
+	root := types.ACName("")
+
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	if _, err := ks.StoreTrustedKey(root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	krs, err := ks.GetAllKeyrings()
+	if err != nil {
+		t.Errorf("Error getting all keyrings: %v\n", err)
+		t.FailNow()
+	}
+
+	if len(krs) != 2 {
+		t.Errorf("Got %d keyrings, expected 2: %v\n", len(krs), krs)
+	}
+
+	if kr, ok := krs[root]; !ok {
+		t.Error("No root keyring")
+	} else if len(kr) != 1 {
+		t.Error("Root keyring %d long, expected 1: %v\n", len(kr), kr)
+	}
+
+	if kr, ok := krs[prefix]; !ok {
+		t.Error("No prefix keyring")
+	} else if len(kr) != 2 {
+		t.Error("Prefix keyring %d long, expected 2: %v\n", len(kr), kr)
 	}
 }
 

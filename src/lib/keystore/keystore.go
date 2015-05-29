@@ -81,10 +81,12 @@ func entityFromFile(path string) (*openpgp.Entity, error) {
 	return entityList[0], nil
 }
 
-func (ks *Keystore) GetKeyring(prefix types.ACName) (openpgp.KeyRing, error) {
-	prefixPath := ks.prefixPath(prefix)
-	var kr openpgp.EntityList
-	if err := filepath.Walk(ks.Path, func(path string, fi os.FileInfo, err error) error {
+func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path string) error) error {
+	var namePath string
+	if !name.Empty() {
+		namePath = ks.prefixPath(name)
+	}
+	return filepath.Walk(ks.Path, func(path string, fi os.FileInfo, err error) error {
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -93,13 +95,29 @@ func (ks *Keystore) GetKeyring(prefix types.ACName) (openpgp.KeyRing, error) {
 		}
 
 		if fi.IsDir() {
-			if strings.HasPrefix(prefixPath, path) {
+			if namePath == "" || strings.HasPrefix(namePath, path) {
 				return nil
 			} else {
 				return filepath.SkipDir
 			}
 		}
 
+		if sPrefix, err := url.QueryUnescape(filepath.Base(filepath.Dir(path))[1:]); err != nil {
+			return errors.Trace(err)
+		} else if sPrefix == "" {
+			// to avoid ErrEmptyACName; any better ideas?
+			return fn(types.ACName(""), path)
+		} else if prefix, err := types.NewACName(sPrefix); err != nil {
+			return errors.Trace(err)
+		} else {
+			return fn(*prefix, path)
+		}
+	})
+}
+
+func (ks *Keystore) GetKeyring(name types.ACName) (openpgp.EntityList, error) {
+	var kr openpgp.EntityList
+	if err := ks.walk(name, func(_ types.ACName, path string) error {
 		if ety, err := entityFromFile(path); err != nil {
 			return err
 		} else {
@@ -110,6 +128,21 @@ func (ks *Keystore) GetKeyring(prefix types.ACName) (openpgp.KeyRing, error) {
 		return nil, err
 	}
 	return kr, nil
+}
+
+func (ks *Keystore) GetAllKeyrings() (map[types.ACName]openpgp.EntityList, error) {
+	rv := make(map[types.ACName]openpgp.EntityList)
+	if err := ks.walk(types.ACName(""), func(prefix types.ACName, path string) error {
+		if ety, err := entityFromFile(path); err != nil {
+			return err
+		} else {
+			rv[prefix] = append(rv[prefix], ety)
+			return nil
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return rv, nil
 }
 
 func fingerprintToFilename(fp [20]byte) string {
