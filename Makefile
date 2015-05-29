@@ -84,9 +84,9 @@ install: .PHONY
 .if "${.prefix}" != "${PREFIX}"
 	@echo 'Cannot install to ${PREFIX}, source was built for ${.prefix}' ; false
 .else
-	install -m 0755 -d $(DESTDIR)$(bindir) $(DESTDIR)$(libexecdir) $(DESTDIR)$(sharedir) $(DESTDIR)$(examplesdir)
+	install -m 0755 -d $(DESTDIR)$(bindir) $(DESTDIR)$(libexecdir) $(DESTDIR)$(sharedir) $(DESTDIR)$(examplesdir) $(DESTDIR)$(sysconfdir)
 	install -m 0755 -s bin/jetpack $(DESTDIR)$(bindir)/jetpack
-	install -m 0755 -s bin/stage2 bin/mds bin/test.integration $(DESTDIR)$(libexecdir)
+	install -m 0755 -s bin/stage2 bin/mds $(DESTDIR)$(libexecdir)
 	install -m 0644 share/* $(DESTDIR)$(sharedir)
 	install -m 0644 jetpack.conf.sample $(DESTDIR)$(sysconfdir)/jetpack.conf.sample
 	cp -R images/ $(DESTDIR)$(examplesdir)
