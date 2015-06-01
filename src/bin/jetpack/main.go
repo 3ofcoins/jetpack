@@ -86,6 +86,7 @@ Commands:
   trust [-l|-list]                        List trusted ACI signign keys
   trust [-prefix PREFIX] [-root] [KEY]    Trust ACI signing key
   trust -d FINGERPRINT                    Untrust ACI signing key
+  fetch NAME...                           Fetch ACI
   image list [QUERY]                      List images
   image import ARCHIVE [MANIFEST]         Import image from an archive
   image IMAGE build [OPTIONS] COMMAND...  Build new image from an existing one
@@ -156,7 +157,8 @@ Helpful Aliases:
 			append(args, "dataset="+Host.Dataset.Name)...).Run())
 	case "trust":
 		die(runTrust(args))
-
+	case "fetch":
+		die(runFetch(args))
 	case "images":
 		command = "image"
 		args = append([]string{"list"}, args...)

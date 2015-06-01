@@ -117,3 +117,15 @@ func (ks *Keystore) GetKeyring(name types.ACName) (*Keyring, error) {
 	}
 	return kr, nil
 }
+
+func (ks *Keystore) CheckSignature(name types.ACName, signed, signature io.Reader) (*openpgp.Entity, error) {
+	kr, err := ks.GetKeyring(name)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	entities, err := openpgp.CheckArmoredDetachedSignature(kr, signed, signature)
+	if err == io.EOF {
+		err = errors.New("No signatures found")
+	}
+	return entities, err
+}

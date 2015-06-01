@@ -12,17 +12,19 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"golang.org/x/crypto/openpgp"
 
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"
+	"github.com/coreos/ioprogress"
 	"github.com/juju/errors"
 
 	"lib/keystore"
 )
 
-var allowHTTP bool
+var flagAllowHTTP bool
 
 func runTrust(args []string) error {
 	var prefix types.ACName
@@ -33,7 +35,7 @@ func runTrust(args []string) error {
 	fl.BoolVar(&root, "root", false, "Root key (trust for all images)")
 	fl.BoolVar(&doDelete, "d", false, "Delete key")
 	fl.BoolVar(&doList, "l", false, "List trusted keys")
-	fl.BoolVar(&allowHTTP, "insecure-allow-http", false, "allow HTTP use for key discovery and/or retrieval")
+	fl.BoolVar(&flagAllowHTTP, "insecure-allow-http", false, "allow HTTP use for key discovery and/or retrieval")
 
 	die(fl.Parse(args))
 	args = fl.Args()
@@ -89,7 +91,7 @@ func runTrust(args []string) error {
 				return errors.Trace(err)
 			}
 
-			ep, _, err := discovery.DiscoverPublicKeys(*app, allowHTTP)
+			ep, _, err := discovery.DiscoverPublicKeys(*app, flagAllowHTTP)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -124,6 +126,36 @@ func runTrust(args []string) error {
 }
 
 // TODO: downloader lib?
+func iopr(r io.Reader, size int64, label string) io.Reader {
+	fmt.Printf("Downloading %v...\n", label)
+	if size > 0 && size < 5120 { // TODO: isatty
+		// Don't bother with progress bar below 50k
+		return r
+	}
+
+	bar := ioprogress.DrawTextFormatBar(int64(62))
+	fmtfunc := func(progress, total int64) string {
+		// Content-Length is set to -1 when unknown.
+		if total == -1 {
+			return fmt.Sprintf(
+				"  %v/?",
+				ioprogress.ByteUnitStr(progress),
+			)
+		}
+		return fmt.Sprintf(
+			"  %s %s",
+			bar(progress, total),
+			ioprogress.DrawTextFormatBytes(progress, total),
+		)
+	}
+	return &ioprogress.Reader{
+		Reader:       r,
+		Size:         size,
+		DrawFunc:     ioprogress.DrawTerminalf(os.Stdout, fmtfunc),
+		DrawInterval: time.Second,
+	}
+}
+
 func openLocation(location string) (_ *os.File, erv error) {
 	u, err := url.Parse(location)
 	if err != nil {
@@ -138,14 +170,14 @@ func openLocation(location string) (_ *os.File, erv error) {
 		return os.Open(u.Path)
 
 	case "http":
-		if !allowHTTP {
+		if !flagAllowHTTP {
 			return nil, errors.New("-insecure-allow-http required for http URLs")
 		}
 		fallthrough
 
 	case "https":
 		// rkt/rkt/trust.go:downloadKey()
-		tf, err := ioutil.TempFile("", "")
+		tf, err := ioutil.TempFile("", "jetpack.fetch.")
 		if err != nil {
 			return nil, errors.Errorf("error creating tempfile: %v", err)
 		}
@@ -167,7 +199,7 @@ func openLocation(location string) (_ *os.File, erv error) {
 			return nil, errors.Errorf("bad HTTP status code: %d", res.StatusCode)
 		}
 
-		if _, err := io.Copy(tf, res.Body); err != nil {
+		if _, err := io.Copy(tf, iopr(res.Body, res.ContentLength, u.String())); err != nil {
 			return nil, errors.Errorf("error copying key: %v", err)
 		}
 
@@ -195,6 +227,21 @@ func fingerToString(fpr [20]byte) string {
 	return str
 }
 
+func prettyKey(ety *openpgp.Entity) string {
+	rv := make([]string, 2+len(ety.Subkeys)+len(ety.Identities))
+	rv[0] = fmt.Sprintf("GPG key fingerprint: %s", fingerToString(ety.PrimaryKey.Fingerprint))
+	for i, sk := range ety.Subkeys {
+		rv[i+1] = fmt.Sprintf(" Subkey fingerprint: %s", fingerToString(sk.PublicKey.Fingerprint))
+	}
+	i := len(ety.Subkeys) + 1
+	rv[i] = "Identities:"
+	for id := range ety.Identities {
+		rv[i] = fmt.Sprintf(" - %v", id)
+		i += 1
+	}
+	return strings.Join(rv, "\n")
+}
+
 func reviewKey(prefix types.ACName, location string, key *os.File, forceAccept bool) (bool, error) {
 	defer key.Seek(0, os.SEEK_SET)
 
@@ -205,13 +252,7 @@ func reviewKey(prefix types.ACName, location string, key *os.File, forceAccept b
 
 	fmt.Printf("Prefix: %q\nKey: %q\n", prefix, location)
 	for _, k := range kr {
-		fmt.Printf("GPG key fingerprint is: %s\n", fingerToString(k.PrimaryKey.Fingerprint))
-		for _, sk := range k.Subkeys {
-			fmt.Printf("    Subkey fingerprint: %s\n", fingerToString(sk.PublicKey.Fingerprint))
-		}
-		for n, _ := range k.Identities {
-			fmt.Printf("\t%s\n", n)
-		}
+		fmt.Println(prettyKey(k))
 	}
 
 	if !forceAccept {
