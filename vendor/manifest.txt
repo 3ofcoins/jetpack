@@ -2,5 +2,5 @@ code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUID
 github.com/appc/spec 1d31afe (HEAD, tag: v0.5.2) version: bump to v0.5.2
 github.com/juju/errors 4567a5e (HEAD -> master, origin/master, origin/HEAD) Merge pull request #19 from cherylj/license_master
 github.com/magiconair/properties d5929c6 (HEAD -> master, tag: v1.5.2, origin/master, origin/HEAD) Updated README for v1.5.2
-golang.org/x/crypto ce6bda6 (HEAD -> master, origin/master, origin/HEAD) ocsp: fix test on TZ=UTC systems
+golang.org/x/crypto c10c31b (HEAD -> master, origin/master, origin/HEAD) x/crypto/openpgp: cross-signature validation for signing subkeys.
 golang.org/x/sys 58e1096 (HEAD -> master, origin/master, origin/HEAD) unix: add darwin/arm64 support
