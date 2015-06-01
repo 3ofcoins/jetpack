@@ -20,6 +20,7 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 import "github.com/magiconair/properties"
 
+import "lib/keystore"
 import "lib/run"
 import "lib/zfs"
 
@@ -107,6 +108,10 @@ func (h *Host) Initialize() error {
 	}
 
 	return nil
+}
+
+func (h *Host) Keystore() *keystore.Keystore {
+	return keystore.New(h.Path("keys"))
 }
 
 func (h *Host) GetMDSUGID() (int, int) {

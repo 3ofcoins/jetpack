@@ -7,7 +7,6 @@ package keystore
 // collisions.
 
 import "bytes"
-import "fmt"
 import "io"
 import "io/ioutil"
 import "net/url"
@@ -19,6 +18,8 @@ import "github.com/juju/errors"
 import "golang.org/x/crypto/openpgp"
 
 import "github.com/appc/spec/schema/types"
+
+const Root = types.ACName("")
 
 type Keystore struct {
 	Path string
@@ -60,25 +61,17 @@ func (ks *Keystore) StoreTrustedKey(prefix types.ACName, r io.Reader) (string, e
 	return trustedKeyPath, nil
 }
 
-func entityFromFile(path string) (*openpgp.Entity, error) {
-	trustedKey, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer trustedKey.Close()
-	entityList, err := openpgp.ReadArmoredKeyRing(trustedKey)
-	if err != nil {
-		return nil, err
-	}
-	if len(entityList) < 1 {
-		return nil, errors.New("missing opengpg entity")
-	}
-	fingerprint := fingerprintToFilename(entityList[0].PrimaryKey.Fingerprint)
-	keyFile := filepath.Base(trustedKey.Name())
-	if fingerprint != keyFile {
-		return nil, errors.Errorf("fingerprint mismatch: %q:%q", keyFile, fingerprint)
-	}
-	return entityList[0], nil
+func (ks *Keystore) UntrustKey(fingerprint string) (removed []types.ACName, err error) {
+	err = ks.walk(Root, func(prefix types.ACName, path string) error {
+		if filepath.Base(path) == fingerprint {
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+			removed = append(removed, prefix)
+		}
+		return nil
+	})
+	return
 }
 
 func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path string) error) error {
@@ -106,7 +99,7 @@ func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path st
 			return errors.Trace(err)
 		} else if sPrefix == "" {
 			// to avoid ErrEmptyACName; any better ideas?
-			return fn(types.ACName(""), path)
+			return fn(Root, path)
 		} else if prefix, err := types.NewACName(sPrefix); err != nil {
 			return errors.Trace(err)
 		} else {
@@ -115,36 +108,12 @@ func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path st
 	})
 }
 
-func (ks *Keystore) GetKeyring(name types.ACName) (openpgp.EntityList, error) {
-	var kr openpgp.EntityList
+func (ks *Keystore) GetKeyring(name types.ACName) (*Keyring, error) {
+	kr := &Keyring{}
 	if err := ks.walk(name, func(_ types.ACName, path string) error {
-		if ety, err := entityFromFile(path); err != nil {
-			return err
-		} else {
-			kr = append(kr, ety)
-			return nil
-		}
+		return kr.loadFile(path)
 	}); err != nil {
 		return nil, err
 	}
 	return kr, nil
-}
-
-func (ks *Keystore) GetAllKeyrings() (map[types.ACName]openpgp.EntityList, error) {
-	rv := make(map[types.ACName]openpgp.EntityList)
-	if err := ks.walk(types.ACName(""), func(prefix types.ACName, path string) error {
-		if ety, err := entityFromFile(path); err != nil {
-			return err
-		} else {
-			rv[prefix] = append(rv[prefix], ety)
-			return nil
-		}
-	}); err != nil {
-		return nil, err
-	}
-	return rv, nil
-}
-
-func fingerprintToFilename(fp [20]byte) string {
-	return fmt.Sprintf("%x", fp)
 }

@@ -1,24 +1,29 @@
 package keystore
 
-import "bytes"
-import "fmt"
-import "io/ioutil"
-import "os"
-import "path/filepath"
+import (
+	"bytes"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"testing"
 
-import "github.com/appc/spec/schema/types"
+	"github.com/appc/spec/schema/types"
+)
 
-import "testing"
-
-var workDir string
-
-func testImport(t *testing.T, prefix types.ACName, subdir string) {
-	storePath, err := ioutil.TempDir(workDir, "store")
+func newStore() *Keystore {
+	storePath, err := ioutil.TempDir(".", "test.store.")
 	if err != nil {
 		panic(err)
 	}
 
-	ks := New(storePath)
+	return New(storePath)
+}
+
+func testImport(t *testing.T, prefix types.ACName, subdir string) {
+	ks := newStore()
+	defer os.RemoveAll(ks.Path)
 
 	for i, key := range sampleKeys {
 		fingerprint := sampleKeyFingerprints[i]
@@ -28,10 +33,10 @@ func testImport(t *testing.T, prefix types.ACName, subdir string) {
 			t.Errorf("Error storing key #%d: %v\n", i, err)
 		}
 
-		expectedPath := filepath.Join(storePath, subdir, fingerprint)
+		expectedPath := filepath.Join(ks.Path, subdir, fingerprint)
 		if keyPath != expectedPath {
 			t.Errorf("Unexpected key path: %v, expected %v (key %d, store %v, prefix %v, fingerprint %v)\n",
-				keyPath, expectedPath, i, storePath, prefix, fingerprint)
+				keyPath, expectedPath, i, ks.Path, prefix, fingerprint)
 		}
 
 		if keyBytes, err := ioutil.ReadFile(keyPath); err != nil {
@@ -43,7 +48,7 @@ func testImport(t *testing.T, prefix types.ACName, subdir string) {
 }
 
 func TestImportRoot(t *testing.T) {
-	testImport(t, types.ACName(""), "_")
+	testImport(t, Root, "_")
 }
 
 func TestImportPrefix(t *testing.T) {
@@ -54,13 +59,19 @@ func TestImportPrefixEscaped(t *testing.T) {
 	testImport(t, types.ACName("example.com/foo"), "_example.com%2Ffoo")
 }
 
-func TestGetKeyring(t *testing.T) {
-	storePath, err := ioutil.TempDir(workDir, "store")
-	if err != nil {
-		panic(err)
+func checkKeyCount(t *testing.T, ks *Keystore, expected map[types.ACName]int) {
+	for name, expectedKeys := range expected {
+		if kr, err := ks.GetKeyring(name); err != nil {
+			t.Errorf("Error getting keyring for %v: %v\n", name, err)
+		} else if actualKeys := kr.Len(); actualKeys != expectedKeys {
+			t.Errorf("Expected %d keys for %v, got %d instead\n", expectedKeys, name, actualKeys)
+		}
 	}
+}
 
-	ks := New(storePath)
+func TestGetKeyring(t *testing.T) {
+	ks := newStore()
+	defer os.RemoveAll(ks.Path)
 
 	if _, err := ks.StoreTrustedKey(types.ACName("example.com/foo"), bytes.NewReader([]byte(sampleKeys[0]))); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
@@ -70,7 +81,7 @@ func TestGetKeyring(t *testing.T) {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	for name, expectedKeys := range map[types.ACName]int{
+	checkKeyCount(t, ks, map[types.ACName]int{
 		types.ACName("eggsample.com"):           0,
 		types.ACName("eggsample.com/foo"):       0,
 		types.ACName("eggsample.com/foo/bar"):   0,
@@ -81,19 +92,13 @@ func TestGetKeyring(t *testing.T) {
 		types.ACName("example.com/foo/bar/baz"): 2,
 		types.ACName("example.com/foobar"):      1,
 		types.ACName("example.com/baz"):         0,
-	} {
-		if kr, err := ks.GetKeyring(name); err != nil {
-			t.Errorf("Error getting keyring for %v: %v\n", name, err)
-		} else if actualKeys := len(kr); actualKeys != expectedKeys {
-			t.Errorf("Expected %d keys for %v, got %d instead\n", expectedKeys, name, actualKeys)
-		}
-	}
+	})
 
-	if _, err := ks.StoreTrustedKey(types.ACName(""), bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	for name, expectedKeys := range map[types.ACName]int{
+	checkKeyCount(t, ks, map[types.ACName]int{
 		types.ACName("eggsample.com"):           1,
 		types.ACName("eggsample.com/foo"):       1,
 		types.ACName("eggsample.com/foo/bar"):   1,
@@ -104,25 +109,22 @@ func TestGetKeyring(t *testing.T) {
 		types.ACName("example.com/foo/bar/baz"): 3,
 		types.ACName("example.com/foobar"):      2,
 		types.ACName("example.com/baz"):         1,
-	} {
-		if kr, err := ks.GetKeyring(name); err != nil {
-			t.Errorf("Error getting keyring for %v: %v\n", name, err)
-		} else if actualKeys := len(kr); actualKeys != expectedKeys {
-			t.Errorf("Expected %d keys for %v, got %d instead\n", expectedKeys, name, actualKeys)
-		}
+	})
+}
+
+func countKeys(kr *Keyring) map[types.ACName]int {
+	rv := make(map[types.ACName]int)
+	for _, prefix := range kr.prefixes {
+		rv[prefix] = rv[prefix] + 1
 	}
+	return rv
 }
 
 func TestGetAllKeyrings(t *testing.T) {
-	storePath, err := ioutil.TempDir(workDir, "store")
-	if err != nil {
-		panic(err)
-	}
-
-	ks := New(storePath)
+	ks := newStore()
+	defer os.RemoveAll(ks.Path)
 
 	prefix := types.ACName("example.com/foo")
-	root := types.ACName("")
 
 	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0]))); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
@@ -132,45 +134,96 @@ func TestGetAllKeyrings(t *testing.T) {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	krs, err := ks.GetAllKeyrings()
+	kr, err := ks.GetKeyring(Root)
 	if err != nil {
 		t.Errorf("Error getting all keyrings: %v\n", err)
 		t.FailNow()
 	}
 
-	if len(krs) != 2 {
-		t.Errorf("Got %d keyrings, expected 2: %v\n", len(krs), krs)
+	kc := countKeys(kr)
+
+	if len(kc) != 2 {
+		t.Errorf("Got %d keyrings, expected 2: %v\n", len(kc), kc)
 	}
 
-	if kr, ok := krs[root]; !ok {
+	if rkc, ok := kc[Root]; !ok {
 		t.Error("No root keyring")
-	} else if len(kr) != 1 {
-		t.Error("Root keyring %d long, expected 1: %v\n", len(kr), kr)
+	} else if rkc != 1 {
+		t.Error("Root keyring %d long, expected 1\n", rkc)
 	}
 
-	if kr, ok := krs[prefix]; !ok {
+	if pkc, ok := kc[prefix]; !ok {
 		t.Error("No prefix keyring")
-	} else if len(kr) != 2 {
-		t.Error("Prefix keyring %d long, expected 2: %v\n", len(kr), kr)
+	} else if pkc != 2 {
+		t.Error("Prefix keyring %d long, expected 2\n", kc)
 	}
 }
 
-func TestMain(m *testing.M) {
-	wd, err := ioutil.TempDir("", "jetpack.test.keystore.")
+type acNames []types.ACName
+
+// sort.Interface
+func (acn acNames) Len() int           { return len(acn) }
+func (acn acNames) Less(i, j int) bool { return acn[i].String() < acn[j].String() }
+func (acn acNames) Swap(i, j int)      { acn[i], acn[j] = acn[j], acn[i] }
+
+func TestUntrustKey(t *testing.T) {
+	ks := newStore()
+	defer os.RemoveAll(ks.Path)
+
+	prefix := types.ACName("example.com/foo")
+	prefix2 := types.ACName("example.org/bar")
+
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[1]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+		t.Errorf("Error storing key: %v\n", err)
+	}
+
+	kr, err := ks.GetKeyring(Root)
 	if err != nil {
 		panic(err)
 	}
-	workDir = wd
+	kc := countKeys(kr)
 
-	if os.Getenv("JETPACK_TEST_KEEP_FILES") == "" {
-		defer os.RemoveAll(wd)
-	} else {
-		defer fmt.Println("Leaving work directory:", wd)
+	if kc[Root] != 1 || kc[prefix] != 2 || kc[prefix2] != 2 {
+		t.Errorf("Wrong keyrings even before remove: %v\n", kc)
 	}
 
-	os.Exit(m.Run())
+	if prefixes, err := ks.UntrustKey(sampleKeyFingerprints[2]); err != nil {
+		t.Errorf("Error untrusting key: %v %v\n", err, prefixes)
+	} else {
+		sort.Sort(acNames(prefixes))
+		expectedPrefixes := []types.ACName{Root, prefix2}
+		if !reflect.DeepEqual(prefixes, expectedPrefixes) {
+			t.Errorf("Expected removed prefixes to be %v, got %v instead.\n", expectedPrefixes, prefixes)
+		}
+	}
+
+	kr, err = ks.GetKeyring(Root)
+	if err != nil {
+		panic(err)
+	}
+	kc = countKeys(kr)
+
+	if kc[Root] != 0 || kc[prefix] != 2 || kc[prefix2] != 1 {
+		t.Errorf("Wrong counts after remove: %v\n", kc)
+	}
 }

@@ -83,6 +83,9 @@ Commands:
   init                                    Initialize host
   info                                    Show global information
   test                                    Run integration tests
+  trust [-l|-list]                        List trusted ACI signign keys
+  trust [-prefix PREFIX] [-root] [KEY]    Trust ACI signing key
+  trust -d FINGERPRINT                    Untrust ACI signing key
   image list [QUERY]                      List images
   image import ARCHIVE [MANIFEST]         Import image from an archive
   image IMAGE build [OPTIONS] COMMAND...  Build new image from an existing one
@@ -151,6 +154,9 @@ Helpful Aliases:
 	case "test":
 		die(run.Command(filepath.Join(jetpack.LibexecPath, "test.integration"),
 			append(args, "dataset="+Host.Dataset.Name)...).Run())
+	case "trust":
+		die(runTrust(args))
+
 	case "images":
 		command = "image"
 		args = append([]string{"list"}, args...)
@@ -177,7 +183,7 @@ Helpful Aliases:
 			fl.BoolVar(&machineFriendly, "H", false, "Machine-friendly output")
 			fl.BoolVar(&showHash, "hash", false, "Show image hash instead of UUID")
 			fl.BoolVar(&idOnly, "q", false, "Show only ID")
-			fl.Parse(args)
+			die(fl.Parse(args))
 
 			images := Host.Images()
 
