@@ -88,7 +88,6 @@ Commands:
   trust -d FINGERPRINT                    Untrust ACI signing key
   fetch NAME...                           Fetch ACI
   image list [QUERY]                      List images
-  image import ARCHIVE [MANIFEST]         Import image from an archive
   image IMAGE build [OPTIONS] COMMAND...  Build new image from an existing one
                     -dir=.                Location on build directory on host
                     -cp=PATH...           Copy additional files from host
@@ -165,20 +164,6 @@ Helpful Aliases:
 		fallthrough
 	case "image", "img", "i":
 		switch command, args := subcommand("list", args); command {
-		case "import":
-			var archive, manifest string
-			switch len(args) {
-			case 2:
-				manifest = args[1]
-				fallthrough
-			case 1:
-				archive = args[0]
-			default:
-				die(errors.New("Usage: import ARCHIVE_URI [MANIFEST_URI]"))
-			}
-			image, err := Host.ImportImage(archive, manifest)
-			die(err)
-			show(image)
 		case "list":
 			var machineFriendly, showHash, idOnly bool
 			fl := flag.NewFlagSet("image list", flag.ExitOnError)

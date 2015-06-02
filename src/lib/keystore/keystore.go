@@ -108,9 +108,29 @@ func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path st
 	})
 }
 
-func (ks *Keystore) GetKeyring(name types.ACName) (*Keyring, error) {
+func (ks *Keystore) GetAllKeys() (*Keyring, error) {
 	kr := &Keyring{}
-	if err := ks.walk(name, func(_ types.ACName, path string) error {
+	if err := ks.walk(Root, func(_ types.ACName, path string) error {
+		return kr.loadFile(path)
+	}); err != nil {
+		return nil, err
+	}
+	return kr, nil
+}
+
+func (ks *Keystore) GetKeysFor(name types.ACName) (*Keyring, error) {
+	kr := &Keyring{}
+	if name == Root {
+		if paths, err := filepath.Glob(filepath.Join(ks.prefixPath(Root), "*")); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			for _, path := range paths {
+				if err := kr.loadFile(path); err != nil {
+					return nil, errors.Trace(err)
+				}
+			}
+		}
+	} else if err := ks.walk(name, func(_ types.ACName, path string) error {
 		return kr.loadFile(path)
 	}); err != nil {
 		return nil, err
@@ -119,7 +139,7 @@ func (ks *Keystore) GetKeyring(name types.ACName) (*Keyring, error) {
 }
 
 func (ks *Keystore) CheckSignature(name types.ACName, signed, signature io.Reader) (*openpgp.Entity, error) {
-	kr, err := ks.GetKeyring(name)
+	kr, err := ks.GetKeysFor(name)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

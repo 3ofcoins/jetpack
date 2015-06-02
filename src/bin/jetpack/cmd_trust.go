@@ -43,7 +43,7 @@ func runTrust(args []string) error {
 	ks := Host.Keystore()
 
 	if doList || (len(args) == 0 && prefix == "" && !doDelete && !root) {
-		kr, err := ks.GetKeyring(keystore.Root)
+		kr, err := ks.GetAllKeys()
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -164,7 +164,7 @@ func openLocation(location string) (_ *os.File, erv error) {
 
 	switch u.Scheme {
 	case "":
-		return os.Open("location")
+		return os.Open(location)
 
 	case "file":
 		return os.Open(u.Path)
@@ -213,34 +213,6 @@ func openLocation(location string) (_ *os.File, erv error) {
 }
 
 // rkt/rkt/trust.go
-func fingerToString(fpr [20]byte) string {
-	str := ""
-	for i, b := range fpr {
-		if i > 0 && i%2 == 0 {
-			str += " "
-			if i == 10 {
-				str += " "
-			}
-		}
-		str += strings.ToUpper(fmt.Sprintf("%.2x", b))
-	}
-	return str
-}
-
-func prettyKey(ety *openpgp.Entity) string {
-	rv := make([]string, 2+len(ety.Subkeys)+len(ety.Identities))
-	rv[0] = fmt.Sprintf("GPG key fingerprint: %s", fingerToString(ety.PrimaryKey.Fingerprint))
-	for i, sk := range ety.Subkeys {
-		rv[i+1] = fmt.Sprintf(" Subkey fingerprint: %s", fingerToString(sk.PublicKey.Fingerprint))
-	}
-	i := len(ety.Subkeys) + 1
-	rv[i] = "Identities:"
-	for id := range ety.Identities {
-		rv[i] = fmt.Sprintf(" - %v", id)
-		i += 1
-	}
-	return strings.Join(rv, "\n")
-}
 
 func reviewKey(prefix types.ACName, location string, key *os.File, forceAccept bool) (bool, error) {
 	defer key.Seek(0, os.SEEK_SET)
@@ -252,7 +224,7 @@ func reviewKey(prefix types.ACName, location string, key *os.File, forceAccept b
 
 	fmt.Printf("Prefix: %q\nKey: %q\n", prefix, location)
 	for _, k := range kr {
-		fmt.Println(prettyKey(k))
+		fmt.Println(keystore.KeyDescription(k))
 	}
 
 	if !forceAccept {

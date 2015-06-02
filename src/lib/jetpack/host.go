@@ -1,9 +1,12 @@
 package jetpack
 
-import "encoding/json"
+import (
+	"crypto/sha512"
+	"io"
+)
 import stderrors "errors"
 import "fmt"
-import "io/ioutil"
+
 import "net"
 import "net/url"
 import "os"
@@ -388,7 +391,20 @@ func (h *Host) FindImage(query string) (*Image, error) {
 	}
 }
 
-func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
+func (h *Host) ImportImageNG(name types.ACName, aci, asc *os.File) (_ *Image, erv error) {
+	if asc != nil {
+		ks := h.Keystore()
+		if ety, err := ks.CheckSignature(name, aci, asc); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			fmt.Println("Valid signature for", name, "by:")
+			fmt.Println(keystore.KeyDescription(ety))
+
+			aci.Seek(0, os.SEEK_SET)
+			asc.Seek(0, os.SEEK_SET)
+		}
+	}
+
 	newId := uuid.NewRandom()
 	newIdStr := newId.String()
 	if _, err := h.Dataset.CreateDataset(path.Join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
@@ -396,54 +412,82 @@ func (h *Host) ImportImage(imageUri, manifestUri string) (*Image, error) {
 	}
 
 	img := NewImage(h, newId)
-	img.Origin = imageUri
 	img.Timestamp = time.Now()
 
-	if manifestUri == "" {
-		if hash, err := UnpackImage(imageUri, img.Path(), img.Path("ami")); err != nil {
+	defer func() {
+		if erv != nil {
+			img.Destroy()
+		}
+	}()
+
+	// Save copy of the signature
+	if asc != nil {
+		if ascCopy, err := os.OpenFile(img.Path("aci.asc"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400); err != nil {
 			return nil, errors.Trace(err)
 		} else {
-			img.Hash = hash
-		}
-	} else {
-		if _, err := UnpackImage(imageUri, img.Path("rootfs"), ""); err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		manifestBytes, err := run.Command("fetch", "-o", "-", manifestUri).Output()
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		// Construct final manifest
-		// FIXME: this may be somehow merged with build, and final manifest should be validated
-		manifest := map[string]interface{}{
-			"acKind":    "ImageManifest",
-			"acVersion": schema.AppContainerVersion,
-		}
-
-		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		if manifest["annotations"] == nil {
-			manifest["annotations"] = make([]interface{}, 0)
-		}
-
-		manifest["annotations"] = append(manifest["annotations"].([]interface{}),
-			map[string]interface{}{"name": "timestamp", "value": time.Now()})
-
-		if manifestBytes, err := json.Marshal(manifest); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			if err := ioutil.WriteFile(img.Path("manifest"), manifestBytes, 0400); err != nil {
+			_, err := io.Copy(ascCopy, asc)
+			ascCopy.Close()
+			if err != nil {
 				return nil, errors.Trace(err)
 			}
 		}
 	}
 
+	// Save us a copy of the original, compressed ACI
+	aciCopy, err := os.OpenFile(img.Path("aci"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	defer aciCopy.Close()
+	aciZRd := io.TeeReader(aci, aciCopy)
+
+	// Decompress tarball for checksum
+	aciRd, err := DecompressingReader(aciZRd)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	hash := sha512.New()
+	aciRd = io.TeeReader(aciRd, hash)
+
+	// Unpack the image. We trust system's tar, no need to roll our own
+	untarCmd := run.Command("tar", "-C", img.Path(), "-xf", "-", "manifest", "rootfs")
+	untar, err := untarCmd.StdinPipe()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := untarCmd.Start(); err != nil {
+		return nil, errors.Trace(err)
+	}
+	// FIXME: defer killing process if survived
+
+	if _, err := io.Copy(untar, aciRd); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := untar.Close(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err := untarCmd.Wait(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
+		// CAN'T HAPPEN
+		return nil, errors.Trace(err)
+	} else {
+		img.Hash = hash
+	}
+
+	// TODO: load manifest, check name before sealing, enforce PathWhiteList
+
 	if err := img.Seal(); err != nil {
 		return nil, errors.Trace(err)
+	}
+
+	if name != ACNoName && name != img.Manifest.Name {
+		return nil, errors.Errorf("ACI name mismatch: downloaded %#v, got %#v instead", name, img.Manifest.Name)
 	}
 
 	return img, nil

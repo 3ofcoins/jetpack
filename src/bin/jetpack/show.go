@@ -136,9 +136,6 @@ func Show(prefix string, objs ...interface{}) error {
 			if img.Hash != nil {
 				metadata = append(metadata, []string{"Hash", img.Hash.String()})
 			}
-			if img.Origin != "" {
-				metadata = append(metadata, []string{"Origin", img.Origin})
-			}
 			metadata = append(metadata, []string{"Timestamp", img.Timestamp.String()})
 
 			items := []interface{}{metadata, img.Manifest}

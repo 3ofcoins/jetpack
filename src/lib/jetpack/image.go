@@ -26,7 +26,6 @@ type Image struct {
 	Manifest schema.ImageManifest `json:"-"`
 
 	Hash      *types.Hash `json:",omitempty"`
-	Origin    string
 	Timestamp time.Time
 
 	rootfs *zfs.Dataset
@@ -424,8 +423,6 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	// TODO: should we merge app from parent image?
-
-	childImage.Origin = img.UUID.String()
 
 	if manifestBytes, err := json.Marshal(childImage.Manifest); err != nil {
 		return nil, errors.Trace(err)
