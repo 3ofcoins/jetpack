@@ -6,7 +6,7 @@ arch="$(uname -m)"
 
 cat <<EOF
 {
-  "name": "freebsd-base",
+  "name": "3ofcoins.net/freebsd-base",
   "labels": [
     { "name": "version", "value": "${version}" }
   ]
