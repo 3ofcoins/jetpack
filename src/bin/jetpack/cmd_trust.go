@@ -213,7 +213,6 @@ func openLocation(location string) (_ *os.File, erv error) {
 }
 
 // rkt/rkt/trust.go
-
 func reviewKey(prefix types.ACName, location string, key *os.File, forceAccept bool) (bool, error) {
 	defer key.Seek(0, os.SEEK_SET)
 
