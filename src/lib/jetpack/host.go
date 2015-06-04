@@ -20,6 +20,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 	"github.com/magiconair/properties"
+	openpgp_err "golang.org/x/crypto/openpgp/errors"
 
 	"lib/fetch"
 	"lib/keystore"
@@ -391,6 +392,36 @@ func (h *Host) FindImage(query string) (*Image, error) {
 	}
 }
 
+func (h *Host) TrustKey(prefix types.ACName, location string) error {
+	if location == "" {
+		if prefix == keystore.Root {
+			return errors.New("Cannot discover root key!")
+		}
+		location = prefix.String()
+	}
+
+	_, kf, err := fetch.OpenPubKey(location)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	defer kf.Close()
+
+	// TODO: --yes
+	path, err := h.Keystore().StoreTrustedKey(prefix, kf, false)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if path == "" {
+		fmt.Println("Key NOT accepted")
+	} else {
+		fmt.Printf("Key accepted and saved as %v\n", path)
+	}
+
+	return nil
+}
+
 func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 	if name, aci, asc, err := fetch.OpenACI(name, sigLocation); err != nil {
 		return nil, errors.Trace(err)
@@ -406,8 +437,19 @@ func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 
 func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv error) {
 	if asc != nil {
+		didKeyDiscovery := false
 		ks := h.Keystore()
-		if ety, err := ks.CheckSignature(name, aci, asc); err != nil {
+	checkSig:
+		if ety, err := ks.CheckSignature(name, aci, asc); err == openpgp_err.ErrUnknownIssuer && !didKeyDiscovery {
+			fmt.Println("Image signed by an unknown issuer, attempting to discover public key...")
+			if err := h.TrustKey(name, ""); err != nil {
+				return nil, errors.Trace(err)
+			}
+			didKeyDiscovery = true
+			aci.Seek(0, os.SEEK_SET)
+			asc.Seek(0, os.SEEK_SET)
+			goto checkSig
+		} else if err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			fmt.Println("Valid signature for", name, "by:")

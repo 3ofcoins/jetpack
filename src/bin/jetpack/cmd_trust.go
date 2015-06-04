@@ -80,26 +80,14 @@ func runTrust(args []string) error {
 	} else {
 		// add key(s)
 		for _, loc := range args {
-			if name, kf, err := fetch.OpenPubKey(loc); err != nil {
-				return errors.Trace(err)
-			} else {
-				defer kf.Close()
-
-				usePrefix := prefix
-				if prefix.Empty() {
-					if name.Empty() {
-						return errors.New("Unknown prefix, use -prefix or -root option")
-					}
-					usePrefix = name
-				}
-
-				if path, err := ks.StoreTrustedKey(usePrefix, kf, yes); err != nil {
+			if prefix.Empty() {
+				if acnLoc, err := types.NewACName(loc); err != nil {
 					return errors.Trace(err)
-				} else if path == "" {
-					fmt.Println("Key NOT accepted")
-				} else {
-					fmt.Printf("Key accepted and saved at %v\n", path)
+				} else if err := Host.TrustKey(*acnLoc, ""); err != nil {
+					return errors.Trace(err)
 				}
+			} else if err := Host.TrustKey(prefix, loc); err != nil {
+				return errors.Trace(err)
 			}
 		}
 	}
