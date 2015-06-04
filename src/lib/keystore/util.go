@@ -1,8 +1,9 @@
 package keystore
 
 import (
+	"bufio"
 	"fmt"
-	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -41,18 +42,53 @@ func KeyDescription(ety *openpgp.Entity) string {
 	return strings.Join(rv, "\n")
 }
 
-func pathToACName(path string) (*types.ACName, error) {
-	if dirname := filepath.Base(filepath.Dir(path)); dirname[0] != '_' {
-		return nil, errors.Errorf("Directory is not a quoted ACName: %v", dirname)
-	} else if prefix, err := url.QueryUnescape(dirname[1:]); err != nil {
-		return nil, err
-	} else if prefix, err := types.NewACName(prefix); err == types.ErrEmptyACName {
-		root := Root
-		return &root, nil
-	} else if err != nil {
-		return nil, err
+func reviewKey(prefix types.ACName, key *os.File, forceAccept bool) (bool, error) {
+	defer key.Seek(0, os.SEEK_SET)
+
+	kr, err := openpgp.ReadArmoredKeyRing(key)
+	if err != nil {
+		return false, errors.Trace(err)
+	}
+
+	if prefix == Root {
+		fmt.Println("Prefix: ROOT KEY (matches all names)")
 	} else {
-		return prefix, nil
+		fmt.Println("Prefix:", prefix)
+	}
+	for _, k := range kr {
+		fmt.Println(KeyDescription(k))
+	}
+
+	if !forceAccept {
+		in := bufio.NewReader(os.Stdin)
+		for {
+			fmt.Printf("Are you sure you want to trust this key (yes/no)? ")
+			input, err := in.ReadString('\n')
+			if err != nil {
+				return false, errors.Errorf("error reading input: %v", err)
+			}
+			switch input {
+			case "yes\n":
+				return true, nil
+			case "no\n":
+				return false, nil
+			default:
+				fmt.Printf("Please enter 'yes' or 'no'")
+			}
+		}
+	} else {
+		fmt.Println("Warning: trust fingerprint verification has been disabled")
+	}
+	return true, nil
+}
+
+func pathToACName(path string) (types.ACName, error) {
+	if dirname := filepath.Base(filepath.Dir(path)); dirname == "@" {
+		return Root, nil
+	} else if prefix, err := types.NewACName(strings.Replace(dirname, ",", "/", -1)); err != nil {
+		return "", err
+	} else {
+		return *prefix, nil
 	}
 }
 

@@ -41,7 +41,7 @@ func (kr *Keyring) loadFile(path string) error {
 
 	kr.EntityList = append(kr.EntityList, entityList[0])
 	kr.paths = append(kr.paths, path)
-	kr.prefixes = append(kr.prefixes, *prefix)
+	kr.prefixes = append(kr.prefixes, prefix)
 
 	return nil
 }

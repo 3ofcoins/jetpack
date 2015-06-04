@@ -6,20 +6,22 @@ package keystore
 // avoid path travelrsal issues and not to worry about prefix
 // collisions.
 
-import "bytes"
-import "io"
-import "io/ioutil"
-import "net/url"
-import "os"
-import "path/filepath"
-import "strings"
+import (
+	"bytes"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
 
-import "github.com/juju/errors"
-import "golang.org/x/crypto/openpgp"
+	"github.com/juju/errors"
+	"golang.org/x/crypto/openpgp"
 
-import "github.com/appc/spec/schema/types"
+	"github.com/appc/spec/schema/types"
+)
 
-const Root = types.ACName("")
+// Intentionally invalid ACName to mark root key
+const Root = types.ACName("@")
 
 type Keystore struct {
 	Path string
@@ -30,11 +32,24 @@ func New(path string) *Keystore {
 }
 
 func (ks *Keystore) prefixPath(prefix types.ACName) string {
-	return filepath.Join(ks.Path, "_"+url.QueryEscape(string(prefix)))
+	if prefix.Empty() {
+		panic("Empty prefix!")
+	}
+	return filepath.Join(ks.Path, strings.Replace(string(prefix), "/", ",", -1))
 }
 
-func (ks *Keystore) StoreTrustedKey(prefix types.ACName, r io.Reader) (string, error) {
-	pubkeyBytes, err := ioutil.ReadAll(r)
+func (ks *Keystore) StoreTrustedKey(prefix types.ACName, key *os.File, forceAccept bool) (string, error) {
+	if prefix.Empty() {
+		panic("Empty prefix!")
+	}
+
+	if accepted, err := reviewKey(prefix, key, forceAccept); err != nil {
+		return "", err
+	} else if !accepted {
+		return "", nil
+	}
+
+	pubkeyBytes, err := ioutil.ReadAll(key)
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +77,7 @@ func (ks *Keystore) StoreTrustedKey(prefix types.ACName, r io.Reader) (string, e
 }
 
 func (ks *Keystore) UntrustKey(fingerprint string) (removed []types.ACName, err error) {
-	err = ks.walk(Root, func(prefix types.ACName, path string) error {
+	err = ks.walk("", func(prefix types.ACName, path string) error {
 		if filepath.Base(path) == fingerprint {
 			if err := os.Remove(path); err != nil {
 				return err
@@ -88,31 +103,30 @@ func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path st
 		}
 
 		if fi.IsDir() {
-			if namePath == "" || strings.HasPrefix(namePath, path) {
+			if namePath == "" || strings.HasPrefix(namePath, path) || fi.Name() == "@" {
 				return nil
 			} else {
 				return filepath.SkipDir
 			}
 		}
 
-		if sPrefix, err := url.QueryUnescape(filepath.Base(filepath.Dir(path))[1:]); err != nil {
-			return errors.Trace(err)
-		} else if sPrefix == "" {
-			// to avoid ErrEmptyACName; any better ideas?
-			return fn(Root, path)
-		} else if prefix, err := types.NewACName(sPrefix); err != nil {
+		if prefix, err := pathToACName(path); err != nil {
 			return errors.Trace(err)
 		} else {
-			return fn(*prefix, path)
+			return fn(prefix, path)
 		}
 	})
 }
 
+func walkLoaderFn(kr *Keyring) func(types.ACName, string) error {
+	return func(_ types.ACName, path string) error {
+		return kr.loadFile(path)
+	}
+}
+
 func (ks *Keystore) GetAllKeys() (*Keyring, error) {
 	kr := &Keyring{}
-	if err := ks.walk(Root, func(_ types.ACName, path string) error {
-		return kr.loadFile(path)
-	}); err != nil {
+	if err := ks.walk("", walkLoaderFn(kr)); err != nil {
 		return nil, err
 	}
 	return kr, nil
@@ -120,19 +134,7 @@ func (ks *Keystore) GetAllKeys() (*Keyring, error) {
 
 func (ks *Keystore) GetKeysFor(name types.ACName) (*Keyring, error) {
 	kr := &Keyring{}
-	if name == Root {
-		if paths, err := filepath.Glob(filepath.Join(ks.prefixPath(Root), "*")); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			for _, path := range paths {
-				if err := kr.loadFile(path); err != nil {
-					return nil, errors.Trace(err)
-				}
-			}
-		}
-	} else if err := ks.walk(name, func(_ types.ACName, path string) error {
-		return kr.loadFile(path)
-	}); err != nil {
+	if err := ks.walk(name, walkLoaderFn(kr)); err != nil {
 		return nil, err
 	}
 	return kr, nil

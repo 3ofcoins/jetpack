@@ -11,6 +11,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
+	"lib/fetch"
 	"lib/jetpack"
 )
 
@@ -28,7 +29,7 @@ func openACI(name, sig string) (types.ACName, *os.File, *os.File, error) {
 	var aci, asc *os.File
 
 	if sig != "" {
-		if sf, err := openLocation(sig); err != nil {
+		if sf, err := fetch.OpenLocation(sig); err != nil {
 			return jetpack.ACNoName, nil, nil, errors.Trace(err)
 		} else {
 			asc = sf
@@ -36,7 +37,7 @@ func openACI(name, sig string) (types.ACName, *os.File, *os.File, error) {
 	}
 
 	if isRawLocation(name) {
-		if af, err := openLocation(name); err != nil {
+		if af, err := fetch.OpenLocation(name); err != nil {
 			asc.Close()
 			return jetpack.ACNoName, nil, nil, errors.Trace(err)
 		} else {
@@ -57,7 +58,7 @@ func openACI(name, sig string) (types.ACName, *os.File, *os.File, error) {
 		app.Labels["arch"] = runtime.GOARCH
 	}
 
-	eps, _, err := discovery.DiscoverEndpoints(*app, flagAllowHTTP)
+	eps, _, err := discovery.DiscoverEndpoints(*app, fetch.AllowHTTP)
 	if err != nil {
 		return app.Name, nil, nil, errors.Trace(err)
 	}
@@ -65,7 +66,7 @@ func openACI(name, sig string) (types.ACName, *os.File, *os.File, error) {
 	if asc == nil {
 		err = nil
 		for _, endpoint := range eps.ACIEndpoints {
-			if f, err_ := openLocation(endpoint.ASC); err_ != nil {
+			if f, err_ := fetch.OpenLocation(endpoint.ASC); err_ != nil {
 				err = err_
 			} else {
 				asc = f
@@ -78,7 +79,7 @@ func openACI(name, sig string) (types.ACName, *os.File, *os.File, error) {
 	}
 
 	for _, endpoint := range eps.ACIEndpoints {
-		if f, err_ := openLocation(endpoint.ACI); err_ != nil {
+		if f, err_ := fetch.OpenLocation(endpoint.ACI); err_ != nil {
 			err = err_
 		} else {
 			aci = f
@@ -98,11 +99,11 @@ func runFetch(args []string) error {
 	var sigLocation string
 	var noSig bool
 	fl := flag.NewFlagSet("fetch", flag.ExitOnError)
-	fl.BoolVar(&flagAllowHTTP, "insecure-allow-http", false, "Allow HTTP use for key discovery and/or retrieval")
 	fl.BoolVar(&noSig, "insecure-no-signature", false, "Skip signature checking")
 	fl.StringVar(&sigLocation, "sig", "", "Provide explicit signature location")
+	fetch.AllowHTTPFlag(fl)
 
-	die(fl.Parse(args))
+	fl.Parse(args)
 	args = fl.Args()
 
 	for _, name := range args {

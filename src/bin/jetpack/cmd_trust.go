@@ -1,43 +1,39 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
-	"time"
 
-	"golang.org/x/crypto/openpgp"
-
-	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/ioprogress"
 	"github.com/juju/errors"
 
+	"lib/fetch"
 	"lib/keystore"
 )
 
-var flagAllowHTTP bool
-
 func runTrust(args []string) error {
+	var root, doList, doDelete, yes bool
 	var prefix types.ACName
-	var root, doList, doDelete bool
 
 	fl := flag.NewFlagSet("trust", flag.ExitOnError)
-	fl.Var(&prefix, "prefix", "Image name prefix")
+	fl.Var(&prefix, "prefix", "Force image name prefix")
 	fl.BoolVar(&root, "root", false, "Root key (trust for all images)")
 	fl.BoolVar(&doDelete, "d", false, "Delete key")
 	fl.BoolVar(&doList, "l", false, "List trusted keys")
-	fl.BoolVar(&flagAllowHTTP, "insecure-allow-http", false, "allow HTTP use for key discovery and/or retrieval")
+	fl.BoolVar(&yes, "yes", false, "Accept key without asking")
+	fetch.AllowHTTPFlag(fl)
 
-	die(fl.Parse(args))
+	fl.Parse(args)
+	if root {
+		if !prefix.Empty() {
+			return errors.New("-root and -prefix can't be used together")
+		}
+		prefix = keystore.Root
+	}
 	args = fl.Args()
 
 	ks := Host.Keystore()
@@ -79,172 +75,34 @@ func runTrust(args []string) error {
 				fmt.Println("Removed from:", removed)
 			}
 		}
+	} else if len(args) == 0 {
+		return errors.New("Usage: ...")
 	} else {
-		// Add key
-		if len(args) == 0 {
-			if prefix == "" {
-				return errors.New("Usage: ...")
-			}
-
-			app, err := discovery.NewAppFromString(prefix.String())
-			if err != nil {
-				return errors.Trace(err)
-			}
-
-			ep, _, err := discovery.DiscoverPublicKeys(*app, flagAllowHTTP)
-			if err != nil {
-				return errors.Trace(err)
-			}
-
-			args = ep.Keys
-		}
-
-		for _, location := range args {
-			if f, err := openLocation(location); err != nil {
+		// add key(s)
+		for _, loc := range args {
+			if name, kf, err := fetch.OpenPubKey(loc); err != nil {
 				return errors.Trace(err)
 			} else {
-				defer f.Close()
-				if root {
-					prefix = keystore.Root
-				}
-				if accepted, err := reviewKey(prefix, location, f, false); err != nil {
-					return errors.Trace(err)
-				} else if !accepted {
-					fmt.Println("Key NOT accepted.")
-				} else {
-					if path, err := ks.StoreTrustedKey(prefix, f); err != nil {
-						return errors.Trace(err)
-					} else {
-						fmt.Printf("Key accepted and saved at %v\n", path)
+				defer kf.Close()
+
+				usePrefix := prefix
+				if prefix.Empty() {
+					if name.Empty() {
+						return errors.New("Unknown prefix, use -prefix or -root option")
 					}
+					usePrefix = name
+				}
+
+				if path, err := ks.StoreTrustedKey(usePrefix, kf, yes); err != nil {
+					return errors.Trace(err)
+				} else if path == "" {
+					fmt.Println("Key NOT accepted")
+				} else {
+					fmt.Printf("Key accepted and saved at %v\n", path)
 				}
 			}
 		}
 	}
 
 	return nil
-}
-
-// TODO: downloader lib?
-func iopr(r io.Reader, size int64, label string) io.Reader {
-	fmt.Printf("Downloading %v...\n", label)
-	if size > 0 && size < 5120 { // TODO: isatty
-		// Don't bother with progress bar below 50k
-		return r
-	}
-
-	bar := ioprogress.DrawTextFormatBar(int64(62))
-	fmtfunc := func(progress, total int64) string {
-		// Content-Length is set to -1 when unknown.
-		if total == -1 {
-			return fmt.Sprintf(
-				"  %v/?",
-				ioprogress.ByteUnitStr(progress),
-			)
-		}
-		return fmt.Sprintf(
-			"  %s %s",
-			bar(progress, total),
-			ioprogress.DrawTextFormatBytes(progress, total),
-		)
-	}
-	return &ioprogress.Reader{
-		Reader:       r,
-		Size:         size,
-		DrawFunc:     ioprogress.DrawTerminalf(os.Stdout, fmtfunc),
-		DrawInterval: time.Second,
-	}
-}
-
-func openLocation(location string) (_ *os.File, erv error) {
-	u, err := url.Parse(location)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	switch u.Scheme {
-	case "":
-		return os.Open(location)
-
-	case "file":
-		return os.Open(u.Path)
-
-	case "http":
-		if !flagAllowHTTP {
-			return nil, errors.New("-insecure-allow-http required for http URLs")
-		}
-		fallthrough
-
-	case "https":
-		// rkt/rkt/trust.go:downloadKey()
-		tf, err := ioutil.TempFile("", "jetpack.fetch.")
-		if err != nil {
-			return nil, errors.Errorf("error creating tempfile: %v", err)
-		}
-		os.Remove(tf.Name()) // no need to keep the tempfile around
-
-		defer func() {
-			if erv != nil {
-				tf.Close()
-			}
-		}()
-
-		res, err := http.Get(u.String())
-		if err != nil {
-			return nil, errors.Errorf("error getting key: %v", err)
-		}
-		defer res.Body.Close()
-
-		if res.StatusCode != http.StatusOK {
-			return nil, errors.Errorf("bad HTTP status code: %d", res.StatusCode)
-		}
-
-		if _, err := io.Copy(tf, iopr(res.Body, res.ContentLength, u.String())); err != nil {
-			return nil, errors.Errorf("error copying key: %v", err)
-		}
-
-		tf.Seek(0, os.SEEK_SET)
-
-		return tf, nil
-
-	default:
-		return nil, errors.Errorf("Unsupported scheme: %v\n", u.Scheme)
-	}
-}
-
-// rkt/rkt/trust.go
-func reviewKey(prefix types.ACName, location string, key *os.File, forceAccept bool) (bool, error) {
-	defer key.Seek(0, os.SEEK_SET)
-
-	kr, err := openpgp.ReadArmoredKeyRing(key)
-	if err != nil {
-		return false, errors.Trace(err)
-	}
-
-	fmt.Printf("Prefix: %q\nKey: %q\n", prefix, location)
-	for _, k := range kr {
-		fmt.Println(keystore.KeyDescription(k))
-	}
-
-	if !forceAccept {
-		in := bufio.NewReader(os.Stdin)
-		for {
-			fmt.Printf("Are you sure you want to trust this key (yes/no)? ")
-			input, err := in.ReadString('\n')
-			if err != nil {
-				return false, errors.Errorf("error reading input: %v", err)
-			}
-			switch input {
-			case "yes\n":
-				return true, nil
-			case "no\n":
-				return false, nil
-			default:
-				fmt.Printf("Please enter 'yes' or 'no'")
-			}
-		}
-	} else {
-		fmt.Println("Warning: trust fingerprint verification has been disabled")
-	}
-	return true, nil
 }
