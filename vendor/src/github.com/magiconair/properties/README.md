@@ -53,6 +53,10 @@ $ go get -u gopkg.in/check.v1
 History
 -------
 
+v1.5.3, 02 Jun 2015
+-------------------
+ * [Issue #4](https://github.com/magiconair/properties/issues/4): Maintain key order in [Filter()](http://godoc.org/github.com/magiconair/properties#Properties.Filter), [FilterPrefix()](http://godoc.org/github.com/magiconair/properties#Properties.FilterPrefix) and [FilterRegexp()](http://godoc.org/github.com/magiconair/properties#Properties.FilterRegexp)
+
 v1.5.2, 10 Apr 2015
 -------------------
  * [Issue #3](https://github.com/magiconair/properties/issues/3): Don't print comments in [WriteComment()](http://godoc.org/github.com/magiconair/properties#Properties.WriteComment) if they are all empty

@@ -425,9 +425,9 @@ func (p *Properties) Filter(pattern string) (*Properties, error) {
 // for which the key matches the regular expression.
 func (p *Properties) FilterRegexp(re *regexp.Regexp) *Properties {
 	pp := NewProperties()
-	for k, v := range p.m {
+	for _, k := range p.k {
 		if re.MatchString(k) {
-			pp.Set(k, v)
+			pp.Set(k, p.m[k])
 		}
 	}
 	return pp
@@ -437,9 +437,9 @@ func (p *Properties) FilterRegexp(re *regexp.Regexp) *Properties {
 // for which the key starts with the prefix.
 func (p *Properties) FilterPrefix(prefix string) *Properties {
 	pp := NewProperties()
-	for k, v := range p.m {
+	for _, k := range p.k {
 		if strings.HasPrefix(k, prefix) {
-			pp.Set(k, v)
+			pp.Set(k, p.m[k])
 		}
 	}
 	return pp
