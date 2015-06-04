@@ -82,7 +82,6 @@ Commands:
   help                                    Display this help screen
   init                                    Initialize host
   info                                    Show global information
-  test                                    Run integration tests
   trust [-l|-list]                        List trusted ACI signign keys
   trust [-prefix PREFIX] [-root] [KEY]    Trust ACI signing key
   trust -d FINGERPRINT                    Untrust ACI signing key
@@ -151,9 +150,6 @@ Helpful Aliases:
 	switch command {
 	case "info":
 		show(Host)
-	case "test":
-		die(run.Command(filepath.Join(jetpack.LibexecPath, "test.integration"),
-			append(args, "dataset="+Host.Dataset.Name)...).Run())
 	case "trust":
 		die(runTrust(args))
 	case "fetch":
