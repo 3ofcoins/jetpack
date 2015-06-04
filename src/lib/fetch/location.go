@@ -42,6 +42,14 @@ func ProgressBarReader(r io.Reader, size int64) io.Reader {
 	}
 }
 
+func ProgressBarFileReader(f *os.File) io.Reader {
+	if fi, err := f.Stat(); err != nil {
+		panic(err)
+	} else {
+		return ProgressBarReader(f, fi.Size())
+	}
+}
+
 func OpenURL(url string) (_ *os.File, erv error) {
 	tf, err := ioutil.TempFile("", "jetpack.fetch.")
 	if err != nil {

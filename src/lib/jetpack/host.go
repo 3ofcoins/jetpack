@@ -488,13 +488,15 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		}
 	}
 
+	fmt.Println("Importing image ...")
+
 	// Save us a copy of the original, compressed ACI
 	aciCopy, err := os.OpenFile(img.Path("aci"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	defer aciCopy.Close()
-	aciZRd := io.TeeReader(aci, aciCopy)
+	aciZRd := io.TeeReader(fetch.ProgressBarFileReader(aci), aciCopy)
 
 	// Decompress tarball for checksum
 	aciRd, err := DecompressingReader(aciZRd)
