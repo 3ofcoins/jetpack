@@ -103,8 +103,8 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		}
 	}
 
-	for i, app := range pod.Manifest.Apps {
-		img, err := h.GetImageByHash(app.Image.ID)
+	for i, rtApp := range pod.Manifest.Apps {
+		img, err := h.GetImageByHash(rtApp.Image.ID)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -114,12 +114,17 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 			return nil, errors.Trace(err)
 		}
 
-		if err := rootds.Set("jetpack:name", string(app.Name)); err != nil {
+		if err := rootds.Set("jetpack:name", string(rtApp.Name)); err != nil {
 			return nil, errors.Trace(err)
 		}
 
-		if img.Manifest.App != nil {
-			for _, mnt := range img.Manifest.App.MountPoints {
+		app := rtApp.App
+		if app == nil {
+			app = img.Manifest.App
+		}
+
+		if app != nil {
+			for _, mnt := range app.MountPoints {
 				if err := os.MkdirAll(rootds.Path(mnt.Path), 0755); err != nil && !os.IsExist(err) {
 					return nil, errors.Trace(err)
 				}
@@ -294,7 +299,10 @@ func (c *Pod) prepJail() error {
 			}
 		}
 
-		imgApp := img.Manifest.App
+		imgApp := app.App
+		if imgApp == nil {
+			imgApp = img.Manifest.App
+		}
 		if imgApp == nil {
 			continue
 		}
