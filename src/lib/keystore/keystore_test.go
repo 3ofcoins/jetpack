@@ -27,7 +27,7 @@ func testImport(t *testing.T, prefix types.ACName, subdir string) {
 
 	for i, key := range sampleKeys {
 		fingerprint := sampleKeyFingerprints[i]
-		keyPath, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(key)))
+		keyPath, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(key)), true)
 
 		if err != nil {
 			t.Errorf("Error storing key #%d: %v\n", i, err)
@@ -73,11 +73,11 @@ func TestGetKeyring(t *testing.T) {
 	ks := newStore()
 	defer os.RemoveAll(ks.Path)
 
-	if _, err := ks.StoreTrustedKey(types.ACName("example.com/foo"), bytes.NewReader([]byte(sampleKeys[0]))); err != nil {
+	if _, err := ks.StoreTrustedKey(types.ACName("example.com/foo"), bytes.NewReader([]byte(sampleKeys[0])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(types.ACName("example.com/foo/bar"), bytes.NewReader([]byte(sampleKeys[1]))); err != nil {
+	if _, err := ks.StoreTrustedKey(types.ACName("example.com/foo/bar"), bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
@@ -94,7 +94,7 @@ func TestGetKeyring(t *testing.T) {
 		types.ACName("example.com/baz"):         0,
 	})
 
-	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
@@ -126,15 +126,15 @@ func TestGetAllKeyrings(t *testing.T) {
 
 	prefix := types.ACName("example.com/foo")
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0]))); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1]))); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
@@ -177,23 +177,23 @@ func TestUntrustKey(t *testing.T) {
 	prefix := types.ACName("example.com/foo")
 	prefix2 := types.ACName("example.org/bar")
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0]))); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1]))); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[1]))); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2]))); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
