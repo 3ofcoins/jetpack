@@ -78,6 +78,10 @@ func OpenURL(url string) (_ *os.File, erv error) {
 const flagAllowHTTP = false // TODO: make the flag
 
 func OpenLocation(location string) (_ *os.File, erv error) {
+	if location == "-" {
+		return os.Stdin, nil
+	}
+
 	u, err := url.Parse(location)
 	if err != nil {
 		return nil, errors.Trace(err)

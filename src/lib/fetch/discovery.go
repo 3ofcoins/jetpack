@@ -3,9 +3,11 @@ package fetch
 import (
 	"flag"
 	"os"
+	"runtime"
 
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"
+	multierror "github.com/hashicorp/go-multierror"
 )
 
 var AllowHTTP bool
@@ -17,28 +19,107 @@ func AllowHTTPFlag(fl *flag.FlagSet) {
 	fl.BoolVar(&AllowHTTP, "insecure-allow-http", false, "Allow non-encrypted HTTP")
 }
 
+func tryAppFromString(location string) *discovery.App {
+	if app, err := discovery.NewAppFromString(location); err != nil {
+		return nil
+	} else {
+		if app.Labels["os"] == "" {
+			app.Labels["os"] = runtime.GOOS
+		}
+
+		if app.Labels["arch"] == "" {
+			app.Labels["arch"] = runtime.GOARCH
+		}
+		return app
+	}
+}
+
 func OpenPubKey(location string) (types.ACName, *os.File, error) {
-	if app, err := discovery.NewAppFromString(location); err == nil {
+	if app := tryAppFromString(location); app != nil {
 		// Proper ACName given, let's do the discovery
 		if eps, _, err := discovery.DiscoverPublicKeys(*app, AllowHTTP); err != nil {
 			return app.Name, nil, err
 		} else {
 			// We assume multiple returned keys are alternatives, not
 			// multiple different valid keychains.
-			var erv error
+			var err error
 			for _, keyurl := range eps.Keys {
-				if keyf, err := OpenLocation(keyurl); err != nil {
-					erv = err
+				if keyf, er1 := OpenLocation(keyurl); er1 != nil {
+					err = multierror.Append(err, er1)
 				} else {
 					return app.Name, keyf, nil
 				}
 			}
 			// All keys erred
-			return app.Name, nil, erv
+			return app.Name, nil, err
 		}
 	} else {
 		// Not an ACName, let's open as raw location
 		f, err := OpenLocation(location)
 		return "", f, err
+	}
+}
+
+func OpenACI(location, sigLocation string) (types.ACName, *os.File, *os.File, error) {
+	var asc, aci *os.File
+
+	// Signature override
+	if sigLocation != "" {
+		if sf, err := OpenLocation(sigLocation); err != nil {
+			return "", nil, nil, err
+		} else {
+			asc = sf
+		}
+	}
+
+	if app := tryAppFromString(location); app != nil {
+		// Proper ACName given, let's do discovery
+		if eps, _, err := discovery.DiscoverEndpoints(*app, AllowHTTP); err != nil {
+			return app.Name, nil, nil, err
+		} else {
+			var err error
+
+			if asc == nil {
+				err = nil
+				for _, ep := range eps.ACIEndpoints {
+					if af, er1 := OpenLocation(ep.ASC); er1 != nil {
+						err = multierror.Append(err, er1)
+					} else {
+						asc = af
+						break
+					}
+				}
+				if asc == nil {
+					return app.Name, nil, nil, err
+				}
+			}
+
+			err = nil
+			for _, ep := range eps.ACIEndpoints {
+				if af, er1 := OpenLocation(ep.ACI); er1 != nil {
+					err = multierror.Append(err, er1)
+				} else {
+					aci = af
+					break
+				}
+				if aci == nil {
+					if asc != nil {
+						asc.Close()
+					}
+					return app.Name, nil, nil, err
+				}
+			}
+
+			return app.Name, aci, asc, nil
+		}
+	} else {
+		if aci, err := OpenLocation(location); err != nil {
+			if asc != nil {
+				asc.Close()
+			}
+			return "", nil, nil, err
+		} else {
+			return "", aci, asc, nil
+		}
 	}
 }

@@ -2,30 +2,30 @@ package jetpack
 
 import (
 	"crypto/sha512"
+	stderrors "errors"
+	"fmt"
 	"io"
+	"net"
+	"net/url"
+	"os"
+	"os/user"
+	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
+	"github.com/juju/errors"
+	"github.com/magiconair/properties"
+
+	"lib/fetch"
+	"lib/keystore"
+	"lib/run"
+	"lib/zfs"
 )
-import stderrors "errors"
-import "fmt"
-
-import "net"
-import "net/url"
-import "os"
-import "os/user"
-import "path"
-import "path/filepath"
-import "strconv"
-import "strings"
-import "time"
-
-import "code.google.com/p/go-uuid/uuid"
-import "github.com/appc/spec/schema"
-import "github.com/appc/spec/schema/types"
-import "github.com/juju/errors"
-import "github.com/magiconair/properties"
-
-import "lib/keystore"
-import "lib/run"
-import "lib/zfs"
 
 var ErrNotFound = stderrors.New("Not found")
 var ErrManyFound = stderrors.New("Multiple results found")
@@ -245,7 +245,7 @@ func (h *Host) Pods() []*Pod {
 	return rv
 }
 
-func (h *Host) GetImage(id uuid.UUID) (*Image, error) {
+func (h *Host) GetImageByUUID(id uuid.UUID) (*Image, error) {
 	return LoadImage(h, id)
 }
 
@@ -260,7 +260,7 @@ func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
 		if id := uuid.Parse(idStr); id == nil {
 			return nil, errors.Errorf("Invalid UUID: %v", idStr)
 		} else {
-			return h.GetImage(id)
+			return h.GetImageByUUID(id)
 		}
 	}
 }
@@ -282,7 +282,7 @@ func (h *Host) Images() []*Image {
 
 		if id := uuid.Parse(filepath.Base(d)); id == nil {
 			panic(fmt.Sprintf("Invalid UUID: %#v", filepath.Base(d)))
-		} else if img, err := h.GetImage(id); err != nil {
+		} else if img, err := h.GetImageByUUID(id); err != nil {
 			id := filepath.Base(d)
 			if img != nil {
 				id = img.UUID.String()
@@ -307,7 +307,7 @@ func (h *Host) FindImages(query string) ([]*Image, error) {
 
 	// Try UUID
 	if id := uuid.Parse(query); id != nil {
-		if img, err := h.GetImage(id); err != nil {
+		if img, err := h.GetImageByUUID(id); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			return []*Image{img}, nil
@@ -373,7 +373,7 @@ images:
 func (h *Host) FindImage(query string) (*Image, error) {
 	// Optimize for simple case
 	if id := uuid.Parse(query); id != nil {
-		if img, err := h.GetImage(id); err != nil {
+		if img, err := h.GetImageByUUID(id); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			return img, nil
@@ -391,7 +391,20 @@ func (h *Host) FindImage(query string) (*Image, error) {
 	}
 }
 
-func (h *Host) ImportImageNG(name types.ACName, aci, asc *os.File) (_ *Image, erv error) {
+func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
+	if name, aci, asc, err := fetch.OpenACI(name, sigLocation); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		defer aci.Close()
+		if asc == nil {
+			return nil, errors.New("No signature")
+		}
+		defer asc.Close()
+		return h.importImage(name, aci, asc)
+	}
+}
+
+func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv error) {
 	if asc != nil {
 		ks := h.Keystore()
 		if ety, err := ks.CheckSignature(name, aci, asc); err != nil {
