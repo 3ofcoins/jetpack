@@ -26,20 +26,16 @@ func zfs(command string, args []string) *run.Cmd {
 	return cmd
 }
 
-func zfsHp(command string, args []string) *run.Cmd {
-	return zfs(command, append([]string{"-Hp"}, args...))
-}
-
 func Zfs(cmd string, args ...string) error {
 	return zfs(cmd, args).Run()
 }
 
 func ZfsOutput(cmd string, args ...string) (string, error) {
-	return zfsHp(cmd, args).OutputString()
+	return zfs(cmd, append([]string{"-H"}, args...)).OutputString()
 }
 
 func ZfsLines(cmd string, args ...string) ([]string, error) {
-	return zfsHp(cmd, args).OutputLines()
+	return zfs(cmd, append([]string{"-H"}, args...)).OutputLines()
 }
 
 func ZfsFields(cmd string, args ...string) ([][]string, error) {
@@ -99,7 +95,7 @@ func ListDatasets(typ string) ([]string, error) {
 	if typ == "" {
 		typ = "all"
 	}
-	return ZfsLines("list", "-t"+typ, "-oname")
+	return ZfsLines("list", "-p", "-t"+typ, "-oname")
 }
 
 func (ds *Dataset) load() error {
@@ -160,7 +156,7 @@ func CreateDataset(name string, args ...string) (*Dataset, error) {
 }
 
 func (ds *Dataset) Get(name string) (string, error) {
-	return ds.ZfsOutput("get", "-oproperty", name)
+	return ds.ZfsOutput("get", "-p", "-oproperty", name)
 }
 
 func (ds *Dataset) GetMany(attr ...string) (map[string]string, error) {
@@ -169,7 +165,7 @@ func (ds *Dataset) GetMany(attr ...string) (map[string]string, error) {
 		attrArg = strings.Join(attr, ",")
 	}
 
-	if lines, err := ds.ZfsFields("get", "-oproperty,value", attrArg); err != nil {
+	if lines, err := ds.ZfsFields("get", "-p", "-oproperty,value", attrArg); err != nil {
 		return nil, err
 	} else {
 		rv := make(map[string]string)
@@ -308,7 +304,7 @@ func (ds *Dataset) Children(depth int, args ...string) ([]*Dataset, error) {
 	if depth > 0 {
 		args[0] = fmt.Sprintf("-d%d", depth)
 	}
-	if lines, err := ds.ZfsFields("list", args...); err != nil {
+	if lines, err := ds.ZfsFields("list", append([]string{"-p"}, args...)...); err != nil {
 		return nil, err
 	} else {
 		rv := make([]*Dataset, len(lines))

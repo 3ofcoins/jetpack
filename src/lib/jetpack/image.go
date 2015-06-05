@@ -1,6 +1,11 @@
 package jetpack
 
-import "crypto/sha512"
+import (
+	"crypto/sha512"
+	"sort"
+	"strings"
+)
+
 import "encoding/json"
 import "fmt"
 import "io"
@@ -162,7 +167,7 @@ func (img *Image) Seal() error {
 // If path is an empty string, don't save the image, just return the
 // hash. If path is "-", print image to stdout.
 func (img *Image) SaveAMI(path string, perm os.FileMode) (*types.Hash, error) {
-	archiver := run.Command("tar", "-C", img.Path(), "-c", "-f", "-", "manifest", "rootfs")
+	archiver := run.Command("tar", "-C", img.Path(), "-c", "-n", "-T", img.Path("aci.packlist"), "-f", "-")
 	if archive, err := archiver.StdoutPipe(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
@@ -325,6 +330,16 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
+	ds, err := img.Host.Dataset.GetDataset(path.Join("pods", buildPod.UUID.String(), "rootfs.0"))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	parentSnap, err := ds.Snapshot("parent")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	fullWorkDir := buildPod.Path("rootfs/0", buildPod.Manifest.Apps[0].App.WorkingDirectory)
 	if err := os.Mkdir(fullWorkDir, 0700); err != nil {
 		return nil, errors.Trace(err)
@@ -365,13 +380,30 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
+	// Get packing list while parentSnap's name haven't changed
+
+	haveDeletions := false
+	packList := []string{"manifest"}
+	if diffs, err := parentSnap.ZfsFields("diff"); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		for _, diff := range diffs {
+			switch diff[0] {
+			case "+", "M":
+				packList = append(packList, filepath.Join("rootfs", diff[1][len(ds.Mountpoint):]))
+			case "R":
+				packList = append(packList, filepath.Join("rootfs", diff[2][len(ds.Mountpoint):]))
+				fallthrough
+			case "-":
+				haveDeletions = true
+			default:
+				return nil, errors.Errorf("Unknown `zfs diff` line: %v", diff)
+			}
+		}
+	}
+
 	// Pivot pod into an image
 	childImage := NewImage(img.Host, buildPod.UUID)
-
-	ds, err := img.Host.Dataset.GetDataset(path.Join("pods", buildPod.UUID.String(), "rootfs.0"))
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
 
 	if err := ds.Set("mountpoint", childImage.Path("rootfs")); err != nil {
 		return nil, errors.Trace(err)
@@ -422,7 +454,31 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		}
 	}
 
-	// TODO: should we merge app from parent image?
+	// TODO: option to create a flat image
+	childImage.Manifest.Dependencies = append(types.Dependencies{
+		types.Dependency{
+			App:     img.Manifest.Name,
+			ImageID: img.Hash,
+			Labels:  img.Manifest.Labels,
+		}}, childImage.Manifest.Dependencies...)
+
+	if haveDeletions {
+		prefixLen := len(ds.Mountpoint)
+		if err := filepath.Walk(ds.Mountpoint, func(path string, _ os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if len(path) == prefixLen {
+				// All paths are prefixed with ds.Mountpoint. Cheaper to compare lengths than whole string.
+				return nil
+			}
+			childImage.Manifest.PathWhitelist = append(childImage.Manifest.PathWhitelist, path[prefixLen:])
+			return nil
+		}); err != nil {
+			return nil, errors.Trace(err)
+		}
+		sort.Strings(childImage.Manifest.PathWhitelist)
+	}
 
 	if manifestBytes, err := json.Marshal(childImage.Manifest); err != nil {
 		return nil, errors.Trace(err)
@@ -430,6 +486,10 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		if err := ioutil.WriteFile(childImage.Path("manifest"), manifestBytes, 0400); err != nil {
 			return nil, errors.Trace(err)
 		}
+	}
+
+	if err := ioutil.WriteFile(childImage.Path("aci.packlist"), []byte(strings.Join(packList, "\n")+"\n"), 0400); err != nil {
+		return nil, errors.Trace(err)
 	}
 
 	childImage.Timestamp = time.Now()
