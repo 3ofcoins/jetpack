@@ -10,12 +10,9 @@
 # Prefix for jail names. Jail name will be ${PREFIX}${UUID}.
 #jail.namePrefix = jetpack:
 
-# Set to `yes' to keep AMIs when building images
-#images.ami.store = no
-
 # Compression to used on stored and exported AMIs.
 # Valid options are: xz (default), bzip2, gzip, none
-#images.ami.compression = xz
+#images.aci.compression = xz
 
 # Optionally set other ZFS parameters for root dataset:
 #root.zfs.PARAMETER = VALUE ...
@@ -29,6 +26,3 @@
 
 # ZFS parameters for containers dataset (none by default)
 #containers.zfs.PARAMETER = VALUE ...
-
-# Set to "on" to see debugging information
-#debug=off

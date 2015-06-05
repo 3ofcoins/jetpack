@@ -2,8 +2,7 @@
 
 root.zfs = zroot/jetpack
 root.zfs.mountpoint = /var/jetpack
-images.ami.store=no
-images.ami.compression=xz
+images.aci.compression=xz
 images.zfs.atime=off
 images.zfs.compress=lz4
 jail.interface = lo1

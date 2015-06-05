@@ -2,7 +2,10 @@
 
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"io"
+)
 import "flag"
 import "fmt"
 import "io/ioutil"
@@ -91,7 +94,7 @@ Commands:
                     -dir=.                Location on build directory on host
                     -cp=PATH...           Copy additional files from host
   image IMAGE show                        Display image details
-  image IMAGE export [PATH]               Export image to an AMI file
+  image IMAGE export [PATH]               Export image to an ACI file
                                           Output to stdout if no PATH given
   image IMAGE destroy                     Destroy image
   pod list                                List pods
@@ -238,15 +241,21 @@ Helpful Aliases:
 			case "show":
 				show(img)
 			case "export":
-				path := "-"
-				if len(args) > 0 {
-					path = args[0]
-				}
-				if hash, err := img.SaveAMI(path, 0644); err != nil {
-					die(err)
+				aci, err := os.Open(img.Path("aci"))
+				die(err)
+				defer aci.Close()
+
+				var output *os.File
+				if len(args) == 0 || args[0] == "-" {
+					output = os.Stdout
 				} else {
-					fmt.Fprintln(os.Stderr, hash)
+					output, err = os.Create(args[0])
+					die(err)
+					defer output.Close()
 				}
+
+				_, err = io.Copy(output, aci)
+				die(err)
 			case "destroy":
 				die(img.Destroy())
 			default:

@@ -6,6 +6,7 @@ import (
 	"github.com/juju/errors"
 
 	"lib/fetch"
+	"lib/jetpack"
 )
 
 func runFetch(args []string) error {
@@ -13,6 +14,7 @@ func runFetch(args []string) error {
 	fl := flag.NewFlagSet("fetch", flag.ExitOnError)
 	fl.StringVar(&sigLocation, "sig", "", "Provide explicit signature location")
 	fetch.AllowHTTPFlag(fl)
+	jetpack.AllowNoSignatureFlag(fl)
 
 	fl.Parse(args)
 	args = fl.Args()

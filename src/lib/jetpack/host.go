@@ -3,8 +3,10 @@ package jetpack
 import (
 	"crypto/sha512"
 	stderrors "errors"
+	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -422,16 +424,68 @@ func (h *Host) TrustKey(prefix types.ACName, location string) error {
 	return nil
 }
 
+// TODO: setting with flag override, also for allow-http
+var flagAllowNoSignature = false
+
+func AllowNoSignatureFlag(fl *flag.FlagSet) {
+	if fl == nil {
+		fl = flag.CommandLine
+	}
+	fl.BoolVar(&flagAllowNoSignature, "insecure-allow-no-signature", false, "Allow non-signed images")
+}
+
 func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 	if name, aci, asc, err := fetch.OpenACI(name, sigLocation); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		defer aci.Close()
 		if asc == nil {
-			return nil, errors.New("No signature")
+			if flagAllowNoSignature {
+				fmt.Println("WARNING: no signature, proceeding as requested")
+			} else {
+				return nil, errors.New("No signature")
+			}
+		} else {
+			defer asc.Close()
 		}
-		defer asc.Close()
 		return h.importImage(name, aci, asc)
+	}
+}
+
+func (h *Host) fetchDependencyInner(dep types.Dependency) (*Image, error) {
+	// Maybe the dependency has an ID, and we already have it?
+	if dep.ImageID != nil {
+		if img, err := h.GetImageByHash(*dep.ImageID); err == nil {
+			if img.Manifest.Name != dep.App {
+				return nil, errors.Errorf("WEIRD: got correct Image ID (%v), but different name: dependency has %v, we have %v", dep.ImageID, dep.App, img.Manifest.Name)
+			}
+			return img, nil
+		} else if err != ErrNotFound {
+			return nil, errors.Trace(err)
+		}
+	}
+	return nil, errors.New("Not implemented")
+}
+
+func (h *Host) fetchDependency(dep types.Dependency) (*Image, error) {
+	if img, err := h.fetchDependencyInner(dep); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		// Double check the image vs spec
+		if dep.ImageID != nil && *img.Hash != *dep.ImageID {
+			return nil, errors.Errorf("Dependency specified hash %v, we got %v", dep.ImageID, img.Hash)
+		}
+		if dep.App != img.Manifest.Name {
+			return nil, errors.Errorf("Dependency specified app %v, got image named %v", dep.App, img.Manifest.Name)
+		}
+		for _, label := range dep.Labels {
+			if val, ok := img.Manifest.Labels.Get(label.Name.String()); !ok {
+				return nil, errors.Errorf("Image doesn't have needed label %v", label.Name)
+			} else if val != label.Value {
+				return nil, errors.Errorf("Requested label %v=%#v, got value %#v instead", label.Name, label.Value, val)
+			}
+		}
+		return img, nil
 	}
 }
 
@@ -461,10 +515,6 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 	}
 
 	newId := uuid.NewRandom()
-	newIdStr := newId.String()
-	if _, err := h.Dataset.CreateDataset(path.Join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
-		return nil, errors.Trace(err)
-	}
 
 	img := NewImage(h, newId)
 	img.Timestamp = time.Now()
@@ -474,6 +524,10 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 			img.Destroy()
 		}
 	}()
+
+	if err := os.MkdirAll(img.Path(), 0700); err != nil {
+		return nil, errors.Trace(err)
+	}
 
 	// Save copy of the signature
 	if asc != nil {
@@ -487,6 +541,49 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 			}
 		}
 	}
+
+	// Just load manifest
+	manifestBytes, err := run.Command("tar", "-xOqf", "-", "manifest").ReadFrom(aci).Output()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	aci.Seek(0, os.SEEK_SET)
+
+	if err := ioutil.WriteFile(img.Path("manifest"), manifestBytes, 0444); err != nil {
+		return nil, errors.Trace(err)
+	}
+	if err := img.loadManifest(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if !name.Empty() && name != img.Manifest.Name {
+		return nil, errors.Errorf("ACI name mismatch: downloaded %#v, got %#v instead", name, img.Manifest.Name)
+	}
+
+	newIdStr := newId.String()
+	if len(img.Manifest.Dependencies) == 0 {
+		if _, err := h.Dataset.CreateDataset(path.Join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
+			return nil, errors.Trace(err)
+		}
+	} else {
+		for i, dep := range img.Manifest.Dependencies {
+			fmt.Println("Looking for dependency:", dep.App, dep.Labels, dep.ImageID)
+			if dimg, err := h.fetchDependency(dep); err != nil {
+				return nil, errors.Trace(err)
+			} else if i == 0 {
+				fmt.Printf("Cloning parent %v as base rootfs\n", dimg)
+				if ds, err := dimg.Clone(path.Join(h.Dataset.Name, "images", newIdStr), h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
+					return nil, errors.Trace(err)
+				} else {
+					img.rootfs = ds
+				}
+			} else {
+				return nil, errors.New("Not implemented")
+			}
+		}
+	}
+
+	fmt.Println("WILMA")
 
 	fmt.Println("Importing image ...")
 
@@ -507,7 +604,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 	aciRd = io.TeeReader(aciRd, hash)
 
 	// Unpack the image. We trust system's tar, no need to roll our own
-	untarCmd := run.Command("tar", "-C", img.Path(), "-xf", "-", "manifest", "rootfs")
+	untarCmd := run.Command("tar", "-C", img.Path(), "-xf", "-", "rootfs")
 	untar, err := untarCmd.StdinPipe()
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -537,14 +634,10 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		img.Hash = hash
 	}
 
-	// TODO: load manifest, check name before sealing, enforce PathWhiteList
+	// TODO: deps, enforce PathWhiteList
 
-	if err := img.Seal(); err != nil {
+	if err := img.sealImage(); err != nil {
 		return nil, errors.Trace(err)
-	}
-
-	if name != ACNoName && name != img.Manifest.Name {
-		return nil, errors.Errorf("ACI name mismatch: downloaded %#v, got %#v instead", name, img.Manifest.Name)
 	}
 
 	return img, nil
