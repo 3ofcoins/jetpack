@@ -4,11 +4,18 @@
    - include: tasks/dependencies.yml # install git & go
    - include: tasks/networking.yml   # setup and start lo1
    - include: tasks/pf.yml           # configure and start firewall
-       
+
+   - name: copy Jetpack source
+     command: "{{ item }}"
+     with_items:
+     - "rm -rf /usr/local/src/jetpack"
+     - "install -d /usr/local/src"
+     - "cp -R /vagrant /usr/local/src/jetpack"
+
    - name: build & install Jetpack
      command: "{{ item }} PREFIX=/usr/local"
      args:
-       chdir: "/vagrant"
+       chdir: "/usr/local/src/jetpack"
      with_items:
      - "make"
      - "make install"
@@ -21,7 +28,6 @@
    
    - name: init Jetpack
      command: "jetpack init"
-     ignore_errors: yes
 
    handlers:
     - name: restart pf
