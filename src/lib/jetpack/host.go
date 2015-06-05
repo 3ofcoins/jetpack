@@ -453,8 +453,8 @@ func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 }
 
 func (h *Host) fetchDependencyInner(dep types.Dependency) (*Image, error) {
-	// Maybe the dependency has an ID, and we already have it?
 	if dep.ImageID != nil {
+		// If the dependency has an ID, do we already have it?
 		if img, err := h.GetImageByHash(*dep.ImageID); err == nil {
 			if img.Manifest.Name != dep.App {
 				return nil, errors.Errorf("WEIRD: got correct Image ID (%v), but different name: dependency has %v, we have %v", dep.ImageID, dep.App, img.Manifest.Name)
@@ -463,7 +463,21 @@ func (h *Host) fetchDependencyInner(dep types.Dependency) (*Image, error) {
 		} else if err != ErrNotFound {
 			return nil, errors.Trace(err)
 		}
+	} else {
+		// Look for dependency by name/labels
+	imgs:
+		for _, img := range h.Images() {
+			if img.Manifest.Name == dep.App {
+				for _, label := range dep.Labels {
+					if val, ok := img.Manifest.Labels.Get(label.Name.String()); !ok || val != label.Value {
+						continue imgs
+					}
+				}
+				return img, nil
+			}
+		}
 	}
+
 	return nil, errors.New("Not implemented")
 }
 
