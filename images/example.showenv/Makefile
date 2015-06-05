@@ -1,6 +1,6 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
-PARENT_IMAGE = freebsd-base
+PARENT_IMAGE = 3ofcoins.net/freebsd-base
 
 build:
 	install -d /usr/local/bin

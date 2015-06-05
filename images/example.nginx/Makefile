@@ -1,6 +1,6 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
-PARENT_IMAGE = freebsd-base
+PARENT_IMAGE = 3ofcoins.net/freebsd-base
 BUILD_VARS = DEVEL http_proxy
 PKG_INSTALL = nginx${DEVEL:D-devel}
 
