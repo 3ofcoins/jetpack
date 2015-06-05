@@ -29,6 +29,13 @@
    - name: init Jetpack
      command: "jetpack init"
 
+   - name: configure metadata service
+     lineinfile: dest=/etc/rc.local state=present line='/usr/local/bin/jetpack mds -p /var/run/jetpack.mds.pid'
+     notify:
+       - start mds
+
    handlers:
     - name: restart pf
       service: name=pf state=restarted
+    - name: start mds
+      command: "jetpack mds -p /var/run/jetpack.mds.pid"

@@ -154,15 +154,12 @@ something is not clear, it's a bug in the documentation!
 
 #### Running the Metadata Service
 
-The metadata service is provided as a separate binary, and it should
-run as the user created in the system preparation phase. If you are
-running Jetpack in-place, it is located in the `./bin` directory; if
-you install Jetpack system-wide, it is in the libexec directory
-(`/usr/local/libexec/jetpack/` by default). To run it, use `chroot` or
-`sudo` to drop privileges:
+To start the metadata service as a daemon, run `jetpack mds`.
 
-    # chroot -u _jetpack -g _jetpack / $LIBEXECDIR/mds
-    # sudo -H -u jetpack $LIBEXECDIR/mds
+You can also start the service in foreground logging to standard
+output, but you're going to need to use `sudo` or `su` to run it:
+
+    # sudo -H -u _jetpack $LIBEXECDIR/mds
 
 Building Images
 ---------------

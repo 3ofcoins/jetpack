@@ -105,6 +105,7 @@ Commands:
                                           Manage pod's processes
   pod POD kill                            Kill running pod
   pod POD destroy                         Destroy pod
+  mds [FLAGS]                             Run metadata server as a daemon
 Needs Explanation:
   ARCHIVE, MANIFEST  May be filesystem paths or URLs.
             cp=PATH  This option can be given multiple times
@@ -398,6 +399,8 @@ Helpful Aliases:
 				die(errors.Errorf("Unknown command %#v", command))
 			}
 		}
+	case "mds":
+		die(runMds(args))
 	default:
 		die(errors.Errorf("Unknown command %#v", command))
 	}
