@@ -241,21 +241,38 @@ Helpful Aliases:
 			case "show":
 				show(img)
 			case "export":
-				aci, err := os.Open(img.Path("aci"))
-				die(err)
-				defer aci.Close()
+				var isFlat bool
+				fl := flag.NewFlagSet("export", flag.ExitOnError)
+				fl.BoolVar(&isFlat, "flat", false, "Export flattened image without dependencies")
+				die(fl.Parse(args))
+				args = fl.Args()
 
-				var output *os.File
-				if len(args) == 0 || args[0] == "-" {
-					output = os.Stdout
-				} else {
-					output, err = os.Create(args[0])
+				if isFlat {
+					if len(args) == 0 {
+						args[0] = "-"
+					}
+					hash, err := img.SaveFlatACI(args[0], 0644)
+					if hash != nil {
+						fmt.Println(hash)
+					}
 					die(err)
-					defer output.Close()
-				}
+				} else {
+					aci, err := os.Open(img.Path("aci"))
+					die(err)
+					defer aci.Close()
 
-				_, err = io.Copy(output, aci)
-				die(err)
+					var output *os.File
+					if len(args) == 0 || args[0] == "-" {
+						output = os.Stdout
+					} else {
+						output, err = os.Create(args[0])
+						die(err)
+						defer output.Close()
+					}
+
+					_, err = io.Copy(output, aci)
+					die(err)
+				}
 			case "destroy":
 				die(img.Destroy())
 			default:

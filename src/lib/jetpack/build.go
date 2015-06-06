@@ -10,7 +10,6 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -25,8 +24,37 @@ import (
 //
 // If path is an empty string, don't save the image, just return the
 // hash. If path is "-", print image to stdout.
-func (img *Image) SaveACI(path, packlist string, perm os.FileMode) (*types.Hash, error) {
-	archiver := run.Command("tar", "-C", img.Path(), "-c", "-n", "-T", packlist, "--null", "-f", "-")
+func (img *Image) saveACI(path string, packlist *os.File, perm os.FileMode) (*types.Hash, error) {
+	tarArgs := []string{"-C", img.Path(), "-c", "--null", "-f", "-"}
+	if packlist != nil {
+		tarArgs = append(tarArgs, "-n", "-T", "-")
+	} else {
+		// no packlist -> flat ACI
+		manifest := img.Manifest
+		manifest.Dependencies = nil
+		manifest.PathWhitelist = nil
+
+		manifestF, err := ioutil.TempFile(img.Path(), "manifest.flat.")
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		defer os.Remove(manifestF.Name())
+
+		if manifestB, err := json.Marshal(manifest); err != nil {
+			manifestF.Close()
+			return nil, errors.Trace(err)
+		} else {
+			_, err := manifestF.Write(manifestB)
+			manifestF.Close()
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+		}
+
+		manifestN := filepath.Base(manifestF.Name())
+		tarArgs = append(tarArgs, "-s", "/^"+manifestN+"$/manifest/", manifestN, "rootfs")
+	}
+	archiver := run.Command("tar", tarArgs...).ReadFrom(packlist)
 	if archive, err := archiver.StdoutPipe(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
@@ -91,6 +119,10 @@ func (img *Image) SaveACI(path, packlist string, perm os.FileMode) (*types.Hash,
 			return hash, nil
 		}
 	}
+}
+
+func (img *Image) SaveFlatACI(path string, perm os.FileMode) (*types.Hash, error) {
+	return img.saveACI(path, nil, perm)
 }
 
 func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
@@ -183,17 +215,23 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// Get packing list while parentSnap's name haven't changed
 
+	packlist, err := ioutil.TempFile(buildPod.Path(), "aci.packlist.")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	os.Remove(packlist.Name())
+	defer packlist.Close()
+
 	haveDeletions := false
-	packList := []string{"manifest"}
 	if diffs, err := parentSnap.ZfsFields("diff"); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		for _, diff := range diffs {
 			switch diff[0] {
 			case "+", "M":
-				packList = append(packList, filepath.Join("rootfs", diff[1][len(ds.Mountpoint):]))
+				fmt.Fprintln(packlist, filepath.Join("rootfs", diff[1][len(ds.Mountpoint):]))
 			case "R":
-				packList = append(packList, filepath.Join("rootfs", diff[2][len(ds.Mountpoint):]))
+				fmt.Fprintln(packlist, filepath.Join("rootfs", diff[2][len(ds.Mountpoint):]))
 				fallthrough
 			case "-":
 				haveDeletions = true
@@ -202,6 +240,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 			}
 		}
 	}
+	packlist.Seek(0, os.SEEK_SET)
 
 	// Pivot pod into an image
 	childImage := NewImage(img.Host, buildPod.UUID)
@@ -285,20 +324,8 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	// Save pack list file
-	packlistFile, err := ioutil.TempFile(childImage.Path(), "aci.packlist.")
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	defer os.Remove(packlistFile.Name())
-
-	if _, err := packlistFile.Write([]byte(strings.Join(packList, "\000"))); err != nil {
-		return nil, errors.Trace(err)
-	}
-	packlistFile.Close()
-
 	// Save the ACI
-	if hash, err := childImage.SaveACI(childImage.Path("aci"), packlistFile.Name(), 0440); err != nil {
+	if hash, err := childImage.saveACI(childImage.Path("aci"), packlist, 0440); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		childImage.Hash = hash
