@@ -228,16 +228,20 @@ Helpful Aliases:
 			switch command, args := subcommand("show", args); command {
 			case "build":
 				var copyFiles sliceFlag
-				var buildDir string
+				var buildDir, saveId string
 
-				fs := flag.NewFlagSet("build", flag.ExitOnError)
-				fs.Var(&copyFiles, "cp", "")
-				fs.StringVar(&buildDir, "dir", ".", "")
-				die(fs.Parse(args))
+				fl := flag.NewFlagSet("build", flag.ExitOnError)
+				fl.Var(&copyFiles, "cp", "")
+				fl.StringVar(&buildDir, "dir", ".", "")
+				fl.StringVar(&saveId, "saveid", "", "Save ID of built image to a file")
+				die(fl.Parse(args))
 
-				newImage, err := img.Build(buildDir, copyFiles, fs.Args())
+				newImage, err := img.Build(buildDir, copyFiles, fl.Args())
 				die(err)
 				show(newImage)
+				if saveId != "" {
+					die(ioutil.WriteFile(saveId, []byte(newImage.Hash.String()+"\n"), 0644))
+				}
 			case "show":
 				show(img)
 			case "export":
