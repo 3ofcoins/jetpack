@@ -221,6 +221,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 	os.Remove(packlist.Name())
 	defer packlist.Close()
+	io.WriteString(packlist, "manifest")
 
 	haveDeletions := false
 	if diffs, err := parentSnap.ZfsFields("diff"); err != nil {
@@ -229,9 +230,9 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		for _, diff := range diffs {
 			switch diff[0] {
 			case "+", "M":
-				fmt.Fprintln(packlist, filepath.Join("rootfs", diff[1][len(ds.Mountpoint):]))
+				io.WriteString(packlist, filepath.Join("\000rootfs", diff[1][len(ds.Mountpoint):]))
 			case "R":
-				fmt.Fprintln(packlist, filepath.Join("rootfs", diff[2][len(ds.Mountpoint):]))
+				io.WriteString(packlist, filepath.Join("\000rootfs", diff[2][len(ds.Mountpoint):]))
 				fallthrough
 			case "-":
 				haveDeletions = true
@@ -320,7 +321,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		sort.Strings(childImage.Manifest.PathWhitelist)
 	}
 
-	if err := img.saveManifest(); err != nil {
+	if err := childImage.saveManifest(); err != nil {
 		return nil, errors.Trace(err)
 	}
 
