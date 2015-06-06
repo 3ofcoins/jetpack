@@ -291,12 +291,22 @@ func (c *Pod) prepJail() error {
 			)
 		}
 
-		if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+		if dnsServers, ok := c.Host.Properties.Get("ace.dns-servers"); !ok {
+			// By default, copy /etc/resolv.conf from host
+			if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+				return errors.Trace(err)
+			} else {
+				if err := ioutil.WriteFile(c.Path("rootfs", rootno, "etc/resolv.conf"), bb, 0644); err != nil {
+					return errors.Trace(err)
+				}
+			}
+		} else if resolvconf, err := os.Create(c.Path("rootfs", rootno, "etc/resolv.conf")); err != nil {
 			return errors.Trace(err)
 		} else {
-			if err := ioutil.WriteFile(c.Path("rootfs", rootno, "etc/resolv.conf"), bb, 0644); err != nil {
-				return errors.Trace(err)
+			for _, server := range strings.Fields(dnsServers) {
+				fmt.Fprintln(resolvconf, "nameserver", server)
 			}
+			resolvconf.Close()
 		}
 
 		imgApp := app.App

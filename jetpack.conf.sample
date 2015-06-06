@@ -26,3 +26,7 @@
 
 # ZFS parameters for containers dataset (none by default)
 #containers.zfs.PARAMETER = VALUE ...
+
+# Set to a whitespace-separated list of DNS servers to use inside
+# jail. If unset, host's /etc/resolv.conf will be copied to the pod.
+#ace.dns-servers = 8.8.4.4 8.8.8.8
