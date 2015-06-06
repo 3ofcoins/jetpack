@@ -215,7 +215,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// Get packing list while parentSnap's name haven't changed
 
-	packlist, err := ioutil.TempFile(buildPod.Path(), "aci.packlist.")
+	packlist, err := ioutil.TempFile("", "aci.packlist.")
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
