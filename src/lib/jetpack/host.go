@@ -2,11 +2,11 @@ package jetpack
 
 import (
 	"crypto/sha512"
+	"encoding/json"
 	stderrors "errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
+	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
@@ -455,16 +456,13 @@ func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 func (h *Host) fetchDependencyInner(dep types.Dependency) (*Image, error) {
 	if dep.ImageID != nil {
 		// If the dependency has an ID, do we already have it?
-		if img, err := h.GetImageByHash(*dep.ImageID); err == nil {
-			if img.Manifest.Name != dep.App {
-				return nil, errors.Errorf("WEIRD: got correct Image ID (%v), but different name: dependency has %v, we have %v", dep.ImageID, dep.App, img.Manifest.Name)
-			}
-			return img, nil
+		if img, err := h.GetImageByHash(*dep.ImageID); img != nil {
+			return img, err
 		} else if err != ErrNotFound {
 			return nil, errors.Trace(err)
 		}
 	} else {
-		// Look for dependency by name/labels
+		// Look for dependency in store by name/labels
 	imgs:
 		for _, img := range h.Images() {
 			if img.Manifest.Name == dep.App {
@@ -478,11 +476,20 @@ func (h *Host) fetchDependencyInner(dep types.Dependency) (*Image, error) {
 		}
 	}
 
-	return nil, errors.New("Not implemented")
+	// No luck so far, try to discover the dependency
+	app := discovery.App{Name: dep.App, Labels: make(map[types.ACName]string)}
+	for _, label := range dep.Labels {
+		app.Labels[label.Name] = label.Value
+	}
+	if aci, asc, err := fetch.DiscoverACI(app); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		return h.importImage(dep.App, aci, asc)
+	}
 }
 
-func (h *Host) fetchDependency(dep types.Dependency) (*Image, error) {
-	if img, err := h.fetchDependencyInner(dep); err != nil {
+func (h *Host) fetchDependency(dep *types.Dependency) (*Image, error) {
+	if img, err := h.fetchDependencyInner(*dep); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		// Double check the image vs spec
@@ -556,17 +563,14 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		}
 	}
 
-	// Just load manifest
+	// Load manifest
 	manifestBytes, err := run.Command("tar", "-xOqf", "-", "manifest").ReadFrom(aci).Output()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	aci.Seek(0, os.SEEK_SET)
 
-	if err := ioutil.WriteFile(img.Path("manifest"), manifestBytes, 0444); err != nil {
-		return nil, errors.Trace(err)
-	}
-	if err := img.loadManifest(); err != nil {
+	if err = json.Unmarshal(manifestBytes, &img.Manifest); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -582,22 +586,30 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 	} else {
 		for i, dep := range img.Manifest.Dependencies {
 			fmt.Println("Looking for dependency:", dep.App, dep.Labels, dep.ImageID)
-			if dimg, err := h.fetchDependency(dep); err != nil {
+			if dimg, err := h.fetchDependency(&dep); err != nil {
 				return nil, errors.Trace(err)
-			} else if i == 0 {
-				fmt.Printf("Cloning parent %v as base rootfs\n", dimg)
-				if ds, err := dimg.Clone(path.Join(h.Dataset.Name, "images", newIdStr), h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
-					return nil, errors.Trace(err)
-				} else {
-					img.rootfs = ds
-				}
 			} else {
-				return nil, errors.New("Not implemented")
+				// We get a copy of the dependency struct when iterating, not
+				// a pointer to it. We need to write to the slice's index to
+				// save the hash to the real manifest.
+				img.Manifest.Dependencies[i].ImageID = dimg.Hash
+				if i == 0 {
+					fmt.Printf("Cloning parent %v as base rootfs\n", dimg)
+					if ds, err := dimg.Clone(path.Join(h.Dataset.Name, "images", newIdStr), h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
+						return nil, errors.Trace(err)
+					} else {
+						img.rootfs = ds
+					}
+				} else {
+					return nil, errors.New("Not implemented")
+				}
 			}
 		}
 	}
 
-	fmt.Println("WILMA")
+	if err := img.saveManifest(); err != nil {
+		return nil, errors.Trace(err)
+	}
 
 	fmt.Println("Importing image ...")
 
@@ -648,7 +660,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		img.Hash = hash
 	}
 
-	// TODO: deps, enforce PathWhiteList
+	// TODO: enforce PathWhiteList
 
 	if err := img.sealImage(); err != nil {
 		return nil, errors.Trace(err)

@@ -153,6 +153,23 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 	return app
 }
 
+func (img *Image) saveManifest() error {
+	if manifestBytes, err := json.Marshal(img.Manifest); err != nil {
+		return errors.Trace(err)
+	} else {
+		if err := ioutil.WriteFile(img.Path("manifest"), manifestBytes, 0444); err != nil {
+			return errors.Trace(err)
+		}
+	}
+
+	// Make sure that manifest exists and validates correctly
+	if err := img.loadManifest(); err != nil {
+		return errors.Trace(err)
+	}
+
+	return nil
+}
+
 // Finalize unpacked/built image
 func (img *Image) sealImage() error {
 	img.Timestamp = time.Now()

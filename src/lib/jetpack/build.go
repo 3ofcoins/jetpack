@@ -281,16 +281,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		sort.Strings(childImage.Manifest.PathWhitelist)
 	}
 
-	if manifestBytes, err := json.Marshal(childImage.Manifest); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		if err := ioutil.WriteFile(childImage.Path("manifest"), manifestBytes, 0444); err != nil {
-			return nil, errors.Trace(err)
-		}
-	}
-
-	// Make sure that manifest exists and validates correctly
-	if err := childImage.loadManifest(); err != nil {
+	if err := img.saveManifest(); err != nil {
 		return nil, errors.Trace(err)
 	}
 

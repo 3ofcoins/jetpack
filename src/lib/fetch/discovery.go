@@ -60,8 +60,54 @@ func OpenPubKey(location string) (types.ACName, *os.File, error) {
 	}
 }
 
+func DiscoverACI(app discovery.App) (*os.File, *os.File, error) {
+	return discoverACI(app, nil)
+}
+
+func discoverACI(app discovery.App, asc *os.File) (*os.File, *os.File, error) {
+	var aci *os.File
+	if eps, _, err := discovery.DiscoverEndpoints(app, AllowHTTP); err != nil {
+		return nil, nil, err
+	} else {
+		var err error
+
+		if asc == nil {
+			err = nil
+			for _, ep := range eps.ACIEndpoints {
+				if af, er1 := OpenLocation(ep.ASC); er1 != nil {
+					err = multierror.Append(err, er1)
+				} else {
+					asc = af
+					break
+				}
+			}
+			if asc == nil {
+				return nil, nil, err
+			}
+		}
+
+		err = nil
+		for _, ep := range eps.ACIEndpoints {
+			if af, er1 := OpenLocation(ep.ACI); er1 != nil {
+				err = multierror.Append(err, er1)
+			} else {
+				aci = af
+				break
+			}
+			if aci == nil {
+				if asc != nil {
+					asc.Close()
+				}
+				return nil, nil, err
+			}
+		}
+
+		return aci, asc, nil
+	}
+}
+
 func OpenACI(location, sigLocation string) (types.ACName, *os.File, *os.File, error) {
-	var asc, aci *os.File
+	var asc *os.File
 
 	// Signature override
 	if sigLocation != "" {
@@ -74,42 +120,9 @@ func OpenACI(location, sigLocation string) (types.ACName, *os.File, *os.File, er
 
 	if app := tryAppFromString(location); app != nil {
 		// Proper ACName given, let's do discovery
-		if eps, _, err := discovery.DiscoverEndpoints(*app, AllowHTTP); err != nil {
+		if aci, asc, err := discoverACI(*app, asc); err != nil {
 			return app.Name, nil, nil, err
 		} else {
-			var err error
-
-			if asc == nil {
-				err = nil
-				for _, ep := range eps.ACIEndpoints {
-					if af, er1 := OpenLocation(ep.ASC); er1 != nil {
-						err = multierror.Append(err, er1)
-					} else {
-						asc = af
-						break
-					}
-				}
-				if asc == nil {
-					return app.Name, nil, nil, err
-				}
-			}
-
-			err = nil
-			for _, ep := range eps.ACIEndpoints {
-				if af, er1 := OpenLocation(ep.ACI); er1 != nil {
-					err = multierror.Append(err, er1)
-				} else {
-					aci = af
-					break
-				}
-				if aci == nil {
-					if asc != nil {
-						asc.Close()
-					}
-					return app.Name, nil, nil, err
-				}
-			}
-
 			return app.Name, aci, asc, nil
 		}
 	} else {
