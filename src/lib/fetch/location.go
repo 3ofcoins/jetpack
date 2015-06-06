@@ -37,7 +37,7 @@ func ProgressBarReader(r io.Reader, size int64) io.Reader {
 	return &ioprogress.Reader{
 		Reader:       r,
 		Size:         size,
-		DrawFunc:     ioprogress.DrawTerminalf(os.Stdout, fmtfunc),
+		DrawFunc:     ioprogress.DrawTerminalf(os.Stderr, fmtfunc),
 		DrawInterval: time.Second,
 	}
 }
