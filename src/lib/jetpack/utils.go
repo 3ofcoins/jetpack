@@ -13,8 +13,6 @@ import "github.com/appc/spec/aci"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
-const ACNoName = types.ACName("")
-
 func ConsoleApp(username string) *types.App {
 	return &types.App{
 		Exec: []string{"/usr/bin/login", "-fp", username},
