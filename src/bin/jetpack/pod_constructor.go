@@ -1,6 +1,9 @@
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"net/url"
+)
 import "flag"
 import "fmt"
 import "io/ioutil"
@@ -32,10 +35,22 @@ func (cf podFlag) Set(val string) error {
 type volumesFlag struct{ v *[]types.Volume }
 
 func (vf volumesFlag) String() string {
-	return "NAME,kind=host|empty[,source=PATH][,readOnly=true]"
+	return "[-]NAME[:PATH] | NAME,kind=host|empty[,source=PATH][,readOnly=true]"
 }
 
 func (vf volumesFlag) Set(val string) error {
+	// Transform sanely formatted string to Rocket/appc format. Should
+	// we even support it?
+	if !strings.ContainsRune(val, ',') {
+		if pieces := strings.SplitN(val, ":", 2); len(pieces) == 1 {
+			val += ",kind=empty"
+		} else {
+			val = fmt.Sprintf("%v,kind=host,source=%v", pieces[0], url.QueryEscape(pieces[1]))
+		}
+	}
+	if val[0] == '-' {
+		val = val[1:] + ",readOnly=true"
+	}
 	if v, err := types.VolumeFromString(val); err != nil {
 		return err
 	} else {
@@ -142,6 +157,41 @@ func ConstructPod(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*
 				return nil, err
 			}
 			pm.Apps = append(pm.Apps, *rapp)
+		}
+	}
+
+	// Automatic volumes
+	for i, app := range pm.Apps {
+		// TODO: REIFICATION GOES HERE
+		img, err := Host.GetImageByHash(app.Image.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		if img.Manifest.App == nil {
+			continue
+		}
+
+	mntpnts:
+		for _, mntpnt := range img.Manifest.App.MountPoints {
+			var mnt *schema.Mount
+			for _, mntc := range app.Mounts {
+				if mntc.MountPoint == mntpnt.Name {
+					mnt = &mntc
+				}
+			}
+			if mnt == nil {
+				fmt.Printf("INFO: mount for %v:%v not found, inserting mount for volume %v\n", app.Name, mntpnt.Name, mntpnt.Name)
+				mnt = &schema.Mount{MountPoint: mntpnt.Name, Volume: mntpnt.Name}
+				pm.Apps[i].Mounts = append(pm.Apps[i].Mounts, *mnt)
+			}
+			for _, vol := range pm.Volumes {
+				if vol.Name == mnt.Volume {
+					continue mntpnts
+				}
+			}
+			fmt.Printf("INFO: volume %v not found, inserting empty volume\n", mnt.Volume)
+			pm.Volumes = append(pm.Volumes, types.Volume{Name: mnt.Volume, Kind: "empty"})
 		}
 	}
 
