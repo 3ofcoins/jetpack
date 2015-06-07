@@ -10,3 +10,5 @@ jail.namePrefix = jetpack/
 debug = off
 mds.port = 1104
 mds.user = _jetpack
+ace.jailConf.osrelease=10.1-RELEASE-p9
+ace.jailConf.securelevel=2

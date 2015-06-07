@@ -30,3 +30,10 @@
 # Set to a whitespace-separated list of DNS servers to use inside
 # jail. If unset, host's /etc/resolv.conf will be copied to the pod.
 #ace.dns-servers = 8.8.4.4 8.8.8.8
+
+# Set to globally set `jail.conf` configuration. To unset an option
+# set by default, set it to an empty string.
+# TODO: options that can be specified multiple times are not supported
+# Default options:
+#ace.jailConf.osrelease=10.1-RELEASE-p9
+#ace.jailConf.securelevel=2

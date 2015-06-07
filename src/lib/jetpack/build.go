@@ -153,6 +153,7 @@ func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
 	// This is needed by freebsd-update at least, should be okay to
 	// allow this in builders.
 	bpm.Annotations.Set("jetpack/jail.conf/allow.chflags", "true")
+	bpm.Annotations.Set("jetpack/jail.conf/securelevel", "0")
 
 	return bpm
 }

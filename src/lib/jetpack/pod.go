@@ -242,6 +242,10 @@ func (c *Pod) jailConf() string {
 		"mount.fstab":   c.Path("fstab"),
 	}
 
+	for pk, pv := range c.Host.GetPrefixProperties("ace.jailConf.") {
+		parameters[pk] = pv
+	}
+
 	if hostname, ok := c.Manifest.Annotations.Get("hostname"); ok {
 		parameters["host.hostname"] = hostname
 	} else {

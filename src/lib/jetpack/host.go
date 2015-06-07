@@ -76,13 +76,21 @@ func (h *Host) Path(elem ...string) string {
 	return h.Dataset.Path(elem...)
 }
 
-func (h *Host) zfsOptions(prefix string, opts ...string) []string {
-	l := len(prefix)
-	p := h.Properties.FilterPrefix(prefix)
-	for _, k := range p.Keys() {
-		if v, ok := p.Get(k); ok && v != "" {
-			opts = append(opts, strings.Join([]string{"-o", k[l:], "=", v}, ""))
+func (h *Host) GetPrefixProperties(prefix string) map[string]string {
+	rv := make(map[string]string)
+	pl := len(prefix)
+	pp := h.Properties.FilterPrefix(prefix)
+	for _, pk := range pp.Keys() {
+		if pv, ok := pp.Get(pk); ok && pv != "" {
+			rv[pk[pl:]] = pv
 		}
+	}
+	return rv
+}
+
+func (h *Host) zfsOptions(prefix string, opts ...string) []string {
+	for k, v := range h.GetPrefixProperties(prefix) {
+		opts = append(opts, fmt.Sprintf("-o%v=%v", k, v))
 	}
 	return opts
 }
