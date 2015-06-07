@@ -1,25 +1,15 @@
 Jetpack Images
 ==============
 
-Importing pre-made images
--------------------------
+Fetching pre-made images
+------------------------
 
 Images can be imported from files or URLs, using the _image import_
 command:
 
-    jetpack image import AMI
-    jetpack image import ROOTFS MANIFEST
+    jetpack image fetch ACI
 
-The parameters should be either URLs pointing directly at archives, or
-filesystem paths. The contents are retrieved using `fetch(1)` command.
-
-`AMI` should point at Application Manifest Image that contains rootfs
-and manifest, as described in the Application Container Specification
-(caveat: the _dependencies_ are not supported).
-
-Alternatively, `ROOTFS` can point to a tar archive (which may be
-compressed with gzip, bzip2, or xz) of the root filesystem, and
-MANIFEST can point at raw JSON manifest.
+ACI can be a path, an URL, or a name for discovery.
 
 Building derivative images
 --------------------------
@@ -100,64 +90,7 @@ The default Make target is `image`. It depends on wildcard target
 `prepare` task, or define `prepare.*` tasks that `prepare` will
 automatically depend on.
 
-The `image` task itself, after `prepare`, will:
-
- - run `${JETPACK} image import …` if `IMPORT_FILE` or `IMPORT_URL` is
-   defined (see _Importing Images_ for details), or
- - run `${JETPACK} image ${PARENT_IMAGE} build …` if `PARENT_IMAGE` is
-   defined (see _Building Images_ for details), or
- - raise an error if neiter import file/url, nor parent image is
-   defined.
-
-### Cleanup
-
-Run `make clean` to clean up the build directory.
-
-Makefile can define commands for the `clean` target, some extra
-`clean.*` targets, or add file names to the `CLEAN_FILES`
-variable. This concerns only build directory on host, the work
-directory in the container is always removed.
-
-### Importing Images
-
-See the `images/freebsd-release.base/Makefile` file for a complete
-example. Most of the time, only some variables need to be defined:
-
- - `IMPORT_FILE` will specify a file to import (AMI or
-   rootfs). The file can be provided in the build dir, or can be
-   created by Makefile.
- - `IMPORT_MANIFEST` -- if `IMPORT_FILE` is a rootfs tarball, it
-   specifies location of the manifest file.
- - `IMPORT_URL` -- if specified, Makefile will download `IMPORT_FILE`
-   from that URL. If `IMPORT_URL` is defined, and `IMPORT_FILE` is not
-   defined, the `IMPORT_FILE` will be extracted automatically from the
-   `IMPORT_URL`.
- - `IMPORT_SHA256` -- a checksum to verify download from `IMPORT_URL`.
-
-The Makefile can also include detailed instructions on how to get the
-`IMPORT_FILE`. For example:
-
-    IMPORT_FILE = secret.aci
-    CLEAN_FILES = secret.aci.gpg secret.aci
-    
-    secret.aci: secret.aci.gpg
-    	gpg --decrypt --output $@ secret.aci.gpg
-    
-    secret.aci.gpg:
-    	scp secret.login@secret.location:/path/to/secret.aci.gpg $@
-
-> side note: the `jetpack.image.mk` itself uses wildcard targets
-> internally. If `IMPORT_URL` is defined: `IMPORT_FILE` is
-> automatically defined if not set by user; a `${IMPORT_FILE}` target
-> is added that downloads from `${IMPORT_URL}`; a
-> `prepare..import_file` target (with double dot to avoid conflicts
-> with user's Makefile), depending on `${IMPORT_FILE}`, checks
-> `${IMPORT_SHA256}`. The `prepare` target automatically depends on
-> `prepare..import_file`.
-
-### Building images
-
-If `PARENT_IMAGE` variable is defined, the `image` target will run:
+The `image` task itself, after `prepare`, will run `jetpack image build`:
 
     ${JETPACK} image ${PARENT_IMAGE} build ${BUILD_COMMAND} ${BUILD_ARGS}
 
@@ -182,3 +115,33 @@ following variables can be used to modify this process:
  - `PKG_INSTALL` can specify list of packages to install with `pkg
    install` (if it is defined, a `build..pkg-install` target will be
    defined).
+
+### Cleanup
+
+Run `make clean` to clean up the build directory.
+
+Makefile can define commands for the `clean` target, some extra
+`clean.*` targets, or add file names to the `CLEAN_FILES`
+variable. This concerns only build directory on host, the work
+directory in the container is always removed.
+
+Base Images
+-----------
+
+Base (non-derived) images can be made from a rootfs tarball (FreeBSD's
+`base.txz`, Ubuntu's cloudimg, or made with debootstrap) and a
+manifest. Easiest way is to use `security/fakeroot` in a temporary
+directory to run a script like this:
+
+    mkdir rootfs
+    tar -C rootfs -xvf /path/to/rootfs-tarball
+    cp /path/to/manifest.json manifest
+    tar -cJvf ../$NAME.aci manifest rootfs
+
+Be aware that `fakeroot` adds significant filesystem access overhead,
+so remember to do parts that don't need root privileges (such as
+removing the unpaked files) without it.
+
+A sample script that takes a root filesystem tarball and JSON manifest
+file and outputs an ACI archive is provided as
+[share/makeaci.sh](share/makeaci.sh).

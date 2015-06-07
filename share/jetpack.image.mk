@@ -8,6 +8,9 @@ BUILD_COMMAND ?= /usr/bin/make .jetpack.build.
 CLEAN_FILES += image.aci.id image.aci image.flat.aci
 BUILD_CP ?=
 BUILD_CP_JETPACK_IMAGE_MK ?= yes
+ACI_FILE ?= image.aci
+ACI_ID_FILE ?= ${ACI_FILE}.id
+FLAT_ACI_FILE ?= ${ACI_FILE:R}.flat.aci
 
 JETPACK_SHAREDIR := ${.PARSEDIR}
 MAKEACI := ${.PARSEDIR}/makeaci.sh
@@ -23,18 +26,18 @@ BUILD_ARGS += ${BUILD_VARS:@.VAR.@${${.VAR.}:D${.VAR.}=${${.VAR.}:Q}}@}
 BUILD_CP += ${.jetpack.image.mk.path}
 .endif
 
-image: image.aci.id
-image.aci.id:
+image: ${ACI_ID_FILE}
+${ACI_ID_FILE}:
 	${MAKE} prepare
 	$(JETPACK) image $(PARENT_IMAGE) build -saveid=$@ ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} ${BUILD_DIR:D-dir=${BUILD_DIR}} $(BUILD_COMMAND) $(BUILD_ARGS)
 
-aci: image.aci
-image.aci: image.aci.id
-	jetpack image `cat image.aci.id` export $@
+aci: ${ACI_FILE}
+${ACI_FILE}: ${ACI_ID_FILE}
+	jetpack image `cat ${ACI_ID_FILE}` export $@
 
-flat-aci: image.flat.aci
-image.flat.aci: image.aci.id
-	jetpack image `cat image.aci.id` export -flat $@
+flat-aci: ${FLAT_ACI_FILE}
+${FLAT_ACI_FILE}: ${ACI_ID_FILE}
+	jetpack image `cat ${ACI_ID_FILE}` export -flat $@
 
 .ifdef PKG_INSTALL
 build..pkg-install: .PHONY
