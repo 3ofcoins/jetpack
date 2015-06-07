@@ -1,2 +1,11 @@
 /_bin
-
+/SHA256SUMS
+/SHA256SUMS.dl
+/SHA256SUMS.gpg
+/SHA256SUMS.verified
+/ubuntu-*-build-info.txt
+/ubuntu-*-core-cloudimg-i386-root.tar.gz
+/ubuntu-*-core-cloudimg-i386-root.tar.gz.dl
+/ubuntu-*.aci
+/ubuntu-*.aci.id
+/ubuntu-*.manifest.json
