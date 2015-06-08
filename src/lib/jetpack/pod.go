@@ -118,6 +118,10 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 			return nil, errors.Trace(err)
 		}
 
+		if _, err := rootds.Snapshot("parent"); err != nil {
+			return nil, errors.Trace(err)
+		}
+
 		app := rtApp.App
 		if app == nil {
 			app = img.Manifest.App

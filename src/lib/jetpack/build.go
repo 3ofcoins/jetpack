@@ -169,11 +169,6 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	parentSnap, err := ds.Snapshot("parent")
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
 	fullWorkDir := buildPod.Path("rootfs/0", buildPod.Manifest.Apps[0].App.WorkingDirectory)
 	if err := os.Mkdir(fullWorkDir, 0700); err != nil {
 		return nil, errors.Trace(err)
@@ -213,36 +208,6 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	if err := os.Remove(buildPod.Path("rootfs/0/etc/resolv.conf")); err != nil && !os.IsNotExist(err) {
 		return nil, errors.Trace(err)
 	}
-
-	// Get packing list while parentSnap's name haven't changed
-
-	packlist, err := ioutil.TempFile("", "aci.packlist.")
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	os.Remove(packlist.Name())
-	defer packlist.Close()
-	io.WriteString(packlist, "manifest")
-
-	haveDeletions := false
-	if diffs, err := parentSnap.ZfsFields("diff"); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		for _, diff := range diffs {
-			switch diff[0] {
-			case "+", "M":
-				io.WriteString(packlist, filepath.Join("\000rootfs", diff[1][len(ds.Mountpoint):]))
-			case "R":
-				io.WriteString(packlist, filepath.Join("\000rootfs", diff[2][len(ds.Mountpoint):]))
-				fallthrough
-			case "-":
-				haveDeletions = true
-			default:
-				return nil, errors.Errorf("Unknown `zfs diff` line: %v", diff)
-			}
-		}
-	}
-	packlist.Seek(0, os.SEEK_SET)
 
 	// Pivot pod into an image
 	childImage := NewImage(img.Host, buildPod.UUID)
@@ -296,7 +261,6 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		}
 	}
 
-	// TODO: option to create a flat image
 	childImage.Manifest.Dependencies = append(types.Dependencies{
 		types.Dependency{
 			App:     img.Manifest.Name,
@@ -304,6 +268,62 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 			Labels:  img.Manifest.Labels,
 		}}, childImage.Manifest.Dependencies...)
 
+	// Get packing list out of `zfs diff`
+
+	packlist, err := ioutil.TempFile(childImage.Path(), "aci.packlist.")
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	os.Remove(packlist.Name())
+	defer packlist.Close()
+	io.WriteString(packlist, "manifest")
+
+	// To figure out whether a deleted file has been re-added (and
+	// should be kept in PathWhitelist after all), we keep changes in a
+	// map: a false value means there was an addition; true value means
+	// a deletion. False overwrites true, true never overwrites false.
+	deletionMap := make(map[string]bool)
+
+	if snap, err := ds.GetSnapshot("parent"); err != nil {
+		return nil, errors.Trace(err)
+	} else if diffs, err := snap.ZfsFields("diff"); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		for _, diff := range diffs {
+			path1 := diff[1][len(ds.Mountpoint):]
+			switch diff[0] {
+			case "+", "M":
+				io.WriteString(packlist, filepath.Join("\000rootfs", path1))
+				deletionMap[path1] = false
+			case "R":
+				path2 := diff[2][len(ds.Mountpoint):]
+				deletionMap[path2] = false
+				io.WriteString(packlist, filepath.Join("\000rootfs", path2))
+				fallthrough
+			case "-":
+				if _, ok := deletionMap[path1]; !ok {
+					// if found in map, either already true (no need to set
+					// again), or false (which should stay)
+					deletionMap[path1] = true
+				}
+			default:
+				return nil, errors.Errorf("Unknown `zfs diff` line: %v", diff)
+			}
+		}
+	}
+	packlist.Seek(0, os.SEEK_SET)
+
+	// Check if there were any deletions. If there weren't any, we don't
+	// need to prepare a path whitelist.
+	haveDeletions := false
+	for _, isDeletion := range deletionMap {
+		if isDeletion {
+			haveDeletions = true
+			break
+		}
+	}
+
+	// If any files from parent were deleted, fill in path whitelist
 	if haveDeletions {
 		prefixLen := len(ds.Mountpoint)
 		if err := filepath.Walk(ds.Mountpoint, func(path string, _ os.FileInfo, err error) error {
