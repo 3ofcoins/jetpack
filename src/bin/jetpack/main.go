@@ -2,24 +2,24 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"text/tabwriter"
+
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
+	"github.com/juju/errors"
+
+	"lib/jetpack"
+	"lib/run"
 )
-import "flag"
-import "fmt"
-import "io/ioutil"
-import "os"
-import "path/filepath"
-import "sort"
-import "strconv"
-import "strings"
-import "text/tabwriter"
-
-import "github.com/appc/spec/schema"
-import "github.com/appc/spec/schema/types"
-import "github.com/juju/errors"
-
-import "lib/jetpack"
-import "lib/run"
 
 var Host *jetpack.Host
 
