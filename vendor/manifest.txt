@@ -1,8 +1,8 @@
 code.google.com/p/go-uuid 35bc42037350 go-uuid: Fix JSON encoding for empty UUIDs
 github.com/appc/spec 1d31afe (HEAD, tag: v0.5.2) version: bump to v0.5.2
 github.com/coreos/ioprogress 326b3ee (HEAD -> master, origin/master, origin/HEAD) Merge pull request #3 from endocode/iaguis/always-draw
-github.com/hashicorp/go-multierror fcdddc3 (HEAD -> master, origin/master, origin/HEAD) Slight code cleanup
+github.com/hashicorp/go-multierror 56912fb (HEAD -> master, origin/master, origin/HEAD) if top-level error in flatten is not Error, return as-is
 github.com/juju/errors 4567a5e (HEAD -> master, origin/master, origin/HEAD) Merge pull request #19 from cherylj/license_master
 github.com/magiconair/properties 6240095 (HEAD -> master, tag: v1.5.3, origin/master, origin/HEAD) Maintain order of keys for Filter methods
-golang.org/x/crypto c10c31b (HEAD -> master, origin/master, origin/HEAD) x/crypto/openpgp: cross-signature validation for signing subkeys.
+golang.org/x/crypto 1e856cb (HEAD -> master, origin/master, origin/HEAD) crypto/ssh: fix format string error in test.
 golang.org/x/sys 58e1096 (HEAD -> master, origin/master, origin/HEAD) unix: add darwin/arm64 support
