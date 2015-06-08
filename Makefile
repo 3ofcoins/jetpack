@@ -34,8 +34,10 @@ const.go := src/lib/jetpack/const.go
 libexec = ${echo src/libexec/*:L:sh:S/^src\///}
 libexec += github.com/appc/spec/actool
 
-all: .prefix ${const.go}
-	gb build ${PREFIX:D-r }bin/jetpack ${libexec}
+GB ?= vendor/bin/gb
+
+all: ${GB} .prefix ${const.go}
+	${GB} build ${PREFIX:D-r }bin/jetpack ${libexec}
 
 ${const.go}: .PHONY
 	echo 'package jetpack ${const.jetpack:@.CONST.@; const ${.CONST.}@}' | gofmt > $@
@@ -50,20 +52,23 @@ ${const.go}: .PHONY
 
 # Convenience
 
-bin/jetpack: .PHONY ${const.go}
-	gb build bin/jetpack ${libexec}
+bin/jetpack: .PHONY ${const.go} ${GB}
+	${GB} build bin/jetpack ${libexec}
 
 .for libexec1 in ${libexec}
 libexec.bin += ${libexec1:T}
-bin/${libexec1:T}: .PHONY ${const.go}
-	gb build ${libexec1}
+bin/${libexec1:T}: .PHONY ${const.go} ${GB}
+	${GB} build ${libexec1}
 .endfor
+
+${GB}:
+	env GOBIN=${GB:H} GOPATH=${.CURDIR}/vendor go install github.com/constabulary/gb/...
 
 APPC_SPEC_VERSION=v0.5.2
 
 vendor.refetch: .PHONY
 	rm -rf vendor
-	cd ${.CURDIR}/src ; env GOPATH=${.CURDIR}/vendor:${.CURDIR} go get -d ./...
+	cd ${.CURDIR}/src ; env GOPATH=${.CURDIR}/vendor:${.CURDIR} go get -d ./... github.com/constabulary/gb
 	cd ${.CURDIR}/vendor/src/github.com/appc/spec && git checkout ${APPC_SPEC_VERSION}
 	set -e ; \
 	    cd ${.CURDIR}/vendor/src ; \
@@ -105,7 +110,7 @@ reinstall: .PHONY uninstall .WAIT install
 .endif
 
 clean: .PHONY
-	rm -rf bin pkg tmp .prefix ${const.go}
+	rm -rf bin pkg tmp vendor/bin vendor/pkg .prefix ${const.go}
 
 # development helpers
 cloc:

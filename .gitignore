@@ -4,5 +4,6 @@
 /.prefix
 /jetpack.conf
 /.vagrant
+/vendor/bin
 /vendor/pkg
 /pkg

@@ -10,8 +10,3 @@
    with_items:
    - git
    - lang/go
-
- - name: install gb
-   command: "/usr/bin/env GOBIN=/usr/local/bin GOPATH=/usr/local/site-go go get github.com/constabulary/gb/..."
-   args:
-     creates: /usr/local/bin/gb

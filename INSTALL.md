@@ -10,15 +10,10 @@ Prerequisites
  - FreeBSD OS (developed and tested on 10.1 with current updates)
  - Git (to check out this repository)
  - Go (developed and tested on Go 1.4)
- - [gb](http://getgb.io/)
  
  To install prerequisites, run:
 
     # pkg install go git
-
-Then set up your `$GOPATH` and `$GOBIN`, and run:
-
-    $ go get github.com/constabulary/gb/...
 
 Installing system-wide
 ----------------------
