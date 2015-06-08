@@ -13,6 +13,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
+	"lib/ui"
 	"lib/zfs"
 )
 
@@ -27,13 +28,19 @@ type Image struct {
 	Timestamp time.Time
 
 	rootfs *zfs.Dataset
+	ui     *ui.UI
 }
 
 func NewImage(h *Host, id uuid.UUID) *Image {
 	if id == nil {
 		id = uuid.NewRandom()
 	}
-	return &Image{Host: h, UUID: id, Manifest: *schema.BlankImageManifest()}
+	return &Image{
+		Host:     h,
+		UUID:     id,
+		Manifest: *schema.BlankImageManifest(),
+		ui:       ui.NewUI("image:%v", id),
+	}
 }
 
 func LoadImage(h *Host, id uuid.UUID) (*Image, error) {
@@ -109,6 +116,7 @@ func (img *Image) loadManifest() error {
 }
 
 func (img *Image) Destroy() (err error) {
+	img.ui.Println("Destroying")
 	err = errors.Trace(img.getRootfs().Destroy("-r"))
 	if img.Hash != nil {
 		if err2 := os.Remove(img.Path("..", img.Hash.String())); err2 != nil && err == nil {
@@ -122,6 +130,7 @@ func (img *Image) Destroy() (err error) {
 }
 
 func (img *Image) Clone(dest, mountpoint string) (*zfs.Dataset, error) {
+	img.ui.Debugf("Cloning rootfs as %v at %v", dest, mountpoint)
 	snap, err := img.getRootfs().GetSnapshot(imageSnapshotName)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -154,6 +163,7 @@ func (img *Image) RuntimeApp() schema.RuntimeApp {
 }
 
 func (img *Image) saveManifest() error {
+	img.ui.Debug("Saving manifest")
 	if manifestBytes, err := json.Marshal(img.Manifest); err != nil {
 		return errors.Trace(err)
 	} else {
@@ -172,6 +182,7 @@ func (img *Image) saveManifest() error {
 
 // Finalize unpacked/built image
 func (img *Image) sealImage() error {
+	img.ui.Debug("Sealing")
 	img.Timestamp = time.Now()
 
 	// Set access mode for the metadata server
@@ -180,11 +191,11 @@ func (img *Image) sealImage() error {
 		return errors.Trace(err)
 	}
 
-	if err := os.Chown(img.Path("manifest"), 0, mdsGID); err != nil {
+	if err := os.Chmod(img.Path(), 0750); err != nil {
 		return errors.Trace(err)
 	}
 
-	if err := os.Chmod(img.Path(), 0750); err != nil {
+	if err := os.Chown(img.Path("manifest"), 0, mdsGID); err != nil {
 		return errors.Trace(err)
 	}
 

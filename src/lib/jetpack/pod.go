@@ -19,6 +19,7 @@ import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
 import "lib/run"
+import "lib/ui"
 import "lib/zfs"
 
 type PodStatus uint
@@ -50,6 +51,18 @@ type Pod struct {
 	Manifest schema.PodManifest
 
 	sealed bool
+	ui     *ui.UI
+}
+
+func newPod(h *Host, id uuid.UUID) *Pod {
+	if id == nil {
+		id = uuid.NewRandom()
+	}
+	return &Pod{
+		Host: h,
+		UUID: id,
+		ui:   ui.NewUI("pod:%v", id),
+	}
 }
 
 func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
@@ -57,10 +70,12 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		return nil, errors.New("Pod manifest is nil")
 	}
 	if len(pm.Apps) == 0 {
-		return nil, errors.New("Pod manifes has no apps")
+		return nil, errors.New("Pod manifest has no apps")
 	}
-	pod = &Pod{Host: h, UUID: uuid.NewRandom(), Manifest: *pm}
+	pod = newPod(h, nil)
+	pod.Manifest = *pm
 
+	pod.ui.Debug("Initializing dataset")
 	ds, err := h.Dataset.CreateDataset(path.Join("pods", pod.UUID.String()))
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -89,6 +104,7 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 	volumesDirCreated := false
 	for i, vol := range pod.Manifest.Volumes {
 		if vol.Kind == "empty" {
+			pod.ui.Debugf("Creating volume.%v for volume %v", i, vol.Name)
 			if !volumesDirCreated {
 				if err := os.Mkdir(ds.Path("volumes"), 0700); err != nil {
 					return nil, errors.Trace(err)
@@ -104,6 +120,7 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 	}
 
 	for i, rtApp := range pod.Manifest.Apps {
+		pod.ui.Debugf("Cloning rootfs.%d for app %v", i, rtApp.Name)
 		img, err := h.GetImageByHash(rtApp.Image.ID)
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -147,13 +164,19 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 	if ip, err := h.nextIP(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
+		pod.ui.Debug("Using IP", ip)
 		pod.Manifest.Annotations.Set("ip-address", ip.String())
 	}
 
-	if err := pod.Save(); err != nil {
+	pod.ui.Debug("Saving manifest")
+	if manifestJSON, err := json.Marshal(pod.Manifest); err != nil {
+		return nil, errors.Trace(err)
+	} else if err := ioutil.WriteFile(pod.Path("manifest"), manifestJSON, 0440); err != nil {
+		return nil, errors.Trace(err)
+	} else if err := os.Chown(pod.Path("manifest"), 0, mdsGID); err != nil {
 		return nil, errors.Trace(err)
 	}
-
+	pod.sealed = true
 	return pod, nil
 }
 
@@ -161,24 +184,11 @@ func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
 	if id == nil {
 		panic("No UUID provided")
 	}
-	pod := &Pod{UUID: id, Host: h}
+	pod := newPod(h, id)
 	if err := pod.Load(); err != nil {
 		return nil, errors.Trace(err)
 	}
 	return pod, nil
-}
-
-func (c *Pod) Save() error {
-	_, mdsGID := c.Host.GetMDSUGID()
-	if manifestJSON, err := json.Marshal(c.Manifest); err != nil {
-		return errors.Trace(err)
-	} else if err := ioutil.WriteFile(c.Path("manifest"), manifestJSON, 0440); err != nil {
-		return errors.Trace(err)
-	} else if err := os.Chown(c.Path("manifest"), 0, mdsGID); err != nil {
-		return errors.Trace(err)
-	}
-	c.sealed = true
-	return nil
 }
 
 func (c *Pod) Path(elem ...string) string {
@@ -198,7 +208,8 @@ func (c *Pod) Exists() bool {
 	return true
 }
 
-func (c *Pod) readManifest() error {
+func (c *Pod) loadManifest() error {
+	c.ui.Debug("Loading manifest")
 	manifestJSON, err := ioutil.ReadFile(c.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
@@ -220,7 +231,7 @@ func (c *Pod) Load() error {
 		return ErrNotFound
 	}
 
-	if err := c.readManifest(); err != nil {
+	if err := c.loadManifest(); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -429,6 +440,7 @@ func (c *Pod) runJail(op string) error {
 	if c.Host.Properties.GetBool("debug", false) {
 		verbosity = "-v"
 	}
+	c.ui.Debug("Running: jail", op)
 	return run.Command("jail", "-f", c.Path("jail.conf"), verbosity, op, c.jailName()).Run()
 }
 

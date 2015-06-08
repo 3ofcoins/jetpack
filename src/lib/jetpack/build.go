@@ -18,6 +18,7 @@ import (
 	"github.com/juju/errors"
 
 	"lib/run"
+	"lib/ui"
 )
 
 // Save image to an ACI file, return its hash.
@@ -27,8 +28,11 @@ import (
 func (img *Image) saveACI(path string, packlist *os.File, perm os.FileMode) (*types.Hash, error) {
 	tarArgs := []string{"-C", img.Path(), "-c", "--null", "-f", "-"}
 	if packlist != nil {
+		img.ui.Debug("Saving incremental ACI:", path)
 		tarArgs = append(tarArgs, "-n", "-T", "-")
 	} else {
+		img.ui.Debug("Saving flat ACI:", path)
+
 		// no packlist -> flat ACI
 		manifest := img.Manifest
 		manifest.Dependencies = nil
@@ -116,6 +120,7 @@ func (img *Image) saveACI(path string, packlist *os.File, perm os.FileMode) (*ty
 			// CAN'T HAPPEN, srsly
 			return nil, errors.Trace(err)
 		} else {
+			img.ui.Debug("Saved", hash)
 			return hash, nil
 		}
 	}
@@ -159,17 +164,26 @@ func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
 }
 
 func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
+	img.ui.Println("Creating build pod for", buildDir)
+	img.ui.Debug("Extra files:", run.ShellEscape(addFiles...))
+	img.ui.Debug("Build command:", run.ShellEscape(buildExec...))
 	buildPod, err := img.Host.CreatePod(img.buildPodManifest(buildExec))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+
+	ui := ui.NewUI("build:%v", buildPod.UUID)
+
+	workDir := buildPod.Manifest.Apps[0].App.WorkingDirectory
+	ui.Println("Preparing build environment")
+	ui.Debug("Working in %v", workDir)
 
 	ds, err := img.Host.Dataset.GetDataset(path.Join("pods", buildPod.UUID.String(), "rootfs.0"))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	fullWorkDir := buildPod.Path("rootfs/0", buildPod.Manifest.Apps[0].App.WorkingDirectory)
+	fullWorkDir := ds.Path(workDir)
 	if err := os.Mkdir(fullWorkDir, 0700); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -188,6 +202,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
+	ui.Println("Running the build")
 	if err := buildPod.RunApp(buildPod.Manifest.Apps[0].Name); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -196,18 +211,22 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
+	ui.Debug("Reading new image manifest")
 	manifestBytes, err := ioutil.ReadFile(filepath.Join(fullWorkDir, "manifest.json"))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
+	ui.Debug("Removing work dir")
 	if err := os.RemoveAll(fullWorkDir); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	if err := os.Remove(buildPod.Path("rootfs/0/etc/resolv.conf")); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(ds.Path("etc/resolv.conf")); err != nil && !os.IsNotExist(err) {
 		return nil, errors.Trace(err)
 	}
+
+	ui.Println("Pivoting build pod into new image")
 
 	// Pivot pod into an image
 	childImage := NewImage(img.Host, buildPod.UUID)
@@ -222,6 +241,8 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// Construct the child image's manifest
 
+	ui.Debug("Constructing new image manifest")
+
 	if err := json.Unmarshal(manifestBytes, &childImage.Manifest); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -233,11 +254,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	buildPod = nil
 
 	if _, ok := childImage.Manifest.Annotations.Get("timestamp"); !ok {
-		if ts, err := time.Now().MarshalText(); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			childImage.Manifest.Annotations.Set("timestamp", string(ts))
-		}
+		childImage.Manifest.Annotations.Set("timestamp", time.Now().Format(time.RFC3339))
 	}
 
 	for _, label := range []string{"os", "arch"} {
@@ -269,6 +286,8 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		}}, childImage.Manifest.Dependencies...)
 
 	// Get packing list out of `zfs diff`
+
+	ui.Debug("Generating incremental packing list")
 
 	packlist, err := ioutil.TempFile(childImage.Path(), "aci.packlist.")
 	if err != nil {
@@ -325,6 +344,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	// If any files from parent were deleted, fill in path whitelist
 	if haveDeletions {
+		ui.Debug("Some files were deleted, filling in path whitelist")
 		prefixLen := len(ds.Mountpoint)
 		if err := filepath.Walk(ds.Mountpoint, func(path string, _ os.FileInfo, err error) error {
 			if err != nil {

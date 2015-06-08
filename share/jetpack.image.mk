@@ -3,6 +3,7 @@
 .endif
 
 JETPACK ?= jetpack
+JETPACK_FLAGS ?=
 BUILD_COMMAND ?= /usr/bin/make .jetpack.build.
 # BUILD_DIR ?= .
 CLEAN_FILES += image.aci.id image.aci image.flat.aci
@@ -17,6 +18,10 @@ MAKEACI := ${.PARSEDIR}/makeaci.sh
 
 .MAIN: image
 
+.ifdef DEBUG
+JETPACK_FLAGS += -debug
+.endif
+
 .ifdef BUILD_VARS
 BUILD_ARGS += ${BUILD_VARS:@.VAR.@${${.VAR.}:D${.VAR.}=${${.VAR.}:Q}}@}
 .endif
@@ -29,15 +34,15 @@ BUILD_CP += ${.jetpack.image.mk.path}
 image: ${ACI_ID_FILE}
 ${ACI_ID_FILE}:
 	${MAKE} prepare
-	$(JETPACK) image $(PARENT_IMAGE) build -saveid=$@ ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} ${BUILD_DIR:D-dir=${BUILD_DIR}} $(BUILD_COMMAND) $(BUILD_ARGS)
+	$(JETPACK) ${JETPACK_FLAGS} image $(PARENT_IMAGE) build -saveid=$@ ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} ${BUILD_DIR:D-dir=${BUILD_DIR}} $(BUILD_COMMAND) $(BUILD_ARGS)
 
 aci: ${ACI_FILE}
 ${ACI_FILE}: ${ACI_ID_FILE}
-	jetpack image `cat ${ACI_ID_FILE}` export $@
+	${JETPACK} ${JETPACK_FLAGS} image `cat ${ACI_ID_FILE}` export $@
 
 flat-aci: ${FLAT_ACI_FILE}
 ${FLAT_ACI_FILE}: ${ACI_ID_FILE}
-	jetpack image `cat ${ACI_ID_FILE}` export -flat $@
+	${JETPACK} ${JETPACK_FLAGS} image `cat ${ACI_ID_FILE}` export -flat $@
 
 .ifdef PKG_INSTALL
 build..pkg-install: .PHONY

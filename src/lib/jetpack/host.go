@@ -28,6 +28,7 @@ import (
 	"lib/fetch"
 	"lib/keystore"
 	"lib/run"
+	"lib/ui"
 	"lib/zfs"
 )
 
@@ -48,6 +49,7 @@ type Host struct {
 	jailStatusTimestamp time.Time
 	jailStatusCache     map[string]JailStatus
 	mdsUid, mdsGid      int
+	ui                  *ui.UI
 }
 
 func NewHost(configPath string) (*Host, error) {
@@ -60,10 +62,18 @@ func NewHost(configPath string) (*Host, error) {
 		properties.UTF8,
 		true)
 
-	if ds, err := zfs.GetDataset(h.Properties.MustGetString("root.zfs")); err != nil {
-		if err == zfs.ErrNotFound {
-			return &h, nil
-		}
+	// FIXME: changing global switch based on struct instance
+	// variable. There should be only one instance created at a time
+	// anyway, but it's kind of ugly.
+
+	// If debug is already on (e.g. from a command line switch), we keep
+	// it.
+	ui.Debug = ui.Debug || h.Properties.GetBool("debug", false)
+	h.ui = ui.NewUI("jetpack")
+
+	if ds, err := zfs.GetDataset(h.Properties.MustGetString("root.zfs")); err == zfs.ErrNotFound {
+		return &h, nil
+	} else if err != nil {
 		return nil, err
 	} else {
 		h.Dataset = ds
@@ -108,17 +118,24 @@ func (h *Host) Initialize() error {
 		}
 	}
 
-	if ds, err := zfs.CreateDataset(h.Properties.MustGetString("root.zfs"), h.zfsOptions("root.zfs.", "-p")...); err != nil {
+	dsName := h.Properties.MustGetString("root.zfs")
+	dsOptions := h.zfsOptions("root.zfs.", "-p")
+	h.ui.Printf("Creating ZFS dataset %v %v", dsName, dsOptions)
+	if ds, err := zfs.CreateDataset(dsName, dsOptions...); err != nil {
 		return errors.Trace(err)
 	} else {
 		h.Dataset = ds
 	}
 
-	if _, err := h.Dataset.CreateDataset("images", h.zfsOptions("images.zfs.")...); err != nil {
+	dsOptions = h.zfsOptions("images.zfs.")
+	h.ui.Printf("Creating ZFS dataset %v/images %v", dsName, dsOptions)
+	if _, err := h.Dataset.CreateDataset("images", dsOptions...); err != nil {
 		return errors.Trace(err)
 	}
 
-	if _, err := h.Dataset.CreateDataset("pods", h.zfsOptions("pods.zfs.")...); err != nil {
+	dsOptions = h.zfsOptions("pods.zfs.")
+	h.ui.Printf("Creating ZFS dataset %v/pods %v", dsName, dsOptions)
+	if _, err := h.Dataset.CreateDataset("pods", dsOptions...); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -249,7 +266,7 @@ func (h *Host) Pods() []*Pod {
 		if id := uuid.Parse(filepath.Base(filepath.Dir(m))); id == nil {
 			panic(fmt.Sprintf("Invalid UUID: %#v", filepath.Base(filepath.Dir(m))))
 		} else if c, err := h.GetPod(id); err != nil {
-			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", c.UUID, err)
+			h.ui.Printf("WARNING: pods/%v: %v\n", c.UUID, err)
 		} else {
 			rv = append(rv, c)
 		}
@@ -299,7 +316,7 @@ func (h *Host) Images() []*Image {
 			if img != nil {
 				id = img.UUID.String()
 			}
-			fmt.Fprintf(os.Stderr, "%v: WARNING: %v\n", id, err)
+			h.ui.Printf("WARNING: images/%v: %v", id, err)
 		} else {
 			rv = append(rv, img)
 		}
@@ -425,9 +442,9 @@ func (h *Host) TrustKey(prefix types.ACName, location string) error {
 	}
 
 	if path == "" {
-		fmt.Println("Key NOT accepted")
+		h.ui.Println("Key NOT accepted")
 	} else {
-		fmt.Printf("Key accepted and saved as %v\n", path)
+		h.ui.Printf("Key accepted and saved as %v\n", path)
 	}
 
 	return nil
@@ -450,7 +467,7 @@ func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 		defer aci.Close()
 		if asc == nil {
 			if flagAllowNoSignature {
-				fmt.Println("WARNING: no signature, proceeding as requested")
+				h.ui.Println("WARNING: no signature, proceeding as requested")
 			} else {
 				return nil, errors.New("No signature")
 			}
@@ -519,12 +536,20 @@ func (h *Host) fetchDependency(dep *types.Dependency) (*Image, error) {
 }
 
 func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv error) {
+	newId := uuid.NewRandom()
+	ui := ui.NewUI("import:%v", newId)
+	if name.Empty() {
+		ui.Println("Starting import")
+	} else {
+		ui.Println("Starting import of %v", name)
+	}
 	if asc != nil {
+		ui.Debug("Checking signature")
 		didKeyDiscovery := false
 		ks := h.Keystore()
 	checkSig:
 		if ety, err := ks.CheckSignature(name, aci, asc); err == openpgp_err.ErrUnknownIssuer && !didKeyDiscovery {
-			fmt.Println("Image signed by an unknown issuer, attempting to discover public key...")
+			ui.Println("Image signed by an unknown issuer, attempting to discover public key...")
 			if err := h.TrustKey(name, ""); err != nil {
 				return nil, errors.Trace(err)
 			}
@@ -535,18 +560,17 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		} else if err != nil {
 			return nil, errors.Trace(err)
 		} else {
-			fmt.Println("Valid signature for", name, "by:")
-			fmt.Println(keystore.KeyDescription(ety))
+			ui.Println("Valid signature for", name, "by:")
+			ui.Println(keystore.KeyDescription(ety)) // FIXME:ui
 
 			aci.Seek(0, os.SEEK_SET)
 			asc.Seek(0, os.SEEK_SET)
 		}
+	} else {
+		ui.Debug("No signature to check")
 	}
 
-	newId := uuid.NewRandom()
-
 	img := NewImage(h, newId)
-	img.Timestamp = time.Now()
 
 	defer func() {
 		if erv != nil {
@@ -560,6 +584,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 
 	// Save copy of the signature
 	if asc != nil {
+		ui.Debug("Saving signature copy")
 		if ascCopy, err := os.OpenFile(img.Path("aci.asc"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400); err != nil {
 			return nil, errors.Trace(err)
 		} else {
@@ -572,6 +597,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 	}
 
 	// Load manifest
+	ui.Debug("Loading manifest")
 	manifestBytes, err := run.Command("tar", "-xOqf", "-", "manifest").ReadFrom(aci).Output()
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -588,12 +614,13 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 
 	newIdStr := newId.String()
 	if len(img.Manifest.Dependencies) == 0 {
+		ui.Debug("No dependencies to fetch")
 		if _, err := h.Dataset.CreateDataset(path.Join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
 			return nil, errors.Trace(err)
 		}
 	} else {
 		for i, dep := range img.Manifest.Dependencies {
-			fmt.Println("Looking for dependency:", dep.App, dep.Labels, dep.ImageID)
+			ui.Println("Looking for dependency:", dep.App, dep.Labels, dep.ImageID)
 			if dimg, err := h.fetchDependency(&dep); err != nil {
 				return nil, errors.Trace(err)
 			} else {
@@ -602,7 +629,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 				// save the hash to the real manifest.
 				img.Manifest.Dependencies[i].ImageID = dimg.Hash
 				if i == 0 {
-					fmt.Printf("Cloning parent %v as base rootfs\n", dimg)
+					ui.Printf("Cloning parent %v as base rootfs\n", dimg)
 					if ds, err := dimg.Clone(path.Join(h.Dataset.Name, "images", newIdStr), h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {
 						return nil, errors.Trace(err)
 					} else {
@@ -619,7 +646,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		return nil, errors.Trace(err)
 	}
 
-	fmt.Println("Importing image ...")
+	ui.Println("Unpacking rootfs")
 
 	// Save us a copy of the original, compressed ACI
 	aciCopy, err := os.OpenFile(img.Path("aci"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
@@ -665,6 +692,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		// CAN'T HAPPEN
 		return nil, errors.Trace(err)
 	} else {
+		ui.Println("Successfully imported", hash)
 		img.Hash = hash
 	}
 

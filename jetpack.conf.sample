@@ -37,3 +37,6 @@
 # Default options:
 #ace.jailConf.osrelease=10.1-RELEASE-p9
 #ace.jailConf.securelevel=2
+
+# Turn on to show debugging info
+#debug = off

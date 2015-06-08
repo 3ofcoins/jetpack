@@ -19,6 +19,7 @@ import (
 
 	"lib/jetpack"
 	"lib/run"
+	"lib/ui"
 )
 
 var Host *jetpack.Host
@@ -70,6 +71,7 @@ func main() {
 	flag.StringVar(&configPath, "config", configPath, "Configuration file")
 	flag.BoolVar(&help, "h", false, "Show help")
 	flag.BoolVar(&help, "help", false, "Show help")
+	flag.BoolVar(&ui.Debug, "debug", false, "Show debugging info")
 
 	flag.Parse()
 	args := flag.Args()
@@ -78,6 +80,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, `Usage: %s [OPTIONS] COMMAND...
 Options:
   -config=PATH  Configuration file (%s)
+  -debug        Show a ton of debugging info
   -help, -h     Display this help screen
 Commands:
   help                                    Display this help screen
