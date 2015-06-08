@@ -1,5 +1,3 @@
-//go:generate ./e.sh
-
 package main
 
 import (
