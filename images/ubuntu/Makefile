@@ -14,6 +14,6 @@ udev.deb:
 	rm -rf _bin
 	mkdir _bin
 	ln -s `which gtar` _bin/tar
-	env PATH=${.CURDIR}:$$PATH fpm -p $@ -t deb -s empty -n ${@:R} --version 0 --epoch 99
+	env PATH=${.CURDIR}/_bin:$$PATH fpm -a all -p $@ -t deb -s empty -n ${@:R} --version 0 --epoch 99
 
 .include "jetpack.image.mk"
