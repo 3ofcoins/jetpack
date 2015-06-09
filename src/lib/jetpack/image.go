@@ -39,7 +39,7 @@ func NewImage(h *Host, id uuid.UUID) *Image {
 		Host:     h,
 		UUID:     id,
 		Manifest: *schema.BlankImageManifest(),
-		ui:       ui.NewUI("image:%v", id),
+		ui:       ui.NewUI("blue", "image", id.String()),
 	}
 }
 

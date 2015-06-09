@@ -69,7 +69,7 @@ func NewHost(configPath string) (*Host, error) {
 	// If debug is already on (e.g. from a command line switch), we keep
 	// it.
 	ui.Debug = ui.Debug || h.Properties.GetBool("debug", false)
-	h.ui = ui.NewUI("jetpack")
+	h.ui = ui.NewUI("green", "jetpack", "")
 
 	if ds, err := zfs.GetDataset(h.Properties.MustGetString("root.zfs")); err == zfs.ErrNotFound {
 		return &h, nil
@@ -537,7 +537,8 @@ func (h *Host) fetchDependency(dep *types.Dependency) (*Image, error) {
 
 func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv error) {
 	newId := uuid.NewRandom()
-	ui := ui.NewUI("import:%v", newId)
+	newIdStr := newId.String()
+	ui := ui.NewUI("magenta", "import", newIdStr)
 	if name.Empty() {
 		ui.Println("Starting import")
 	} else {
@@ -612,7 +613,6 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		return nil, errors.Errorf("ACI name mismatch: downloaded %#v, got %#v instead", name, img.Manifest.Name)
 	}
 
-	newIdStr := newId.String()
 	if len(img.Manifest.Dependencies) == 0 {
 		ui.Debug("No dependencies to fetch")
 		if _, err := h.Dataset.CreateDataset(path.Join("images", newIdStr), "-o", "mountpoint="+h.Dataset.Path("images", newIdStr, "rootfs")); err != nil {

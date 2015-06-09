@@ -164,7 +164,9 @@ func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
 }
 
 func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) (*Image, error) {
-	img.ui.Println("Creating build pod for", buildDir)
+	img.ui.Println("Preparing build pod")
+	abuilddir, _ := filepath.Abs(buildDir)
+	img.ui.Debug("Build dir:", abuilddir)
 	img.ui.Debug("Extra files:", run.ShellEscape(addFiles...))
 	img.ui.Debug("Build command:", run.ShellEscape(buildExec...))
 	buildPod, err := img.Host.CreatePod(img.buildPodManifest(buildExec))
@@ -172,11 +174,10 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	ui := ui.NewUI("build:%v", buildPod.UUID)
+	ui := ui.NewUI("cyan", "build", buildPod.UUID.String())
 
 	workDir := buildPod.Manifest.Apps[0].App.WorkingDirectory
-	ui.Println("Preparing build environment")
-	ui.Debug("Working in %v", workDir)
+	ui.Debugf("Preparing build environment in %v", workDir)
 
 	ds, err := img.Host.Dataset.GetDataset(path.Join("pods", buildPod.UUID.String(), "rootfs.0"))
 	if err != nil {

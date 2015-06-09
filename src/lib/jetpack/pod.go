@@ -61,7 +61,7 @@ func newPod(h *Host, id uuid.UUID) *Pod {
 	return &Pod{
 		Host: h,
 		UUID: id,
-		ui:   ui.NewUI("pod:%v", id),
+		ui:   ui.NewUI("yellow", "pod", id.String()),
 	}
 }
 
