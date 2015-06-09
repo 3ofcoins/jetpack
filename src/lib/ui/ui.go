@@ -29,7 +29,7 @@ func init() {
 	if _, file, _, ok := runtime.Caller(0); ok {
 		projectRootLength = len(file) - len("lib/ui/ui.go")
 	}
-	IsTerminal = terminal.IsTerminal(0)
+	IsTerminal = terminal.IsTerminal(2)
 	if !IsTerminal {
 		ansi.DisableColors(true)
 	}
@@ -61,7 +61,6 @@ func uiFormat(color, kind, id string) string {
 		return fmt.Sprintf("%v %v%v %%v",
 			ansi.Color("%v", Styles["timestamp"]),
 			ansi.Color(kind+":", color),
-			// ansi.Color(":", Styles["separator"]),
 			ansi.Color(id, color+"+h"))
 	}
 }
