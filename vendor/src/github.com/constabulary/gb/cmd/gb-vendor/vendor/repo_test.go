@@ -19,6 +19,11 @@ func TestDeduceRemoteRepo(t *testing.T) {
 		path: "corporate",
 		err:  fmt.Errorf(`"corporate" is not a valid import path`),
 	}, {
+		path: "github.com/cznic/b",
+		want: &gitrepo{
+			url: "https://github.com/cznic/b",
+		},
+	}, {
 		path: "github.com/pkg/sftp",
 		want: &gitrepo{
 			url: "https://github.com/pkg/sftp",
@@ -46,6 +51,11 @@ func TestDeduceRemoteRepo(t *testing.T) {
 			url: "https://bitbucket.org/davecheney/hgrepo",
 		},
 		extra: "/cmd/main",
+	}, {
+		path: "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git",
+		want: &gitrepo{
+			url: "git://git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git",
+		},
 	}, {
 		path: "gopkg.in/check.v1",
 		want: &gitrepo{

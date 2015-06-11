@@ -15,11 +15,10 @@ import (
 // RemoteRepo describes a remote dvcs repository.
 type RemoteRepo interface {
 
-	// Checkout checks out the specific branch and revision
-	// If branch is empty, the default branch for the underlying
-	// VCS will be used. If revision is empty, the latest available
-	// revision, taking into account branch, will be fetched.
-	Checkout(branch, revision string) (WorkingCopy, error)
+	// Checkout checks out a specific branch, tag, or revision.
+	// The interpretation of these three values is impementation
+	// specific.
+	Checkout(branch, tag, revision string) (WorkingCopy, error)
 
 	// URL returns the URL the clone was taken from. It should
 	// only be called after Clone.
@@ -46,12 +45,13 @@ var (
 	ghregex = regexp.MustCompile(`^github.com/([A-Za-z0-9-._]+)/([A-Za-z0-9-._]+)(/.+)?`)
 	bbregex = regexp.MustCompile(`^bitbucket.org/([A-Za-z0-9-._]+)/([A-Za-z0-9-._]+)(/.+)?`)
 	lpregex = regexp.MustCompile(`^launchpad.net/([A-Za-z0-9-._]+)(/[A-Za-z0-9-._]+)?(/.+)?`)
+	genre   = regexp.MustCompile(`^(?P<root>(?P<repo>([a-z0-9.\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?/[A-Za-z0-9_.\-/]*?)\.(?P<vcs>bzr|git|hg|svn))(/[A-Za-z0-9_.\-]+)*$`)
 )
 
 // DeduceRemoteRepo takes a potential import path and returns a RemoteRepo
 // representing the remote location of the source of an import path.
 func DeduceRemoteRepo(path string) (RemoteRepo, string, error) {
-	validimport := regexp.MustCompile(`^([A-Za-z0-9-]+)(.[A-Za-z0-9-]+)+(/.[A-Za-z0-9-_.]+)+$`)
+	validimport := regexp.MustCompile(`^([A-Za-z0-9-]+)(.[A-Za-z0-9-]+)+(/[A-Za-z0-9-_.]+)+$`)
 	if !validimport.MatchString(path) {
 		return nil, "", fmt.Errorf("%q is not a valid import path", path)
 	}
@@ -85,26 +85,45 @@ func DeduceRemoteRepo(path string) (RemoteRepo, string, error) {
 		// launchpad.net/project/series"
 		repo, err := Bzrrepo(fmt.Sprintf("https://launchpad.net/%s/%s", v[1], v[2]))
 		return repo, v[3], err
-	default:
-		// no idea, try to resolve as a vanity import
-		importpath, vcs, reporoot, err := ParseMetadata(path)
-		if err != nil {
-			return nil, "", err
-		}
-		extra := path[len(importpath):]
-		switch vcs {
+	}
+
+	// try the general syntax
+	if genre.MatchString(path) {
+		v := genre.FindStringSubmatch(path)
+		switch v[5] {
 		case "git":
-			repo, err := Gitrepo(reporoot)
-			return repo, extra, err
+			repo, err := Gitrepo("git://" + v[1])
+			return repo, v[6], err
 		case "hg":
-			repo, err := Hgrepo(reporoot)
-			return repo, extra, err
+			repo, err := Hgrepo("https://" + v[1])
+			return repo, v[6], err
 		case "bzr":
-			repo, err := Bzrrepo(reporoot)
-			return repo, extra, err
+			repo, err := Bzrrepo("https://" + v[1])
+			return repo, v[6], err
 		default:
-			return nil, "", fmt.Errorf("unknown repository type: %q", vcs)
+			return nil, "", fmt.Errorf("unknown repository type: %q", v[5])
+
 		}
+	}
+
+	// no idea, try to resolve as a vanity import
+	importpath, vcs, reporoot, err := ParseMetadata(path)
+	if err != nil {
+		return nil, "", err
+	}
+	extra := path[len(importpath):]
+	switch vcs {
+	case "git":
+		repo, err := Gitrepo(reporoot)
+		return repo, extra, err
+	case "hg":
+		repo, err := Hgrepo(reporoot)
+		return repo, extra, err
+	case "bzr":
+		repo, err := Bzrrepo(reporoot)
+		return repo, extra, err
+	default:
+		return nil, "", fmt.Errorf("unknown repository type: %q", vcs)
 	}
 }
 
@@ -134,7 +153,17 @@ func (g *gitrepo) URL() string {
 	return g.url
 }
 
-func (g *gitrepo) Checkout(branch, revision string) (WorkingCopy, error) {
+// Checkout fetchs the remote branch, tag, or revision. If more than one is
+// supplied, an error is returned. If the branch is blank,
+// then the default remote branch will be used. If the branch is "HEAD", an
+// error will be returned.
+func (g *gitrepo) Checkout(branch, tag, revision string) (WorkingCopy, error) {
+	if branch == "HEAD" {
+		return nil, fmt.Errorf("cannot update %q as it has been previously fetched with -tag or -revision. Please use gb vendor delete then fetch again.", g.url)
+	}
+	if !atMostOne(branch, tag, revision) {
+		return nil, fmt.Errorf("only one of branch, tag or revision may be supplied")
+	}
 	dir, err := mktmp()
 	if err != nil {
 		return nil, err
@@ -142,6 +171,7 @@ func (g *gitrepo) Checkout(branch, revision string) (WorkingCopy, error) {
 
 	args := []string{
 		"clone",
+		"-q", // silence progress report to stderr
 		g.url,
 		dir,
 		"--single-branch",
@@ -150,13 +180,13 @@ func (g *gitrepo) Checkout(branch, revision string) (WorkingCopy, error) {
 		args = append(args, "--branch", branch)
 	}
 
-	if err := runOut(os.Stderr, "git", args...); err != nil {
+	if _, err := run("git", args...); err != nil {
 		os.RemoveAll(dir)
 		return nil, err
 	}
 
-	if revision != "" {
-		if err := runOutPath(os.Stderr, dir, "git", "checkout", revision); err != nil {
+	if revision != "" || tag != "" {
+		if err := runOutPath(os.Stderr, dir, "git", "checkout", "-q", oneOf(revision, tag)); err != nil {
 			os.RemoveAll(dir)
 			return nil, err
 		}
@@ -222,7 +252,10 @@ type hgrepo struct {
 
 func (h *hgrepo) URL() string { return h.url }
 
-func (h *hgrepo) Checkout(branch, revision string) (WorkingCopy, error) {
+func (h *hgrepo) Checkout(branch, tag, revision string) (WorkingCopy, error) {
+	if !atMostOne(tag, revision) {
+		return nil, fmt.Errorf("only one of tag or revision may be supplied")
+	}
 	dir, err := mktmp()
 	if err != nil {
 		return nil, err
@@ -295,7 +328,10 @@ func (b *bzrrepo) URL() string {
 	return b.url
 }
 
-func (b *bzrrepo) Checkout(branch, revision string) (WorkingCopy, error) {
+func (b *bzrrepo) Checkout(branch, tag, revision string) (WorkingCopy, error) {
+	if !atMostOne(tag, revision) {
+		return nil, fmt.Errorf("only one of tag or revision may be supplied")
+	}
 	dir, err := mktmp()
 	if err != nil {
 		return nil, err
@@ -370,4 +406,25 @@ func runOutPath(w io.Writer, path string, c string, args ...string) error {
 	cmd.Stdout = w
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// atMostOne returns true if no more than one string supplied is not empty.
+func atMostOne(args ...string) bool {
+	var c int
+	for _, arg := range args {
+		if arg != "" {
+			c++
+		}
+	}
+	return c < 2
+}
+
+// oneof returns the first non empty string
+func oneOf(args ...string) string {
+	for _, arg := range args {
+		if arg != "" {
+			return arg
+		}
+	}
+	return ""
 }
