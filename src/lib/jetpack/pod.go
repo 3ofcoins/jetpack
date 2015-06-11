@@ -445,7 +445,9 @@ func (c *Pod) runJail(op string) error {
 }
 
 func (c *Pod) Kill() error {
-	t0 := time.Now()
+	c.ui.Println("Shutting down")
+	spin := ui.NewSpinner("Waiting for jail to die", ui.SuffixElapsed(), nil)
+	defer spin.Finish()
 retry:
 	switch status := c.Status(); status {
 	case PodStatusStopped:
@@ -458,8 +460,8 @@ retry:
 		goto retry
 	case PodStatusDying:
 		// TODO: UI? Log?
-		fmt.Printf("Pod dying since %v, waiting...\n", time.Now().Sub(t0))
-		time.Sleep(2500 * time.Millisecond)
+		spin.Step()
+		time.Sleep(250 * time.Millisecond)
 		goto retry
 	default:
 		return errors.Errorf("Pod is %v, I am confused", status)

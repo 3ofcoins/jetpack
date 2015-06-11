@@ -21,17 +21,23 @@ import (
 	"lib/ui"
 )
 
-// Save image to an ACI file, return its hash.
-//
-// If path is an empty string, don't save the image, just return the
-// hash. If path is "-", print image to stdout.
-func (img *Image) saveACI(path string, packlist *os.File, perm os.FileMode) (*types.Hash, error) {
+//  Write ACI to `, return its hash. If packlist file is nil, writes
+//  flat ACI (and manifest omits the dependencies).
+func (img *Image) writeACI(w io.Writer, packlist *os.File) (*types.Hash, error) {
+	var sink io.Writer
+	var faucet io.Reader
+
+	if sw := ui.NewSpinningWriter("Writing ACI", w); true {
+		defer sw.Close()
+		sink = sw
+	}
+
 	tarArgs := []string{"-C", img.Path(), "-c", "--null", "-f", "-"}
 	if packlist != nil {
-		img.ui.Debug("Saving incremental ACI:", path)
+		img.ui.Debug("Writing an incremental ACI")
 		tarArgs = append(tarArgs, "-n", "-T", "-")
 	} else {
-		img.ui.Debug("Saving flat ACI:", path)
+		img.ui.Debug("Writing a flat ACI")
 
 		// no packlist -> flat ACI
 		manifest := img.Manifest
@@ -58,76 +64,65 @@ func (img *Image) saveACI(path string, packlist *os.File, perm os.FileMode) (*ty
 		manifestN := filepath.Base(manifestF.Name())
 		tarArgs = append(tarArgs, "-s", "/^"+manifestN+"$/manifest/", manifestN, "rootfs")
 	}
-	archiver := run.Command("tar", tarArgs...).ReadFrom(packlist)
-	if archive, err := archiver.StdoutPipe(); err != nil {
+
+	tar := run.Command("tar", tarArgs...).ReadFrom(packlist)
+	if tarPipe, err := tar.StdoutPipe(); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		hash := sha512.New()
-		faucet := io.TeeReader(archive, hash)
-		sink := ioutil.Discard
-		var compressor *run.Cmd = nil
+		faucet = tarPipe
+	}
 
-		if path != "" {
-			if path == "-" {
-				sink = os.Stdout
-			} else {
-				if f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm); err != nil {
-					return nil, errors.Trace(err)
-				} else {
-					defer f.Close()
-					sink = f
-				}
-			}
+	hash := sha512.New()
+	faucet = io.TeeReader(faucet, hash)
 
-			if compression := img.Host.Properties.GetString("images.aci.compression", "no"); compression != "none" {
-				switch compression {
-				case "xz":
-					compressor = run.Command("xz", "-z", "-c")
-				case "bzip2":
-					compressor = run.Command("bzip2", "-z", "-c")
-				case "gz":
-				case "gzip":
-					compressor = run.Command("gzip", "-c")
-				default:
-					return nil, errors.Errorf("Invalid setting images.aci.compression=%#v (allowed values: xz, bzip2, gzip, none)", compression)
-				}
-
-				compressor.Cmd.Stdout = sink
-				if cin, err := compressor.StdinPipe(); err != nil {
-					return nil, errors.Trace(err)
-				} else {
-					sink = cin
-				}
-			}
+	var compressor *run.Cmd = nil
+	if compression := img.Host.Properties.GetString("images.aci.compression", "no"); compression != "none" {
+		switch compression {
+		case "xz":
+			compressor = run.Command("xz", "-z", "-c")
+		case "bzip2":
+			compressor = run.Command("bzip2", "-z", "-c")
+		case "gz":
+		case "gzip":
+			compressor = run.Command("gzip", "-c")
+		default:
+			return nil, errors.Errorf("Invalid setting images.aci.compression=%#v (allowed values: xz, bzip2, gzip, none)", compression)
 		}
 
-		if err := archiver.Start(); err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		if compressor != nil {
-			if err := compressor.Start(); err != nil {
-				archiver.Cmd.Process.Kill()
-				return nil, errors.Trace(err)
-			}
-		}
-
-		if _, err := io.Copy(sink, faucet); err != nil {
-			return nil, errors.Trace(err)
-		}
-
-		if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
-			// CAN'T HAPPEN, srsly
+		compressor.Cmd.Stdout = sink
+		if cin, err := compressor.StdinPipe(); err != nil {
 			return nil, errors.Trace(err)
 		} else {
-			img.ui.Debug("Saved", hash)
-			return hash, nil
+			sink = cin
 		}
+	}
+
+	if err := tar.Start(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if compressor != nil {
+		if err := compressor.Start(); err != nil {
+			tar.Cmd.Process.Kill()
+			return nil, errors.Trace(err)
+		}
+	}
+
+	if _, err := io.Copy(sink, faucet); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
+		// CAN'T HAPPEN, srsly
+		return nil, errors.Trace(err)
+	} else {
+		img.ui.Debug("Saved", hash)
+		return hash, nil
 	}
 }
 
-func (img *Image) SaveFlatACI(path string, perm os.FileMode) (*types.Hash, error) {
-	return img.saveACI(path, nil, perm)
+func (img *Image) WriteFlatACI(w io.Writer) (*types.Hash, error) {
+	return img.writeACI(w, nil)
 }
 
 func (img *Image) buildPodManifest(exec []string) *schema.PodManifest {
@@ -368,10 +363,15 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	// Save the ACI
-	if hash, err := childImage.saveACI(childImage.Path("aci"), packlist, 0440); err != nil {
+	if f, err := os.OpenFile(childImage.Path("aci"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0440); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		childImage.Hash = hash
+		defer f.Close()
+		if hash, err := childImage.writeACI(f, packlist); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			childImage.Hash = hash
+		}
 	}
 
 	if err := childImage.sealImage(); err != nil {

@@ -16,6 +16,9 @@ import (
 var Debug, IsTerminal bool
 var projectRootLength int
 
+// TODO: detect UTF-8 environment
+const UTF8 = true
+
 var Styles = map[string]string{
 	"timestamp":  "black+h",
 	"kind":       "blue",

@@ -252,11 +252,18 @@ Helpful Aliases:
 				die(fl.Parse(args))
 				args = fl.Args()
 
+				var output *os.File
+				if len(args) == 0 || args[0] == "-" {
+					output = os.Stdout
+				} else {
+					of, err := os.Create(args[0])
+					die(err)
+					output = of
+					defer output.Close()
+				}
+
 				if isFlat {
-					if len(args) == 0 {
-						args[0] = "-"
-					}
-					hash, err := img.SaveFlatACI(args[0], 0644)
+					hash, err := img.WriteFlatACI(output)
 					if hash != nil {
 						fmt.Println(hash)
 					}
@@ -265,15 +272,6 @@ Helpful Aliases:
 					aci, err := os.Open(img.Path("aci"))
 					die(err)
 					defer aci.Close()
-
-					var output *os.File
-					if len(args) == 0 || args[0] == "-" {
-						output = os.Stdout
-					} else {
-						output, err = os.Create(args[0])
-						die(err)
-						defer output.Close()
-					}
 
 					_, err = io.Copy(output, aci)
 					die(err)
