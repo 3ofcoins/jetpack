@@ -5,6 +5,7 @@ github.com/coreos/ioprogress 326b3ee (HEAD -> master, origin/master, origin/HEAD
 github.com/hashicorp/go-multierror 56912fb (HEAD -> master, origin/master, origin/HEAD) if top-level error in flatten is not Error, return as-is
 github.com/juju/errors 4567a5e (HEAD -> master, origin/master, origin/HEAD) Merge pull request #19 from cherylj/license_master
 github.com/magiconair/properties 6240095 (HEAD -> master, tag: v1.5.3, origin/master, origin/HEAD) Maintain order of keys for Filter methods
+github.com/mattrobenolt/size 9fdad82 (HEAD -> master, origin/master, origin/HEAD) Max buffer size is 7, not 5
 github.com/mgutz/ansi 22ddafb (HEAD -> master, origin/master, origin/HEAD) add 256 color support and constants
 golang.org/x/crypto 1e856cb (HEAD -> master, origin/master, origin/HEAD) crypto/ssh: fix format string error in test.
 golang.org/x/sys 58e1096 (HEAD -> master, origin/master, origin/HEAD) unix: add darwin/arm64 support
