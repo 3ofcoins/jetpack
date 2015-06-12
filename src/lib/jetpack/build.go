@@ -15,7 +15,6 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	multierror "github.com/hashicorp/go-multierror"
 	"github.com/juju/errors"
 
 	"lib/run"
@@ -28,10 +27,9 @@ func (img *Image) writeACI(w io.Writer, packlist *os.File) (*types.Hash, error) 
 	var sink io.WriteCloser
 	var faucet io.Reader
 
-	if sw := ui.NewSpinningWriter("Writing ACI", w); true {
-		defer sw.Close()
-		sink = sw
-	}
+	sw := ui.NewSpinningWriter("Writing ACI", w)
+	defer sw.Close()
+	sink = sw
 
 	tarArgs := []string{"-C", img.Path(), "-c", "--null", "-f", "-"}
 	if packlist != nil {
@@ -104,38 +102,28 @@ func (img *Image) writeACI(w io.Writer, packlist *os.File) (*types.Hash, error) 
 
 	if compressor != nil {
 		if err := compressor.Start(); err != nil {
-			tar.Cmd.Process.Kill()
+			tar.Kill()
 			return nil, errors.Trace(err)
 		}
 	}
 
-	erc := make(chan error)
-	merr := error(nil)
-
-	// Copy in background.
-	go func() {
-		_, err := io.Copy(sink, faucet)
+	if _, err := io.Copy(sink, faucet); err != nil {
 		sink.Close()
-		erc <- err
-	}()
+		tar.Kill()
+		compressor.Kill()
+		return nil, errors.Trace(err)
+	}
 
-	// First, wait for tar to complete; compressor finishes after tar exits
 	if err := tar.Wait(); err != nil {
-		merr = multierror.Append(merr, err)
+		sink.Close()
+		compressor.Kill()
+		return nil, errors.Trace(err)
 	}
 
-	if compressor != nil {
-		if err := compressor.Wait(); err != nil {
-			merr = multierror.Append(merr, err)
-		}
-	}
+	sink.Close()
 
-	if err := <-erc; err != nil {
-		merr = multierror.Append(merr, err)
-	}
-
-	if merr != nil {
-		return nil, errors.Trace(merr)
+	if err := compressor.Wait(); err != nil {
+		return nil, errors.Trace(err)
 	}
 
 	if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {

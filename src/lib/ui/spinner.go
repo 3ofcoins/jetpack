@@ -101,7 +101,7 @@ func NewSpinningWriter(desc string, w io.Writer) *SpinningWriter {
 		w:      w,
 		ela:    Elapsed(),
 		ticker: time.NewTicker(250 * time.Millisecond),
-		stop:   make(chan bool),
+		stop:   make(chan bool, 1),
 	}
 	sw.spinner = NewSpinner(desc, sw.String, nil)
 	go sw.spin()

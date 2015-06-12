@@ -65,7 +65,20 @@ func (c *Cmd) Start() error {
 }
 
 func (c *Cmd) Wait() error {
+	if c == nil {
+		return nil
+	}
 	return c.wrapError(c.Cmd.Wait())
+}
+
+func (c *Cmd) Kill() error {
+	if c == nil {
+		return nil
+	}
+	if c.Cmd.Process == nil {
+		return nil
+	}
+	return c.wrapError(c.Cmd.Process.Kill())
 }
 
 func (c *Cmd) StdinPipe() (io.WriteCloser, error) {
