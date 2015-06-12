@@ -235,19 +235,21 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		return nil, errors.Trace(err)
 	}
 
-	// Construct the child image's manifest
-
-	ui.Debug("Constructing new image manifest")
-
-	if err := json.Unmarshal(manifestBytes, &childImage.Manifest); err != nil {
-		return nil, errors.Trace(err)
-	}
-
 	// We don't need build pod anymore
 	if err := buildPod.Destroy(); err != nil {
 		return nil, errors.Trace(err)
 	}
 	buildPod = nil
+
+	// Construct the child image's manifest
+
+	ui.Debug("Constructing new image manifest")
+
+	if err := json.Unmarshal(manifestBytes, &childImage.Manifest); err != nil {
+		savePath := childImage.Path("manifest.err")
+		ioutil.WriteFile(savePath, manifestBytes, 0400)
+		return nil, errors.Annotatef(err, "Parsing new image manifest; tried to save at %v", savePath)
+	}
 
 	if _, ok := childImage.Manifest.Annotations.Get("timestamp"); !ok {
 		childImage.Manifest.Annotations.Set("timestamp", time.Now().Format(time.RFC3339))

@@ -480,6 +480,7 @@ func (c *Pod) getDataset() *zfs.Dataset {
 }
 
 func (c *Pod) Destroy() error {
+	c.ui.Println("Destroying")
 	if jid := c.Jid(); jid != 0 {
 		if err := c.Kill(); err != nil {
 			// FIXME: plow through, ensure it's destroyed
