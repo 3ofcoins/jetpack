@@ -15,6 +15,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
+	multierror "github.com/hashicorp/go-multierror"
 	"github.com/juju/errors"
 
 	"lib/run"
@@ -24,7 +25,7 @@ import (
 //  Write ACI to `, return its hash. If packlist file is nil, writes
 //  flat ACI (and manifest omits the dependencies).
 func (img *Image) writeACI(w io.Writer, packlist *os.File) (*types.Hash, error) {
-	var sink io.Writer
+	var sink io.WriteCloser
 	var faucet io.Reader
 
 	if sw := ui.NewSpinningWriter("Writing ACI", w); true {
@@ -108,8 +109,33 @@ func (img *Image) writeACI(w io.Writer, packlist *os.File) (*types.Hash, error) 
 		}
 	}
 
-	if _, err := io.Copy(sink, faucet); err != nil {
-		return nil, errors.Trace(err)
+	erc := make(chan error)
+	merr := error(nil)
+
+	// Copy in background.
+	go func() {
+		_, err := io.Copy(sink, faucet)
+		sink.Close()
+		erc <- err
+	}()
+
+	// First, wait for tar to complete; compressor finishes after tar exits
+	if err := tar.Wait(); err != nil {
+		merr = multierror.Append(merr, err)
+	}
+
+	if compressor != nil {
+		if err := compressor.Wait(); err != nil {
+			merr = multierror.Append(merr, err)
+		}
+	}
+
+	if err := <-erc; err != nil {
+		merr = multierror.Append(merr, err)
+	}
+
+	if merr != nil {
+		return nil, errors.Trace(merr)
 	}
 
 	if hash, err := types.NewHash(fmt.Sprintf("sha512-%x", hash.Sum(nil))); err != nil {
