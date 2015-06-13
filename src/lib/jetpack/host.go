@@ -478,7 +478,7 @@ func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 	}
 }
 
-func (h *Host) fetchDependencyInner(dep types.Dependency) (*Image, error) {
+func (h *Host) doGetImageDependency(dep types.Dependency) (*Image, error) {
 	if dep.ImageID != nil {
 		// If the dependency has an ID, do we already have it?
 		if img, err := h.GetImageByHash(*dep.ImageID); img != nil {
@@ -513,8 +513,8 @@ func (h *Host) fetchDependencyInner(dep types.Dependency) (*Image, error) {
 	}
 }
 
-func (h *Host) fetchDependency(dep *types.Dependency) (*Image, error) {
-	if img, err := h.fetchDependencyInner(*dep); err != nil {
+func (h *Host) GetImageDependency(dep *types.Dependency) (*Image, error) {
+	if img, err := h.doGetImageDependency(*dep); err != nil {
 		return nil, errors.Trace(err)
 	} else {
 		// Double check the image vs spec
@@ -621,7 +621,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 	} else {
 		for i, dep := range img.Manifest.Dependencies {
 			ui.Println("Looking for dependency:", dep.App, dep.Labels, dep.ImageID)
-			if dimg, err := h.fetchDependency(&dep); err != nil {
+			if dimg, err := h.GetImageDependency(&dep); err != nil {
 				return nil, errors.Trace(err)
 			} else {
 				// We get a copy of the dependency struct when iterating, not

@@ -2,16 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
 	"net/url"
-)
-import "flag"
-import "fmt"
-import "io/ioutil"
-import "os"
-import "strings"
+	"os"
+	"strings"
 
-import "github.com/appc/spec/schema"
-import "github.com/appc/spec/schema/types"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
+	"github.com/juju/errors"
+)
 
 type podFlag struct {
 	v *schema.PodManifest
@@ -23,10 +24,10 @@ func (cf podFlag) String() string {
 
 func (cf podFlag) Set(val string) error {
 	if data, err := ioutil.ReadFile(val); err != nil {
-		return err
+		return errors.Trace(err)
 	} else {
 		if err := json.Unmarshal(data, cf.v); err != nil {
-			return err
+			return errors.Trace(err)
 		}
 	}
 	return nil
@@ -52,7 +53,7 @@ func (vf volumesFlag) Set(val string) error {
 		val = val[1:] + ",readOnly=true"
 	}
 	if v, err := types.VolumeFromString(val); err != nil {
-		return err
+		return errors.Trace(err)
 	} else {
 		for _, vol := range *vf.v {
 			if vol.Name == v.Name {
@@ -78,7 +79,7 @@ func (af annotationsFlag) Set(val string) error {
 		return fmt.Errorf("Invalid annotation %#v", val)
 	}
 	if name, err := types.NewACName(splut[0]); err != nil {
-		return err
+		return errors.Trace(err)
 	} else {
 		af.v.Set(*name, splut[1])
 		return nil
@@ -99,11 +100,11 @@ func (mf mountsFlag) Set(val string) error {
 	}
 
 	if err := mnt.Volume.Set(splut[0]); err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
 	if err := mnt.MountPoint.Set(splut[1%len(splut)]); err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
 	*mf.v = append(*mf.v, mnt)
@@ -145,16 +146,16 @@ func ConstructPod(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*
 	// TODO: isolatorsFlag
 
 	if err := fl.Parse(args); err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	for args = fl.Args(); len(args) > 0; args = fl.Args() {
 		if rapp, err := getRuntimeApp(args[0]); err != nil {
-			return nil, err
+			return nil, errors.Trace(err)
 		} else {
 			fl = runtimeAppFlagSet(rapp)
 			if err := fl.Parse(args[1:]); err != nil {
-				return nil, err
+				return nil, errors.Trace(err)
 			}
 			pm.Apps = append(pm.Apps, *rapp)
 		}
@@ -162,11 +163,22 @@ func ConstructPod(args []string, fl *flag.FlagSet, getRuntimeApp func(string) (*
 
 	// Automatic volumes
 	for i, app := range pm.Apps {
-		// TODO: REIFICATION GOES HERE
-		img, err := Host.GetImageByHash(app.Image.ID)
-		if err != nil {
-			return nil, err
+		// TODO: appc/spec PR unifying RuntimeImage & Dependency
+		dep := types.Dependency{Labels: app.Image.Labels}
+		if app.Image.Name != nil {
+			dep.App = *app.Image.Name
 		}
+
+		if !app.Image.ID.Empty() {
+			dep.ImageID = &app.Image.ID
+		}
+
+		img, err := Host.GetImageDependency(&dep)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		pm.Apps[i].Image.ID = *img.Hash
 
 		if img.Manifest.App == nil {
 			continue

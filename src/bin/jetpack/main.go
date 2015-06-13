@@ -300,10 +300,10 @@ Helpful Aliases:
 			if pm, err := ConstructPod(args, fl, getRuntimeApp); err == flag.ErrHelp {
 				// It's all right. Help has been shown.
 			} else if err != nil {
-				panic(err)
+				die(err)
 			} else if dryRun {
 				if jb, err := json.MarshalIndent(pm, "", "  "); err != nil {
-					panic(err)
+					die(err)
 				} else {
 					fmt.Println(string(jb))
 				}
