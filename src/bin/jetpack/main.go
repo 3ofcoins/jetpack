@@ -51,8 +51,17 @@ func image(name string) *jetpack.Image {
 	return img
 }
 
+func getImage(name string) (*jetpack.Image, error) {
+	if img, err := Host.FindImage(name); err == nil {
+		return img, nil
+	} else if err != jetpack.ErrNotFound {
+		return nil, errors.Trace(err)
+	}
+	return Host.FetchImage(name, "")
+}
+
 func getRuntimeApp(name string) (*schema.RuntimeApp, error) {
-	if img, err := Host.FindImage(name); err != nil {
+	if img, err := getImage(name); err != nil {
 		return nil, err
 	} else {
 		rta := img.RuntimeApp()
