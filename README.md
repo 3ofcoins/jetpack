@@ -103,21 +103,13 @@ init`.
 
 To see the general information, run `jetpack info`.
 
-To run a smoke test (which will be expanded into a more comprehensive
-integration test suite), run `jetpack test`.
+To get a console, run:
 
-To build images, run `make` in the example image directories
-(`/usr/local/share/examples/jetpack/*` in system-wide installation;
-`./images/*` if you use in-place). You need to either run `make` as
-root, add a `JETPACK='sudo jetpack'` argument, or have a `jetpack`
-script in your `$PATH` that does `exec sudo /path/to/jetpack "${@}"`
-(the last one is most convenient overall).
+    jetpack create -run -destroy 3ofcoins.net/freebsd.base
 
-You will probably want to build `freebsd-base.release` image (pure
-FreeBSD-10.1 system from `base.txz` distfile), and then `freebsd-base`
-(which runs `freebsd-update` on the previous one). After that, you can
-build `example.showenv`, which runs a basic smoke test (shows details
-of its pod's inside).
+This will fetch our signing GPG key, then fetch the FreeBSD base ACI,
+and finally run a pod and drop you into its console. After you exit
+the shell, the pod will be destroyed.
 
 Run `jetpack image list` or `jetpack images` to list available images.
 
@@ -164,7 +156,9 @@ output, but you're going to need to use `sudo` or `su` to run it:
 Building Images
 ---------------
 
-See the [IMAGES.md](IMAGES.md) file for details.
+See the [IMAGES.md](IMAGES.md) file for details.  Some example image
+build scripts (including the published `3ofcoins.net/freebsd-base`
+image) are provided in the `images/` directory.
 
 Features, or The Laundry List
 -----------------------------
@@ -175,7 +169,7 @@ Features, or The Laundry List
    - [x] Clone pod from image and run it
    - [ ] Full pod lifecycle (Stage0/Stage1 interaction)
    - [x] Multi-application pods
-   - [ ] Image discovery
+   - [x] Image discovery
  - Stage1
    - [x] Isolation via jails
    - [x] Volumes
