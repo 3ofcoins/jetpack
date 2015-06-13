@@ -3,7 +3,7 @@
   "acKind": "ImageManifest",
   "name": "3ofcoins.net/port-builder",
   "labels": [
-    {"name": "version", "value": "0.0.20150607"}
+    {"name": "version", "value": "0.0.20150612"}
   ],
   "app": {
     "exec": [ "/usr/local/bin/portbuild.sh" ],
