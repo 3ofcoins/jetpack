@@ -17,6 +17,9 @@
       { "name": "distfiles", "path": "/usr/ports.distfiles" },
       { "name": "packages",  "path": "/usr/ports.packages" },
       { "name": "dbdir",     "path": "/var/db/ports" }
+    ],
+    "annotations": [
+      { "name": "make", "value": "install" }
     ]
   }
 }
