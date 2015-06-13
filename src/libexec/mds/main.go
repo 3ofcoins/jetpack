@@ -54,13 +54,6 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		return resp404()
 	}
 
-	// API request. Ensure it has required `Metadata-Flavor:
-	// AppContainter' header and it comes from a container's IP.
-
-	if hdr, ok := r.Header["Metadata-Flavor"]; !ok || len(hdr) != 1 || hdr[0] != "AppContainer" {
-		return http.StatusBadRequest, []byte("Metadata-Flavor header missing or invalid")
-	}
-
 	pod := getPod(clientIP(r))
 	if pod == nil {
 		return http.StatusTeapot, []byte("You are not a pod. For you, I am a teapot.")
