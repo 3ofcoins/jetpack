@@ -3,7 +3,7 @@
   "acKind": "ImageManifest",
   "name": "3ofcoins.net/port-builder",
   "labels": [
-    {"name": "version", "value": "0.0.20150612"}
+    {"name": "version", "value": "0.0.20150613"}
   ],
   "app": {
     "exec": [ "/usr/local/bin/portbuild.sh" ],
@@ -17,9 +17,9 @@
       { "name": "distfiles", "path": "/usr/ports.distfiles" },
       { "name": "packages",  "path": "/usr/ports.packages" },
       { "name": "dbdir",     "path": "/var/db/ports" }
-    ],
-    "annotations": [
-      { "name": "make", "value": "install" }
     ]
-  }
+  },
+  "annotations": [
+    { "name": "make", "value": "install" }
+  ]
 }
