@@ -49,6 +49,14 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 			jetpack.BuildTimestamp))
 	}
 
+	if r.URL.Path == "/_info" {
+		if body, err := json.Marshal(Info); err != nil {
+			return resp500(err)
+		} else {
+			return http.StatusOK, body
+		}
+	}
+
 	if !strings.HasPrefix(r.URL.Path, "/acMetadata/v1/") {
 		// Not a metadata service request.
 		return resp404()
@@ -158,6 +166,26 @@ func ServeMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var Info *jetpack.MDSInfo
+
+func makeMDSInfo() (*jetpack.MDSInfo, error) {
+	mdsi := &jetpack.MDSInfo{
+		Pid:            os.Getpid(),
+		Uid:            os.Getuid(),
+		Gid:            os.Getgid(),
+		Version:        jetpack.Version,
+		Revision:       jetpack.Revision,
+		BuildTimestamp: jetpack.BuildTimestamp,
+		Port:           Host.Properties.MustGetInt("mds.port"),
+	}
+	if ip, _, err := Host.HostIP(); err != nil {
+		return nil, err
+	} else {
+		mdsi.IP = ip.String()
+	}
+	return mdsi, nil
+}
+
 func main() {
 	configPath := jetpack.DefaultConfigPath
 	help := false
@@ -179,12 +207,13 @@ func main() {
 		Host = host
 	}
 
-	hostip, _, err := Host.HostIP()
-	if err != nil {
+	if mdsi, err := makeMDSInfo(); err != nil {
 		log.Fatalln("Error getting listen IP:", err)
+	} else {
+		Info = mdsi
 	}
 
-	addr := fmt.Sprintf("%v:%d", hostip, Host.Properties.MustGetInt("mds.port"))
+	addr := fmt.Sprintf("%v:%d", Info.IP, Info.Port)
 	log.Println("Listening on:", addr)
 	log.Fatal(http.ListenAndServe(addr, http.HandlerFunc(ServeMetadata)))
 }

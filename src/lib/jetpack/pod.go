@@ -547,6 +547,10 @@ func (c *Pod) getChroot(appName types.ACName) string {
 }
 
 func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
+	if _, err := c.Host.NeedMDS(); err != nil {
+		return errors.Trace(err)
+	}
+
 	env := []string{}
 
 	for _, env_var := range app.Environment {
@@ -578,11 +582,6 @@ func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
 }
 
 func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []string, exec ...string) error {
-	hostip, _, err := c.Host.HostIP()
-	if err != nil {
-		return errors.Trace(err)
-	}
-
 	// Ensure jail is created
 	jid := c.Jid()
 	if jid == 0 {
@@ -595,9 +594,9 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 		}
 	}
 
-	mds := fmt.Sprintf("http://%v", hostip)
-	if mdport := c.Host.Properties.MustGetInt("mds.port"); mdport != 80 {
-		mds = fmt.Sprintf("%v:%v", mds, mdport)
+	mds, err := c.Host.MetadataURL()
+	if err != nil {
+		return errors.Trace(err)
 	}
 
 	if user == "" {

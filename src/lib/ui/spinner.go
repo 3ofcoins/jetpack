@@ -56,7 +56,7 @@ func (s *Spinner) Step() {
 
 func (s *Spinner) Finish() {
 	if s.step >= 0 || !IsTerminal {
-		s.step = -1
+		s.step = -2
 		fmt.Fprintln(os.Stderr, s.line())
 	}
 }

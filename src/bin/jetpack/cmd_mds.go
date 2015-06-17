@@ -4,80 +4,58 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"os/user"
-	"path/filepath"
-	"strconv"
 
-	"golang.org/x/sys/unix"
-
-	"lib/jetpack"
+	"github.com/juju/errors"
 )
 
+// FIXME: logic here, in lib/jetpack/mds.go, and the line in
+// lib/jetpack/pod.go looks like it was written on jetlag. Which it
+// was. Needs rewrite, but works.
+
+func boolProp(val bool) string {
+	if val {
+		return "on"
+	} else {
+		return "off"
+	}
+}
+
 func runMds(args []string) error {
-	var pidfile, logfile string
+	var doAutostart bool
 	fl := flag.NewFlagSet("mds", flag.ExitOnError)
-	fl.StringVar(&pidfile, "pid", "", "Save process ID to a file")
-	fl.StringVar(&logfile, "log", "/var/log/jetpack.mds.log", "Save logs to a file")
+	fl.BoolVar(&doAutostart, "autostart", Host.Properties.MustGetBool("mds.autostart"), "Start metadata service if it's not running")
 	fl.Parse(args)
 	args = fl.Args()
+	Host.Properties.Set("mds.autostart", boolProp(doAutostart))
 
-	u, err := user.Lookup(Host.Properties.MustGetString("mds.user"))
-	if err != nil {
-		return err
-	}
-
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
-		return err
-	}
-
-	gid, err := strconv.Atoi(u.Gid)
-	if err != nil {
-		return err
-	}
-
-	lf, err := os.OpenFile(logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
-	if err != nil {
-		return err
-	}
-
-	var pf *os.File
-	if pidfile != "" {
-		pf, err := os.Create(pidfile)
-		if err != nil {
-			lf.Close()
-			return err
+	if len(args) > 0 {
+		switch args[0] {
+		case "stop", "restart":
+			Host.Properties.Set("mds.autostart", "off")
+			if mdsi, _ := Host.NeedMDS(); mdsi == nil {
+				// Already down
+				if args[0] != "restart" {
+					return nil
+				}
+			} else {
+				// Ignore errors. If we can find any MDS, kill it.
+				fmt.Println("Killing:", mdsi)
+				if p, err := os.FindProcess(mdsi.Pid); err != nil {
+					return errors.Trace(err)
+				} else if err := p.Kill(); err != nil {
+					return errors.Trace(err)
+				}
+			}
+			if args[0] == "restart" {
+				Host.Properties.Set("mds.autostart", "on")
+			}
 		}
-		defer pf.Close()
 	}
 
-	cmd := exec.Command(filepath.Join(jetpack.LibexecPath, "mds"), args...)
-	cmd.Stdin = nil
-	cmd.Stdout = lf
-	cmd.Stderr = lf
-	cmd.Dir = "/"
-
-	if err := unix.Setgroups([]int{}); err != nil {
-		return err
+	mdsi, err := Host.NeedMDS()
+	if mdsi != nil {
+		fmt.Println(mdsi)
 	}
 
-	if err := unix.Setregid(gid, gid); err != nil {
-		return err
-	}
-
-	if err := unix.Setreuid(uid, uid); err != nil {
-		return err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	if pf != nil {
-		fmt.Fprintln(pf, cmd.Process.Pid)
-	}
-
-	fmt.Printf("Metadata service started as PID %d, logging to %s.\n", cmd.Process.Pid, logfile)
-	return nil
+	return err
 }

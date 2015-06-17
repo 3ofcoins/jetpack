@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -144,24 +143,6 @@ func (h *Host) Initialize() error {
 
 func (h *Host) Keystore() *keystore.Keystore {
 	return keystore.New(h.Path("keys"))
-}
-
-func (h *Host) GetMDSUGID() (int, int) {
-	if h.mdsUid < 0 {
-		u, err := user.Lookup(h.Properties.MustGetString("mds.user"))
-		if err != nil {
-			panic(err)
-		}
-		h.mdsUid, err = strconv.Atoi(u.Uid)
-		if err != nil {
-			panic(err)
-		}
-		h.mdsGid, err = strconv.Atoi(u.Gid)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return h.mdsUid, h.mdsGid
 }
 
 func (h *Host) getJailStatus(name string, refresh bool) (JailStatus, error) {
