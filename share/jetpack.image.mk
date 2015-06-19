@@ -34,15 +34,15 @@ BUILD_CP += ${.jetpack.image.mk.path}
 image: ${ACI_ID_FILE}
 ${ACI_ID_FILE}:
 	${MAKE} prepare
-	$(JETPACK) ${JETPACK_FLAGS} image $(PARENT_IMAGE) build -saveid=$@ ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} ${BUILD_DIR:D-dir=${BUILD_DIR}} $(BUILD_COMMAND) $(BUILD_ARGS)
+	$(JETPACK) ${JETPACK_FLAGS} build -saveid=$@ ${BUILD_CP:@.FILE.@-cp=${.FILE.}@} ${BUILD_DIR:D-dir=${BUILD_DIR}} ${PARENT_IMAGE} $(BUILD_COMMAND) $(BUILD_ARGS)
 
 aci: ${ACI_FILE}
 ${ACI_FILE}: ${ACI_ID_FILE}
-	${JETPACK} ${JETPACK_FLAGS} image `cat ${ACI_ID_FILE}` export $@
+	${JETPACK} ${JETPACK_FLAGS} export `cat ${ACI_ID_FILE}` $@
 
 flat-aci: ${FLAT_ACI_FILE}
 ${FLAT_ACI_FILE}: ${ACI_ID_FILE}
-	${JETPACK} ${JETPACK_FLAGS} image `cat ${ACI_ID_FILE}` export -flat $@
+	${JETPACK} ${JETPACK_FLAGS} export -flat `cat ${ACI_ID_FILE}` $@
 
 .ifdef PKG_INSTALL
 build..pkg-install: .PHONY

@@ -221,6 +221,63 @@ func (h *Host) nextIP() (net.IP, error) {
 	}
 }
 
+func (h *Host) ReifyPodManifest(pm *schema.PodManifest) (*schema.PodManifest, error) {
+	for i, rtapp := range pm.Apps {
+		// TODO: appc/spec PR unifying RuntimeImage & Dependency
+		dep := types.Dependency{Labels: rtapp.Image.Labels}
+		if rtapp.Image.Name != nil {
+			dep.App = *rtapp.Image.Name
+		}
+
+		if !rtapp.Image.ID.Empty() {
+			dep.ImageID = &rtapp.Image.ID
+		}
+
+		img, err := h.GetImageDependency(&dep)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		pm.Apps[i].Image.ID = *img.Hash
+
+		app := rtapp.App
+		if app == nil {
+			app = img.Manifest.App
+		}
+		if app == nil {
+			if len(rtapp.Mounts) > 0 {
+				return nil, errors.New("No app (is it valid at all?), yet mounts given")
+			}
+			continue
+		}
+
+	mntpnts:
+		for _, mntpnt := range app.MountPoints {
+			var mnt *schema.Mount
+			for _, mntc := range rtapp.Mounts {
+				if mntc.MountPoint == mntpnt.Name {
+					mnt = &mntc
+				}
+			}
+			if mnt == nil {
+				fmt.Printf("INFO: mount for %v:%v not found, inserting mount for volume %v\n", rtapp.Name, mntpnt.Name, mntpnt.Name)
+				mnt = &schema.Mount{MountPoint: mntpnt.Name, Volume: mntpnt.Name}
+				pm.Apps[i].Mounts = append(pm.Apps[i].Mounts, *mnt)
+			}
+			for _, vol := range pm.Volumes {
+				if vol.Name == mnt.Volume {
+					continue mntpnts
+				}
+			}
+			fmt.Printf("INFO: volume %v not found, inserting empty volume\n", mnt.Volume)
+			pm.Volumes = append(pm.Volumes, types.Volume{Name: mnt.Volume, Kind: "empty"})
+		}
+	}
+
+	return pm, nil
+}
+
+// Create new pod from a fully reified manifest.
 func (h *Host) CreatePod(pm *schema.PodManifest) (*Pod, error) {
 	return CreatePod(h, pm)
 }
@@ -275,6 +332,7 @@ func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
 	}
 }
 
+// TODO: return error instead of panicking
 func (h *Host) Images() []*Image {
 	mm, _ := filepath.Glob(h.Path("images/*/manifest"))
 	rv := make([]*Image, 0, len(mm))

@@ -1,12 +1,15 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
 	"github.com/juju/errors"
 )
+
+func init() {
+	AddCommand("mds [stop|restart]", "Manage metadata service process", cmdMds, nil)
+}
 
 // FIXME: logic here, in lib/jetpack/mds.go, and the line in
 // lib/jetpack/pod.go looks like it was written on jetlag. Which it
@@ -20,12 +23,9 @@ func boolProp(val bool) string {
 	}
 }
 
-func runMds(args []string) error {
-	var doAutostart bool
-	fl := flag.NewFlagSet("mds", flag.ExitOnError)
-	fl.BoolVar(&doAutostart, "autostart", Host.Properties.MustGetBool("mds.autostart"), "Start metadata service if it's not running")
-	fl.Parse(args)
-	args = fl.Args()
+const doAutostart = true
+
+func cmdMds(args []string) error {
 	Host.Properties.Set("mds.autostart", boolProp(doAutostart))
 
 	if len(args) > 0 {

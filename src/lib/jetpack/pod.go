@@ -123,7 +123,7 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		pod.ui.Debugf("Cloning rootfs.%d for app %v", i, rtApp.Name)
 		img, err := h.GetImageByHash(rtApp.Image.ID)
 		if err != nil {
-			return nil, errors.Trace(err)
+			return nil, errors.Annotate(err, rtApp.Image.ID.String())
 		}
 
 		rootds, err := img.Clone(ds.ChildName(fmt.Sprintf("rootfs.%v", i)), ds.Path("rootfs", strconv.Itoa(i)))
@@ -189,6 +189,10 @@ func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
 		return nil, errors.Trace(err)
 	}
 	return pod, nil
+}
+
+func (p *Pod) ID() string {
+	return p.UUID.String()
 }
 
 func (c *Pod) Path(elem ...string) string {

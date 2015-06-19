@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sort"
+	"strings"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -55,6 +57,35 @@ func LoadImage(h *Host, id uuid.UUID) (*Image, error) {
 		return nil, err
 	}
 	return img, nil
+}
+
+func (img *Image) ID() string {
+	if img.Hash == nil {
+		return fmt.Sprintf("uuid-%v", img.UUID)
+	}
+	return img.Hash.String()
+}
+
+func (img *Image) String() string {
+	labels := make([]string, len(img.Manifest.Labels))
+	for i, label := range img.Manifest.Labels {
+		if label.Name == "version" {
+			// HACK: we want version to `sort.Strings()` before all other
+			// labels that will start with a comma. A colon we'll want to
+			// use to separate version from name is asciibetically after a
+			// comma, so we use `+` prefix here, and change it to `:` after
+			// the sort.
+			labels[i] = fmt.Sprintf("+%v", label.Value)
+		} else {
+			labels[i] = fmt.Sprintf(",%v=%#v", label.Name, label.Value)
+		}
+	}
+	sort.Strings(labels)
+	if labels[0][0] == '+' {
+		labels[0] = ":" + labels[0][1:]
+	}
+
+	return string(img.Manifest.Name) + strings.Join(labels, "")
 }
 
 func (img *Image) Path(elem ...string) string {
