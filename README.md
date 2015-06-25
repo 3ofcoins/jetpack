@@ -90,54 +90,51 @@ sopihisticated setup can be desired to limit pods'
 connectivity. In the long run, Jetpack will probably manage its own
 `pf` anchor.
 
-Currently, Jetpack copies `/etc/resolv.conf` file from host to
-pods. In future, it will be possible to configure custom DNS
-servers (like a local unbound or dnsmasq).
-
 ### Using Jetpack
 
-Run `jetpack` without any arguments to see available commands.
+Run `jetpack` without any arguments to see available commands. Use
+`jetpack help COMMAND` to see detailed help on individual commands.
 
 To initialize the ZFS datasets and directory structure, run `jetpack
 init`.
 
-To see the general information, run `jetpack info`.
-
 To get a console, run:
 
-    jetpack create -run -destroy 3ofcoins.net/freebsd.base
+    jetpack run - 3ofcoins.net/freebsd.base
 
 This will fetch our signing GPG key, then fetch the FreeBSD base ACI,
 and finally run a pod and drop you into its console. After you exit
-the shell, the pod will be destroyed.
+the shell, run `jetpack list` to see the pod, and `jetpack destroy
+UUID` to remove id.
 
-Run `jetpack image list` or `jetpack images` to list available images.
+Run `jetpack images` to list available images.
 
 You create pods from images, then run the pods:
 
-    jetpack pod create freebsd-base
+    jetpack prepare - 3ofcoins.net/freebsd-base
 
 Note the pod UUID printed by the above command (no user-friendly pod
-names yet) or get it from the pod list (run `jetpack pod list` or
-`jetpack pods` to see the list). Then run the pod:
+names yet) or get it from the pod list (run `jetpack list` to see the
+list). Then run the pod:
 
-    jetpack pod $UUID run
+    jetpack run $UUID
 
 The above command will drop you into root console of the pod. After
 you're finished, you can run the pod again. Once you're done with the
 pod, you can destroy it:
 
-    jetpack pod $UUID destroy
+    jetpack destroy $UUID
 
 You can also look at the "showenv" example:
 
-    jetpack pod create example/showenv
-    jetpack pod $UUID run
+    make -C images/example.showenv
+    jetpack prepare - example/showenv
+    jetpack run $UUID
 
 To poke inside a pod that, like the "showenv" example, runs a useful
 command instead of a console, use the `console` subcommand:
 
-    jetpack pod $UUID console
+    jetpack console $UUID
 
 Run `jetpack help` to see info on remaining available commands, and if
 something needs clarification, create an issue at
@@ -146,7 +143,8 @@ something is not clear, it's a bug in the documentation!
 
 #### Running the Metadata Service
 
-To start the metadata service as a daemon, run `jetpack mds`.
+To start the metadata service as a daemon, run `jetpack mds`. The
+metadata service will be started automatically if needed.
 
 You can also start the service in foreground logging to standard
 output, but you're going to need to use `sudo` or `su` to run it:

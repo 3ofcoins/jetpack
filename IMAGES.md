@@ -4,10 +4,9 @@ Jetpack Images
 Fetching pre-made images
 ------------------------
 
-Images can be imported from files or URLs, using the _image import_
-command:
+Images can be imported from files or URLs, using the _fetch_ command:
 
-    jetpack image fetch ACI
+    jetpack fetch ACI
 
 ACI can be a path, an URL, or a name for discovery.
 
@@ -15,9 +14,9 @@ Building derivative images
 --------------------------
 
 An existing image can be used to build a derivative image. The
-low-level mechanism is the _image build_ command:
+low-level mechanism is the _build_ command:
 
-    jetpack image BASE-IMAGE build [-dir=PATH] [-cp=PATH [-cp-PATH [...]]] COMMAND ARGS...
+    jetpack build [-dir=PATH] [-cp=PATH [-cp-PATH [...]]] BASE-IMAGE COMMAND ARGS...
 
 The build process is:
 
