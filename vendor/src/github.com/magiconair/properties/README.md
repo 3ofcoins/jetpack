@@ -53,6 +53,10 @@ $ go get -u gopkg.in/check.v1
 History
 -------
 
+v1.5.4, 23 Jun 2015
+-------------------
+ * [Issue #5](https://github.com/magiconair/properties/issues/5): Allow disabling of property expansion [DisableExpansion](http://godoc.org/github.com/magiconair/properties#Properties.DisableExpansion). When property expansion is disabled Properties become a simple key/value store and don't check for circular references.
+
 v1.5.3, 02 Jun 2015
 -------------------
  * [Issue #4](https://github.com/magiconair/properties/issues/4): Maintain key order in [Filter()](http://godoc.org/github.com/magiconair/properties#Properties.Filter), [FilterPrefix()](http://godoc.org/github.com/magiconair/properties#Properties.FilterPrefix) and [FilterRegexp()](http://godoc.org/github.com/magiconair/properties#Properties.FilterRegexp)

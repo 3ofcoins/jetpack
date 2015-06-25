@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/constabulary/gb"
@@ -20,6 +19,7 @@ var (
 
 func addUpdateFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&updateAll, "all", false, "update all dependencies")
+	fs.BoolVar(&insecure, "precaire", false, "allow the use of insecure protocols")
 }
 
 var cmdUpdate = &cmd.Command{
@@ -28,9 +28,19 @@ var cmdUpdate = &cmd.Command{
 	Short:     "update a local dependency",
 	Long: `gb vendor update will replaces the source with the latest available from the head of the master branch.
 
+Updating from one copy of a dependency to another comes with several restrictions.
+The first is you can only update to the head of the branch your dependency was vendered from, switching branches is not supported.
+The second restriction is if you have used -tag or -revision while vendoring a dependency, your dependency is "headless"
+(to borrow a term from git) and cannot be updated.
+
+To update across branches, or from one tag/revision to another, you must first use gb vendor delete to remove the dependency, then
+gb vendor fetch [-tag | -revision | -branch | -precaire] to replace it.
+
 Flags:
 	-all
-		will update all depdendencies in the manifest, otherwise only the dependency supplied.
+		will update all dependencies in the manifest, otherwise only the dependency supplied.
+	-precaire
+		allow the use of insecure protocols.
 
 `,
 	Run: func(ctx *gb.Context, args []string) error {
@@ -64,12 +74,7 @@ Flags:
 				return fmt.Errorf("dependency could not be deleted from manifest: %v", err)
 			}
 
-			if err := os.RemoveAll(filepath.Join(ctx.Projectdir(), "vendor", "src", filepath.FromSlash(d.Importpath))); err != nil {
-				// TODO(dfc) need to apply vendor.cleanpath here to remove indermediate directories.
-				return fmt.Errorf("dependency could not be deleted: %v", err)
-			}
-
-			repo, extra, err := vendor.DeduceRemoteRepo(d.Importpath)
+			repo, extra, err := vendor.DeduceRemoteRepo(d.Importpath, insecure)
 			if err != nil {
 				return fmt.Errorf("could not determine repository for import %q", d.Importpath)
 			}
@@ -97,14 +102,23 @@ Flags:
 				Path:       extra,
 			}
 
+			if err := vendor.RemoveAll(filepath.Join(ctx.Projectdir(), "vendor", "src", filepath.FromSlash(d.Importpath))); err != nil {
+				// TODO(dfc) need to apply vendor.cleanpath here to remove indermediate directories.
+				return fmt.Errorf("dependency could not be deleted: %v", err)
+			}
+
+			dst := filepath.Join(ctx.Projectdir(), "vendor", "src", filepath.FromSlash(dep.Importpath))
+			src := filepath.Join(wc.Dir(), dep.Path)
+
+			if err := vendor.Copypath(dst, src); err != nil {
+				return err
+			}
+
 			if err := m.AddDependency(dep); err != nil {
 				return err
 			}
 
-			dst := filepath.Join(ctx.Projectdir(), "vendor", "src", dep.Importpath)
-			src := filepath.Join(wc.Dir(), dep.Path)
-
-			if err := vendor.Copypath(dst, src); err != nil {
+			if err := vendor.WriteManifest(manifestFile(ctx), m); err != nil {
 				return err
 			}
 
@@ -113,7 +127,7 @@ Flags:
 			}
 		}
 
-		return vendor.WriteManifest(manifestFile(ctx), m)
+		return nil
 	},
 	AddFlags: addUpdateFlags,
 }

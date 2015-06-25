@@ -1,0 +1,72 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/appc/spec",
+			"repository": "https://github.com/appc/spec",
+			"revision": "1d31afed77b39d52145ffd368d4c62eef675cbdf",
+			"branch": "HEAD"
+		},
+		{
+			"importpath": "code.google.com/p/go-uuid",
+			"repository": "https://code.google.com/p/go-uuid",
+			"revision": "35bc42037350",
+			"branch": "default"
+		},
+		{
+			"importpath": "golang.org/x/sys/unix",
+			"repository": "https://go.googlesource.com/sys",
+			"revision": "b4e289961544fc90f340c908c3460ceae6a2202a",
+			"branch": "master",
+			"path": "/unix"
+		},
+		{
+			"importpath": "golang.org/x/crypto",
+			"repository": "https://go.googlesource.com/crypto",
+			"revision": "60052bd85f2d91293457e8811b0cf26b773de469",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/constabulary/gb",
+			"repository": "https://github.com/constabulary/gb",
+			"revision": "56c44dae099faa0f94ce0491f12dffd812d947ba",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/coreos/ioprogress",
+			"repository": "https://github.com/coreos/ioprogress",
+			"revision": "326b3ee6276a33c8bdcf480ca9c99228942ab970",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/hashicorp/go-multierror",
+			"repository": "https://github.com/hashicorp/go-multierror",
+			"revision": "56912fb08d85084aa318edcf2bba735b97cf35c5",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/juju/errors",
+			"repository": "https://github.com/juju/errors",
+			"revision": "4567a5e69fd3130ca0d89f69478e7ac025b67452",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/magiconair/properties",
+			"repository": "https://github.com/magiconair/properties",
+			"revision": "359442d561ca28acd0fe503aa9f075f505bc9ed0",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/mattrobenolt/size",
+			"repository": "https://github.com/mattrobenolt/size",
+			"revision": "9fdad82c8f2cfe2c6206f2e0cacf353b438af32a",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/mgutz/ansi",
+			"repository": "https://github.com/mgutz/ansi",
+			"revision": "22ddafb24adc4786c83841aa3021349818c898e4",
+			"branch": "master"
+		}
+	]
+}

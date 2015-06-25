@@ -47,6 +47,12 @@ type Properties struct {
 	Prefix  string
 	Postfix string
 
+	// DisableExpansion controls the expansion of properties on Get()
+	// and the check for circular references on Set(). When set to
+	// true Properties behaves like a simple key/value store and does
+	// not check for circular references on Get() or on Set().
+	DisableExpansion bool
+
 	// Stores the key/value pairs
 	m map[string]string
 
@@ -73,6 +79,9 @@ func NewProperties() *Properties {
 // Otherwise, ok is false.
 func (p *Properties) Get(key string) (value string, ok bool) {
 	v, ok := p.m[key]
+	if p.DisableExpansion {
+		return v, ok
+	}
 	if !ok {
 		return "", false
 	}
@@ -468,6 +477,13 @@ func (p *Properties) Keys() []string {
 func (p *Properties) Set(key, value string) (prev string, ok bool, err error) {
 	if key == "" {
 		return "", false, nil
+	}
+
+	// if expansion is disabled we allow circular references
+	if p.DisableExpansion {
+		prev, ok = p.Get(key)
+		p.m[key] = value
+		return prev, ok, nil
 	}
 
 	// to check for a circular reference we temporarily need

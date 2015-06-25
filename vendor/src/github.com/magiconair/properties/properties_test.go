@@ -442,6 +442,21 @@ func (s *TestSuite) TestErrors(c *C) {
 	}
 }
 
+func (s *TestSuite) TestDisableExpansion(c *C) {
+	input := "key=value\nkey2=${key}"
+	p, err := parse(input)
+	p.DisableExpansion = true
+	c.Assert(err, IsNil)
+	c.Assert(p.MustGet("key"), Equals, "value")
+	c.Assert(p.MustGet("key2"), Equals, "${key}")
+
+	// with expansion disabled we can introduce circular references
+	p.Set("keyA", "${keyB}")
+	p.Set("keyB", "${keyA}")
+	c.Assert(p.MustGet("keyA"), Equals, "${keyB}")
+	c.Assert(p.MustGet("keyB"), Equals, "${keyA}")
+}
+
 func (s *TestSuite) TestMustGet(c *C) {
 	input := "key = value\nkey2 = ghi"
 	p, err := parse(input)

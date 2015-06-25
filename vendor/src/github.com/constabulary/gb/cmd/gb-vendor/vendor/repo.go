@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/constabulary/gb"
 )
 
 // RemoteRepo describes a remote dvcs repository.
@@ -42,15 +45,18 @@ type WorkingCopy interface {
 }
 
 var (
-	ghregex = regexp.MustCompile(`^github.com/([A-Za-z0-9-._]+)/([A-Za-z0-9-._]+)(/.+)?`)
-	bbregex = regexp.MustCompile(`^bitbucket.org/([A-Za-z0-9-._]+)/([A-Za-z0-9-._]+)(/.+)?`)
+	ghregex = regexp.MustCompile(`^(?P<root>github\.com/([A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+))(/[A-Za-z0-9_.\-]+)*$`)
+	bbregex = regexp.MustCompile(`^(?P<root>bitbucket\.org/(?P<bitname>[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+))(/[A-Za-z0-9_.\-]+)*$`)
 	lpregex = regexp.MustCompile(`^launchpad.net/([A-Za-z0-9-._]+)(/[A-Za-z0-9-._]+)?(/.+)?`)
+	gcregex = regexp.MustCompile(`^(?P<root>code\.google\.com/[pr]/(?P<project>[a-z0-9\-]+)(\.(?P<subrepo>[a-z0-9\-]+))?)(/[A-Za-z0-9_.\-]+)*$`)
 	genre   = regexp.MustCompile(`^(?P<root>(?P<repo>([a-z0-9.\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?/[A-Za-z0-9_.\-/]*?)\.(?P<vcs>bzr|git|hg|svn))(/[A-Za-z0-9_.\-]+)*$`)
 )
 
 // DeduceRemoteRepo takes a potential import path and returns a RemoteRepo
 // representing the remote location of the source of an import path.
-func DeduceRemoteRepo(path string) (RemoteRepo, string, error) {
+// If deduction would cause traversal of an insecure host, a message will be
+// printed and the travelsal path will be ignored.
+func DeduceRemoteRepo(path string, insecure bool) (RemoteRepo, string, error) {
 	validimport := regexp.MustCompile(`^([A-Za-z0-9-]+)(.[A-Za-z0-9-]+)+(/[A-Za-z0-9-_.]+)+$`)
 	if !validimport.MatchString(path) {
 		return nil, "", fmt.Errorf("%q is not a valid import path", path)
@@ -59,19 +65,24 @@ func DeduceRemoteRepo(path string) (RemoteRepo, string, error) {
 	switch {
 	case ghregex.MatchString(path):
 		v := ghregex.FindStringSubmatch(path)
-		v = append(v, "")
-		repo, err := Gitrepo(fmt.Sprintf("https://github.com/%s/%s", v[1], v[2]))
-		return repo, v[3], err
+		repo, err := Gitrepo("github.com", v[2], insecure)
+		return repo, v[0][len(v[1]):], err
 	case bbregex.MatchString(path):
 		v := bbregex.FindStringSubmatch(path)
-		v = append(v, "")
-		repo, err := Gitrepo(fmt.Sprintf("https://bitbucket.org/%s/%s", v[1], v[2]))
+		repo, err := Gitrepo("bitbucket.org", v[2], insecure)
 		if err == nil {
-			return repo, v[3], nil
+			return repo, v[0][len(v[1]):], nil
 		}
-		repo, err = Hgrepo(fmt.Sprintf("https://bitbucket.org/%s/%s", v[1], v[2]))
+		repo, err = Hgrepo("bitbucket.org", v[2], insecure)
 		if err == nil {
-			return repo, v[3], nil
+			return repo, v[0][len(v[1]):], nil
+		}
+		return nil, "", fmt.Errorf("unknown repository type")
+	case gcregex.MatchString(path):
+		v := gcregex.FindStringSubmatch(path)
+		repo, err := Hgrepo("code.google.com", "p/"+v[2], insecure)
+		if err == nil {
+			return repo, v[5], nil
 		}
 		return nil, "", fmt.Errorf("unknown repository type")
 	case lpregex.MatchString(path):
@@ -92,10 +103,12 @@ func DeduceRemoteRepo(path string) (RemoteRepo, string, error) {
 		v := genre.FindStringSubmatch(path)
 		switch v[5] {
 		case "git":
-			repo, err := Gitrepo("git://" + v[1])
+			x := strings.SplitN(v[1], "/", 2)
+			repo, err := Gitrepo(x[0], x[1], insecure)
 			return repo, v[6], err
 		case "hg":
-			repo, err := Hgrepo("https://" + v[1])
+			x := strings.SplitN(v[1], "/", 2)
+			repo, err := Hgrepo(x[0], x[1], insecure)
 			return repo, v[6], err
 		case "bzr":
 			repo, err := Bzrrepo("https://" + v[1])
@@ -107,17 +120,21 @@ func DeduceRemoteRepo(path string) (RemoteRepo, string, error) {
 	}
 
 	// no idea, try to resolve as a vanity import
-	importpath, vcs, reporoot, err := ParseMetadata(path)
+	importpath, vcs, reporoot, err := ParseMetadata(path, insecure)
+	if err != nil {
+		return nil, "", err
+	}
+	u, err := url.Parse(reporoot)
 	if err != nil {
 		return nil, "", err
 	}
 	extra := path[len(importpath):]
 	switch vcs {
 	case "git":
-		repo, err := Gitrepo(reporoot)
+		repo, err := Gitrepo(u.Host, u.Path[1:], insecure, u.Scheme)
 		return repo, extra, err
 	case "hg":
-		repo, err := Hgrepo(reporoot)
+		repo, err := Hgrepo(u.Host, u.Path[1:], insecure, u.Scheme)
 		return repo, extra, err
 	case "bzr":
 		repo, err := Bzrrepo(reporoot)
@@ -128,8 +145,12 @@ func DeduceRemoteRepo(path string) (RemoteRepo, string, error) {
 }
 
 // Gitrepo returns a RemoteRepo representing a remote git repository.
-func Gitrepo(url string) (RemoteRepo, error) {
-	if err := probeGitUrl(url); err != nil {
+func Gitrepo(host, path string, insecure bool, schemes ...string) (RemoteRepo, error) {
+	if schemes == nil {
+		schemes = []string{"https", "git", "http"}
+	}
+	url, err := probeGitUrl(schemes, host, path, insecure)
+	if err != nil {
 		return nil, err
 	}
 	return &gitrepo{
@@ -137,9 +158,26 @@ func Gitrepo(url string) (RemoteRepo, error) {
 	}, nil
 }
 
-func probeGitUrl(url string) error {
-	_, err := run("git", "ls-remote", "--exit-code", url, "HEAD")
-	return err
+func probeGitUrl(schemes []string, host, path string, insecure bool) (string, error) {
+	for _, scheme := range schemes {
+		switch scheme {
+		case "https":
+			url := scheme + "://" + host + "/" + path
+			if _, err := run("git", "ls-remote", "--exit-code", url, "HEAD"); err == nil {
+				return url, nil
+			}
+		case "http", "git":
+			url := scheme + "://" + host + "/" + path
+			if !insecure {
+				gb.Infof("skipping insecure protocol: %v", url)
+			} else {
+				if _, err := run("git", "ls-remote", "--exit-code", url, "HEAD"); err == nil {
+					return url, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("unable to determine remote protocol")
 }
 
 // gitrepo is a git RemoteRepo.
@@ -168,35 +206,33 @@ func (g *gitrepo) Checkout(branch, tag, revision string) (WorkingCopy, error) {
 	if err != nil {
 		return nil, err
 	}
+	wc := workingcopy{
+		path: dir,
+	}
 
 	args := []string{
 		"clone",
 		"-q", // silence progress report to stderr
 		g.url,
 		dir,
-		"--single-branch",
 	}
 	if branch != "" {
 		args = append(args, "--branch", branch)
 	}
 
 	if _, err := run("git", args...); err != nil {
-		os.RemoveAll(dir)
+		wc.Destroy()
 		return nil, err
 	}
 
 	if revision != "" || tag != "" {
 		if err := runOutPath(os.Stderr, dir, "git", "checkout", "-q", oneOf(revision, tag)); err != nil {
-			os.RemoveAll(dir)
+			wc.Destroy()
 			return nil, err
 		}
 	}
 
-	return &GitClone{
-		workingcopy{
-			path: dir,
-		},
-	}, nil
+	return &GitClone{wc}, nil
 }
 
 type workingcopy struct {
@@ -206,7 +242,7 @@ type workingcopy struct {
 func (w workingcopy) Dir() string { return w.path }
 
 func (w workingcopy) Destroy() error {
-	if err := os.RemoveAll(w.path); err != nil {
+	if err := RemoveAll(w.path); err != nil {
 		return err
 	}
 	parent := filepath.Dir(w.path)
@@ -229,8 +265,12 @@ func (g *GitClone) Branch() (string, error) {
 }
 
 // Hgrepo returns a RemoteRepo representing a remote git repository.
-func Hgrepo(url string) (RemoteRepo, error) {
-	if err := probeHgUrl(url); err != nil {
+func Hgrepo(host, path string, insecure bool, schemes ...string) (RemoteRepo, error) {
+	if schemes == nil {
+		schemes = []string{"https", "http"}
+	}
+	url, err := probeHgUrl(schemes, host, path, insecure)
+	if err != nil {
 		return nil, err
 	}
 	return &hgrepo{
@@ -238,9 +278,26 @@ func Hgrepo(url string) (RemoteRepo, error) {
 	}, nil
 }
 
-func probeHgUrl(url string) error {
-	_, err := run("hg", "identify", url)
-	return err
+func probeHgUrl(schemes []string, host, path string, insecure bool) (string, error) {
+	for _, scheme := range schemes {
+		switch scheme {
+		case "https":
+			url := scheme + "://" + host + "/" + path
+			if _, err := run("hg", "identify", url); err == nil {
+				return url, nil
+			}
+		case "http", "git":
+			url := scheme + "://" + host + "/" + path
+			if !insecure {
+				gb.Infof("skipping insecure protocol: %v", url)
+			} else {
+				if _, err := run("hg", "identify", url); err == nil {
+					return url, nil
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("unable to determine remote protocol")
 }
 
 // hgrepo is a Mercurial repo.
@@ -270,12 +327,12 @@ func (h *hgrepo) Checkout(branch, tag, revision string) (WorkingCopy, error) {
 		args = append(args, "--branch", branch)
 	}
 	if err := runOut(os.Stderr, "hg", args...); err != nil {
-		os.RemoveAll(dir)
+		RemoveAll(dir)
 		return nil, err
 	}
 	if revision != "" {
 		if err := runOut(os.Stderr, "hg", "--cwd", dir, "update", "-r", revision); err != nil {
-			os.RemoveAll(dir)
+			RemoveAll(dir)
 			return nil, err
 		}
 	}
@@ -338,7 +395,7 @@ func (b *bzrrepo) Checkout(branch, tag, revision string) (WorkingCopy, error) {
 	}
 	wc := filepath.Join(dir, "wc")
 	if err := runOut(os.Stderr, "bzr", "branch", b.url, wc); err != nil {
-		os.RemoveAll(dir)
+		RemoveAll(dir)
 		return nil, err
 	}
 
@@ -367,7 +424,7 @@ func cleanPath(path string) error {
 		return nil
 	}
 	parent := filepath.Dir(path)
-	if err := os.RemoveAll(path); err != nil {
+	if err := RemoveAll(path); err != nil {
 		return err
 	}
 	return cleanPath(parent)

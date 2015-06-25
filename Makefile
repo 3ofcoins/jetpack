@@ -64,26 +64,6 @@ bin/${libexec1:T}: .PHONY ${const.go} ${GB}
 ${GB}:
 	env GOBIN=${GB:H} GOPATH=${.CURDIR}/vendor go install github.com/constabulary/gb/...
 
-APPC_SPEC_VERSION=v0.5.2
-
-vendor.refetch: .PHONY
-	rm -rf vendor
-	cd ${.CURDIR}/src ; env GOPATH=${.CURDIR}/vendor:${.CURDIR} go get -d ./... github.com/constabulary/gb
-	cd ${.CURDIR}/vendor/src/github.com/appc/spec && git checkout ${APPC_SPEC_VERSION}
-	set -e ; \
-	    cd ${.CURDIR}/vendor/src ; \
-	    for d in code.google.com/p/* ; do \
-	        echo "$$d $$(cd $$d ; hg log -l 1 --template '{node|short} {desc|firstline}')" >> $(.CURDIR)/vendor/manifest.txt ; \
-	        rm -rf $$d/.hg ; \
-	    done ; \
-	    for d in github.com/*/* golang.org/x/* ; do \
-	        if test -L $$d ; then \
-	            continue ; \
-	        fi ; \
-	        echo "$$d $$(cd $$d; git log -n 1 --oneline --decorate)" >> $(.CURDIR)/vendor/manifest.txt ; \
-	        rm -rf $$d/.git ; \
-            done
-
 .ifdef PREFIX
 install: .PHONY
 .if "${.prefix}" != "${PREFIX}"
