@@ -1,3 +1,17 @@
+// Copyright 2015 The appc Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 /*
@@ -287,9 +301,9 @@ func validatePodAnnotations(metadataURL string, pm *schema.PodManifest) results 
 			r = append(r, err)
 		}
 
-		name, err := types.NewACName(key)
+		name, err := types.NewACIdentifier(key)
 		if err != nil {
-			r = append(r, fmt.Errorf("invalid annotation label: %v", err))
+			r = append(r, fmt.Errorf("invalid annotation name: %v", err))
 			continue
 		}
 
@@ -319,7 +333,7 @@ func validatePodMetadata(metadataURL string, pm *schema.PodManifest) results {
 	return append(r, validatePodAnnotations(metadataURL, pm)...)
 }
 
-func validateAppAnnotations(metadataURL string, pm *schema.PodManifest, app *schema.ImageManifest) results {
+func validateAppAnnotations(metadataURL string, pm *schema.PodManifest, app *schema.RuntimeApp, img *schema.ImageManifest) results {
 	r := results{}
 
 	// build a map of expected annotations by merging app.Annotations
@@ -350,9 +364,9 @@ func validateAppAnnotations(metadataURL string, pm *schema.PodManifest, app *sch
 			r = append(r, err)
 		}
 
-		lbl, err := types.NewACName(key)
+		lbl, err := types.NewACIdentifier(key)
 		if err != nil {
-			r = append(r, fmt.Errorf("invalid annotation label: %v", err))
+			r = append(r, fmt.Errorf("invalid annotation name: %v", err))
 			continue
 		}
 
@@ -367,31 +381,30 @@ func validateAppAnnotations(metadataURL string, pm *schema.PodManifest, app *sch
 	return r
 }
 
-func validateAppMetadata(metadataURL string, pm *schema.PodManifest, a schema.RuntimeApp) results {
-	appName := a.Name
+func validateAppMetadata(metadataURL string, pm *schema.PodManifest, app *schema.RuntimeApp) results {
 	r := results{}
 
-	am, err := metadataGet(metadataURL, "/apps/"+string(appName)+"/image/manifest")
+	am, err := metadataGet(metadataURL, "/apps/"+app.Name.String()+"/image/manifest")
 	if err != nil {
 		return append(r, err)
 	}
 
-	app := &schema.ImageManifest{}
-	if err = json.Unmarshal(am, app); err != nil {
-		return append(r, fmt.Errorf("failed to JSON-decode %q manifest: %v", string(appName), err))
+	img := &schema.ImageManifest{}
+	if err = json.Unmarshal(am, img); err != nil {
+		return append(r, fmt.Errorf("failed to JSON-decode %q manifest: %v", app.Name.String(), err))
 	}
 
-	id, err := metadataGet(metadataURL, "/apps/"+string(appName)+"/image/id")
+	id, err := metadataGet(metadataURL, "/apps/"+app.Name.String()+"/image/id")
 	if err != nil {
 		r = append(r, err)
 	}
 
-	if string(id) != a.Image.ID.String() {
-		err = fmt.Errorf("%q's image id mismatch: %v vs %v", string(appName), id, a.Image.ID)
+	if string(id) != app.Image.ID.String() {
+		err = fmt.Errorf("%q's image id mismatch: %v vs %v", app.Name.String(), id, app.Image.ID)
 		r = append(r, err)
 	}
 
-	return append(r, validateAppAnnotations(metadataURL, pm, app)...)
+	return append(r, validateAppAnnotations(metadataURL, pm, app, img)...)
 }
 
 func validateSigning(metadataURL string, pm *schema.PodManifest) results {
@@ -449,7 +462,7 @@ func ValidateMetadataSvc() results {
 
 	for _, app := range pm.Apps {
 		app := app
-		r = append(r, validateAppMetadata(metadataURL, pm, app)...)
+		r = append(r, validateAppMetadata(metadataURL, pm, &app)...)
 	}
 
 	return append(r, validateSigning(metadataURL, pm)...)

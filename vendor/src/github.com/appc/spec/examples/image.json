@@ -1,6 +1,6 @@
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.5.2",
+    "acVersion": "0.6.1",
     "name": "example.com/reduce-worker",
     "labels": [
         {
@@ -76,7 +76,7 @@
     },
     "dependencies": [
         {
-            "app": "example.com/reduce-worker-base",
+            "imageName": "example.com/reduce-worker-base",
             "imageID": "sha512-...",
             "labels": [
                 {

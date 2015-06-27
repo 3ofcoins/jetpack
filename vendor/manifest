@@ -2,12 +2,6 @@
 	"version": 0,
 	"dependencies": [
 		{
-			"importpath": "github.com/appc/spec",
-			"repository": "https://github.com/appc/spec",
-			"revision": "1d31afed77b39d52145ffd368d4c62eef675cbdf",
-			"branch": "HEAD"
-		},
-		{
 			"importpath": "code.google.com/p/go-uuid",
 			"repository": "https://code.google.com/p/go-uuid",
 			"revision": "35bc42037350",
@@ -67,6 +61,12 @@
 			"repository": "https://github.com/mgutz/ansi",
 			"revision": "22ddafb24adc4786c83841aa3021349818c898e4",
 			"branch": "master"
+		},
+		{
+			"importpath": "github.com/appc/spec",
+			"repository": "https://github.com/appc/spec",
+			"revision": "25f997957b604657dd558fe5da664a8f1b2a12b7",
+			"branch": "HEAD"
 		}
 	]
 }

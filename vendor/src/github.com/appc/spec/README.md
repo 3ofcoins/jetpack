@@ -10,7 +10,11 @@ For information on the packages in the repository, see their respective [godocs]
 
 ## What is the App Container spec?
 
-App Container (appc) is a well-specified and community developed specification that defines an image format, runtime environment and discovery mechanism for application containers.
+App Container (appc) is a well-specified and community developed specification for application containers.
+appc defines several independent but composable aspects involved in running application containers, including an image format, runtime environment, and discovery mechanism for application containers.
+
+#### What is an application container?
+
 An _application container_ is a way of packaging and executing processes on a computer system that isolates the application from the underlying host operating system.
 For example, a Python web app packaged as a container would bring its own copy of a Python runtime, shared libraries, and application code, and would not share those packages with the host.
 
@@ -39,13 +43,14 @@ Some examples of build systems and tools that have been built so far include:
 
 ## What are some implementations of the spec?
 
-The most mature implementation of the spec today is [rkt](https://github.com/coreos/rkt), but several other implementations are being actively worked on:
-
-- [Jet Pack](https://github.com/3ofcoins/jetpack) - FreeBSD/Go
+The most mature implementations of the spec are under active development:
+- [Jetpack](https://github.com/3ofcoins/jetpack) - FreeBSD/Go
 - [Kurma](https://github.com/apcera/kurma) - Linux/Go
+- [rkt](https://github.com/coreos/rkt) - Linux/Go
+
+There are several other partial implementations of the spec at different stages of development:
 - [libappc](https://github.com/cdaylward/libappc) - C++ library
 - [Nose Cone](https://github.com/cdaylward/nosecone) - Linux/C++
-- [rkt](https://github.com/coreos/rkt) - Linux/Go
 
 ## Who controls the spec?
 
@@ -68,7 +73,7 @@ $ find /tmp/my-app/
 $ cat /tmp/my-app/manifest
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.5.2",
+    "acVersion": "0.6.1",
     "name": "my-app",
     "labels": [
         {"name": "os", "value": "linux"},
@@ -100,7 +105,7 @@ and verify that the manifest was embedded appropriately
 $ tar xf /tmp/my-app.aci manifest -O | python -m json.tool
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.5.2",
+    "acVersion": "0.6.1",
     "annotations": null,
     "app": {
         "environment": [],

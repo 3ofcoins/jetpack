@@ -1,9 +1,9 @@
 {
-    "acVersion": "0.5.2",
+    "acVersion": "0.6.1",
     "acKind": "ImageManifest",
     "name": "coreos.com/ace-validator-main",
     "labels": [
-        { "name": "version", "value": "0.5.2" },
+        { "name": "version", "value": "0.6.1" },
         { "name": "os", "value": "linux" },
         { "name": "arch", "value": "amd64" }
     ],
@@ -66,11 +66,11 @@
         },
         {
             "name": "homepage",
-            "value": "https://github.com/containers/standard"
+            "value": "https://github.com/appc/spec"
         },
         {
             "name": "documentation",
-            "value": "https://github.com/containers/standard/blob/master/README.md"
+            "value": "https://github.com/appc/spec/blob/master/README.md"
         },
         {
             "name": "lorem",
