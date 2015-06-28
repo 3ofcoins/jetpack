@@ -111,7 +111,7 @@ func stGlobalFlag(c *constructor) stateFn {
 		return sw
 	}
 
-	return stApp
+	return stImage
 }
 
 func stAnnotation(c *constructor) stateFn {
@@ -178,8 +178,9 @@ func stApp(c *constructor) stateFn {
 	return stImage
 }
 
-// FIXME: do we try too hard here?
 func stImage(c *constructor) stateFn {
+	c.pm.Apps = append(c.pm.Apps, schema.RuntimeApp{})
+
 	imgName := c.next()
 	rta := c.app()
 
@@ -197,22 +198,12 @@ func stImage(c *constructor) stateFn {
 		rta.Image.Labels = labels
 	}
 
-	// Try to fill in default app name from image's basename, but don't
-	// insist.
-	if rta.Name.Empty() {
-		if rta.Image.Name != nil {
-			if appName, err := types.SanitizeACName(path.Base(rta.Image.Name.String())); err != nil {
-				c.err = err
-				return nil
-			} else if appACName, err := types.NewACName(appName); err != nil {
-				c.err = err
-				return nil
-			} else {
+	// Try to fill in default app name from image's basename. Don't try too hard.
+	if rta.Image.Name != nil {
+		if appName, err := types.SanitizeACName(path.Base(rta.Image.Name.String())); err == nil {
+			if appACName, err := types.NewACName(appName); err == nil {
 				rta.Name = *appACName
 			}
-		} else {
-			c.err = errors.New("No app name, and no image name to guess from")
-			return nil
 		}
 	}
 
@@ -221,6 +212,7 @@ func stImage(c *constructor) stateFn {
 
 func stAppFlag(c *constructor) stateFn {
 	if sw := stDispatchFlag(c, map[string]stateFn{
+		"n": stName,
 		"a": stAnnotation,
 		"m": stMount,
 		// TODO: app override
@@ -228,7 +220,18 @@ func stAppFlag(c *constructor) stateFn {
 		return sw
 	}
 
-	return stApp
+	return stImage
+}
+
+func stName(c *constructor) stateFn {
+	rta := c.app()
+	if name, err := types.NewACName(c.next()); err != nil {
+		c.err = err
+		return nil
+	} else {
+		rta.Name = *name
+	}
+	return stAppFlag
 }
 
 func stMount(c *constructor) stateFn {

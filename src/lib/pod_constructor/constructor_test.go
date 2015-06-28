@@ -48,14 +48,16 @@ func TestCPM(t *testing.T) {
 		"-vbarney,kind=empty",
 		"-vfred,kind=host,source=/tmp",
 		"-vbammbamm,kind=host,source=/etc,readOnly=true",
-		// App with image specified by hash
-		"first", "sha512-cafebabe",
+		// App with image specified by hash and explicit name
+		"sha512-cafebabe",
+		"-nfirst",
 		"-mfoo", "-mxyzzy:fred",
 		// App with discovery string and explicitly set name
-		"second", "example.com/whatever:1.2.3",
+		"example.com/whatever:1.2.3",
+		"-nsecond",
 		"-afoo=bar",
 		// Discovery string and implicit name
-		"-", "example.com/third,os=freebsd",
+		"example.com/third,os=freebsd",
 	}); err != nil {
 		t.Fatal(err)
 	} else {
@@ -92,7 +94,7 @@ func TestCPM(t *testing.T) {
 			schema.RuntimeApp{
 				Name: types.ACName("second"),
 				Image: schema.RuntimeImage{
-					Name:   types.MustACName("example.com/whatever"),
+					Name:   types.MustACIdentifier("example.com/whatever"),
 					Labels: types.Labels{types.Label{"version", "1.2.3"}},
 				},
 				Annotations: types.Annotations{
@@ -102,7 +104,7 @@ func TestCPM(t *testing.T) {
 			schema.RuntimeApp{
 				Name: types.ACName("third"),
 				Image: schema.RuntimeImage{
-					Name:   types.MustACName("example.com/third"),
+					Name:   types.MustACIdentifier("example.com/third"),
 					Labels: types.Labels{types.Label{"os", "freebsd"}},
 				},
 			},
