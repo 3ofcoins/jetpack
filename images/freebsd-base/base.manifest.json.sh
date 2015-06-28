@@ -2,7 +2,7 @@
 cat <<EOF 
 {
   "acKind": "ImageManifest",
-  "acVersion": "0.5.2",
+  "acVersion": "0.6.1",
   "name": "base",
   "labels": [
     { "name": "version", "value": "$1" },
