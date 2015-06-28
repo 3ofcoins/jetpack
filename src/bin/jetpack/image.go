@@ -47,7 +47,20 @@ func getImage(name string) (*jetpack.Image, error) {
 		}
 		return found, nil
 	}
-	// TODO: image name+attributes
+
+	if img, err := Host.FindImage(name); err != nil && err != jetpack.ErrNotFound {
+		return nil, errors.Trace(err)
+	} else {
+		return img, nil
+	}
+
+	// TODO: customizable autofetch
+	if img, err := Host.FetchImage(name, ""); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		return img, nil
+	}
+
 	return nil, ErrUsage
 }
 
