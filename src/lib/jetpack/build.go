@@ -269,18 +269,18 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 		childImage.Manifest.Annotations.Set("timestamp", time.Now().Format(time.RFC3339))
 	}
 
-	for _, label := range []string{"os", "arch"} {
-		if childValue, ok := childImage.Manifest.GetLabel(label); !ok {
+	for _, label := range []types.ACIdentifier{"os", "arch"} {
+		if childValue, ok := childImage.Manifest.GetLabel(string(label)); !ok {
 			// if child has no os/arch, copy from parent
-			if parentValue, ok := img.Manifest.GetLabel(label); ok {
+			if parentValue, ok := img.Manifest.GetLabel(string(label)); ok {
 				childImage.Manifest.Labels = append(childImage.Manifest.Labels,
-					types.Label{Name: types.ACName(label), Value: parentValue})
+					types.Label{Name: label, Value: parentValue})
 			}
 		} else if childValue == "" {
 			// if child explicitly set to nil or empty string, remove the
 			// label
 			for i, l := range childImage.Manifest.Labels {
-				if string(l.Name) == label {
+				if l.Name == label {
 					childImage.Manifest.Labels = append(
 						childImage.Manifest.Labels[:i],
 						childImage.Manifest.Labels[i+1:]...)
@@ -292,9 +292,9 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 
 	childImage.Manifest.Dependencies = append(types.Dependencies{
 		types.Dependency{
-			App:     img.Manifest.Name,
-			ImageID: img.Hash,
-			Labels:  img.Manifest.Labels,
+			ImageName: img.Manifest.Name,
+			ImageID:   img.Hash,
+			Labels:    img.Manifest.Labels,
 		}}, childImage.Manifest.Dependencies...)
 
 	// Get packing list out of `zfs diff`

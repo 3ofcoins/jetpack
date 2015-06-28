@@ -34,9 +34,9 @@ func tryAppFromString(location string) *discovery.App {
 	}
 }
 
-func OpenPubKey(location string) (types.ACName, *os.File, error) {
+func OpenPubKey(location string) (types.ACIdentifier, *os.File, error) {
 	if app := tryAppFromString(location); app != nil {
-		// Proper ACName given, let's do the discovery
+		// Proper ACIdentifier given, let's do the discovery
 		if eps, _, err := discovery.DiscoverPublicKeys(*app, AllowHTTP); err != nil {
 			return app.Name, nil, err
 		} else {
@@ -54,7 +54,7 @@ func OpenPubKey(location string) (types.ACName, *os.File, error) {
 			return app.Name, nil, err
 		}
 	} else {
-		// Not an ACName, let's open as raw location
+		// Not an ACIdentifier, let's open as raw location
 		f, err := OpenLocation(location)
 		return "", f, err
 	}
@@ -106,7 +106,7 @@ func discoverACI(app discovery.App, asc *os.File) (*os.File, *os.File, error) {
 	}
 }
 
-func OpenACI(location, sigLocation string) (types.ACName, *os.File, *os.File, error) {
+func OpenACI(location, sigLocation string) (types.ACIdentifier, *os.File, *os.File, error) {
 	var asc *os.File
 
 	// Signature override
@@ -119,7 +119,7 @@ func OpenACI(location, sigLocation string) (types.ACName, *os.File, *os.File, er
 	}
 
 	if app := tryAppFromString(location); app != nil {
-		// Proper ACName given, let's do discovery
+		// Proper ACIdentifier given, let's do discovery
 		if aci, asc, err := discoverACI(*app, asc); err != nil {
 			return app.Name, nil, nil, err
 		} else {

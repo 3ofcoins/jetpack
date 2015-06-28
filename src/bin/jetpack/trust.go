@@ -19,7 +19,7 @@ func init() {
 	AddCommand("untrust KEY...", "Remove keys from trust database", cmdUntrust, nil)
 }
 
-var trustPrefix types.ACName
+var trustPrefix types.ACIdentifier
 var trustRoot bool
 
 func flTrust(fl *flag.FlagSet) {
@@ -71,7 +71,7 @@ func listKeys() error {
 func trustKeys(args []string) error {
 	for _, loc := range args {
 		if trustPrefix.Empty() {
-			if acnLoc, err := types.NewACName(loc); err != nil {
+			if acnLoc, err := types.NewACIdentifier(loc); err != nil {
 				return errors.Trace(err)
 			} else if err := Host.TrustKey(*acnLoc, ""); err != nil {
 				return errors.Trace(err)

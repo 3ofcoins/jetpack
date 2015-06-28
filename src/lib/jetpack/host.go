@@ -226,7 +226,7 @@ func (h *Host) ReifyPodManifest(pm *schema.PodManifest) (*schema.PodManifest, er
 		// TODO: appc/spec PR unifying RuntimeImage & Dependency
 		dep := types.Dependency{Labels: rtapp.Image.Labels}
 		if rtapp.Image.Name != nil {
-			dep.App = *rtapp.Image.Name
+			dep.ImageName = *rtapp.Image.Name
 		}
 
 		if !rtapp.Image.ID.Empty() {
@@ -304,7 +304,7 @@ func (h *Host) Pods() []*Pod {
 		if id := uuid.Parse(filepath.Base(filepath.Dir(m))); id == nil {
 			panic(fmt.Sprintf("Invalid UUID: %#v", filepath.Base(filepath.Dir(m))))
 		} else if c, err := h.GetPod(id); err != nil {
-			h.ui.Printf("WARNING: pods/%v: %v\n", c.UUID, err)
+			h.ui.Printf("WARNING: pods/%v: %v\n", id, err)
 		} else {
 			rv = append(rv, c)
 		}
@@ -404,8 +404,13 @@ func (h *Host) FindImages(query string) ([]*Image, error) {
 		return nil, err
 	}
 
-	name := types.ACName(v["name"][0])
-	delete(v, "name")
+	var name types.ACIdentifier
+	if namep, err := types.NewACIdentifier(v["name"][0]); err != nil {
+		return nil, err
+	} else {
+		delete(v, "name")
+		name = *namep
+	}
 
 	rv := []*Image{}
 images:
@@ -459,7 +464,7 @@ func (h *Host) FindImage(query string) (*Image, error) {
 	}
 }
 
-func (h *Host) TrustKey(prefix types.ACName, location string) error {
+func (h *Host) TrustKey(prefix types.ACIdentifier, location string) error {
 	if location == "" {
 		if prefix == keystore.Root {
 			return errors.New("Cannot discover root key!")
@@ -529,7 +534,7 @@ func (h *Host) doGetImageDependency(dep types.Dependency) (*Image, error) {
 		// Look for dependency in store by name/labels
 	imgs:
 		for _, img := range h.Images() {
-			if img.Manifest.Name == dep.App {
+			if img.Manifest.Name == dep.ImageName {
 				for _, label := range dep.Labels {
 					if val, ok := img.Manifest.Labels.Get(label.Name.String()); !ok || val != label.Value {
 						continue imgs
@@ -541,14 +546,14 @@ func (h *Host) doGetImageDependency(dep types.Dependency) (*Image, error) {
 	}
 
 	// No luck so far, try to discover the dependency
-	app := discovery.App{Name: dep.App, Labels: make(map[types.ACName]string)}
+	app := discovery.App{Name: dep.ImageName, Labels: make(map[types.ACIdentifier]string)}
 	for _, label := range dep.Labels {
 		app.Labels[label.Name] = label.Value
 	}
 	if aci, asc, err := fetch.DiscoverACI(app); err != nil {
 		return nil, errors.Trace(err)
 	} else {
-		return h.importImage(dep.App, aci, asc)
+		return h.importImage(dep.ImageName, aci, asc)
 	}
 }
 
@@ -560,8 +565,8 @@ func (h *Host) GetImageDependency(dep *types.Dependency) (*Image, error) {
 		if dep.ImageID != nil && *img.Hash != *dep.ImageID {
 			return nil, errors.Errorf("Dependency specified hash %v, we got %v", dep.ImageID, img.Hash)
 		}
-		if dep.App != img.Manifest.Name {
-			return nil, errors.Errorf("Dependency specified app %v, got image named %v", dep.App, img.Manifest.Name)
+		if dep.ImageName != img.Manifest.Name {
+			return nil, errors.Errorf("Dependency specified app %v, got image named %v", dep.ImageName, img.Manifest.Name)
 		}
 		for _, label := range dep.Labels {
 			if val, ok := img.Manifest.Labels.Get(label.Name.String()); !ok {
@@ -574,7 +579,7 @@ func (h *Host) GetImageDependency(dep *types.Dependency) (*Image, error) {
 	}
 }
 
-func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv error) {
+func (h *Host) importImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image, erv error) {
 	newId := uuid.NewRandom()
 	newIdStr := newId.String()
 	ui := ui.NewUI("magenta", "import", newIdStr)
@@ -659,7 +664,7 @@ func (h *Host) importImage(name types.ACName, aci, asc *os.File) (_ *Image, erv 
 		}
 	} else {
 		for i, dep := range img.Manifest.Dependencies {
-			ui.Println("Looking for dependency:", dep.App, dep.Labels, dep.ImageID)
+			ui.Println("Looking for dependency:", dep.ImageName, dep.Labels, dep.ImageID)
 			if dimg, err := h.GetImageDependency(&dep); err != nil {
 				return nil, errors.Trace(err)
 			} else {

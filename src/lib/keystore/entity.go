@@ -13,7 +13,7 @@ import (
 type Entity struct {
 	*openpgp.Entity
 	Path   string
-	Prefix types.ACName
+	Prefix types.ACIdentifier
 }
 
 func (e *Entity) Fingerprint() string {

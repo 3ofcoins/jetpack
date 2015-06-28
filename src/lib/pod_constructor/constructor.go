@@ -118,7 +118,7 @@ func stAnnotation(c *constructor) stateFn {
 	if splut := strings.SplitN(c.cur(), "=", 2); len(splut) < 2 {
 		c.err = ENOPARSE
 		return nil
-	} else if name, err := types.NewACName(splut[0]); err != nil {
+	} else if name, err := types.NewACIdentifier(splut[0]); err != nil {
 		c.err = err
 		return nil
 	} else if app := c.app(); app == nil {

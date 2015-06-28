@@ -2,7 +2,7 @@ package keystore
 
 // Heavily based on https://github.com/coreos/rkt/blob/master/pkg/keystore/keystore.go
 
-// We don't use rkt's keystore, because we want to escape ACName to
+// We don't use rkt's keystore, because we want to escape ACIdentifier to
 // avoid path travelrsal issues and not to worry about prefix
 // collisions.
 
@@ -20,8 +20,8 @@ import (
 	"github.com/appc/spec/schema/types"
 )
 
-// Intentionally invalid ACName to mark root key
-const Root = types.ACName("@")
+// Intentionally invalid ACIdentifier to mark root key
+const Root = types.ACIdentifier("@")
 
 type Keystore struct {
 	Path string
@@ -31,14 +31,14 @@ func New(path string) *Keystore {
 	return &Keystore{path}
 }
 
-func (ks *Keystore) prefixPath(prefix types.ACName) string {
+func (ks *Keystore) prefixPath(prefix types.ACIdentifier) string {
 	if prefix.Empty() {
 		panic("Empty prefix!")
 	}
 	return filepath.Join(ks.Path, strings.Replace(string(prefix), "/", ",", -1))
 }
 
-func (ks *Keystore) StoreTrustedKey(prefix types.ACName, key *os.File, forceAccept bool) (string, error) {
+func (ks *Keystore) StoreTrustedKey(prefix types.ACIdentifier, key *os.File, forceAccept bool) (string, error) {
 	if prefix.Empty() {
 		panic("Empty prefix!")
 	}
@@ -76,8 +76,8 @@ func (ks *Keystore) StoreTrustedKey(prefix types.ACName, key *os.File, forceAcce
 	return trustedKeyPath, nil
 }
 
-func (ks *Keystore) UntrustKey(fingerprint string) (removed []types.ACName, err error) {
-	err = ks.walk("", func(prefix types.ACName, path string) error {
+func (ks *Keystore) UntrustKey(fingerprint string) (removed []types.ACIdentifier, err error) {
+	err = ks.walk("", func(prefix types.ACIdentifier, path string) error {
 		if filepath.Base(path) == fingerprint {
 			if err := os.Remove(path); err != nil {
 				return err
@@ -89,7 +89,7 @@ func (ks *Keystore) UntrustKey(fingerprint string) (removed []types.ACName, err 
 	return
 }
 
-func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path string) error) error {
+func (ks *Keystore) walk(name types.ACIdentifier, fn func(prefix types.ACIdentifier, path string) error) error {
 	var namePath string
 	if !name.Empty() {
 		namePath = ks.prefixPath(name)
@@ -110,7 +110,7 @@ func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path st
 			}
 		}
 
-		if prefix, err := pathToACName(path); err != nil {
+		if prefix, err := pathToACIdentifier(path); err != nil {
 			return errors.Trace(err)
 		} else {
 			return fn(prefix, path)
@@ -118,8 +118,8 @@ func (ks *Keystore) walk(name types.ACName, fn func(prefix types.ACName, path st
 	})
 }
 
-func walkLoaderFn(kr *Keyring) func(types.ACName, string) error {
-	return func(_ types.ACName, path string) error {
+func walkLoaderFn(kr *Keyring) func(types.ACIdentifier, string) error {
+	return func(_ types.ACIdentifier, path string) error {
 		return kr.loadFile(path)
 	}
 }
@@ -132,7 +132,7 @@ func (ks *Keystore) GetAllKeys() (*Keyring, error) {
 	return kr, nil
 }
 
-func (ks *Keystore) GetKeysFor(name types.ACName) (*Keyring, error) {
+func (ks *Keystore) GetKeysFor(name types.ACIdentifier) (*Keyring, error) {
 	kr := &Keyring{}
 	if err := ks.walk(name, walkLoaderFn(kr)); err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ func (ks *Keystore) GetKeysFor(name types.ACName) (*Keyring, error) {
 	return kr, nil
 }
 
-func (ks *Keystore) CheckSignature(name types.ACName, signed, signature io.Reader) (*openpgp.Entity, error) {
+func (ks *Keystore) CheckSignature(name types.ACIdentifier, signed, signature io.Reader) (*openpgp.Entity, error) {
 	kr, err := ks.GetKeysFor(name)
 	if err != nil {
 		return nil, errors.Trace(err)

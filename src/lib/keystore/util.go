@@ -42,7 +42,7 @@ func KeyDescription(ety *openpgp.Entity) string {
 	return strings.Join(rv, "\n")
 }
 
-func reviewKey(prefix types.ACName, key *os.File, forceAccept bool) (bool, error) {
+func reviewKey(prefix types.ACIdentifier, key *os.File, forceAccept bool) (bool, error) {
 	defer key.Seek(0, os.SEEK_SET)
 
 	kr, err := openpgp.ReadArmoredKeyRing(key)
@@ -82,10 +82,10 @@ func reviewKey(prefix types.ACName, key *os.File, forceAccept bool) (bool, error
 	return true, nil
 }
 
-func pathToACName(path string) (types.ACName, error) {
+func pathToACIdentifier(path string) (types.ACIdentifier, error) {
 	if dirname := filepath.Base(filepath.Dir(path)); dirname == "@" {
 		return Root, nil
-	} else if prefix, err := types.NewACName(strings.Replace(dirname, ",", "/", -1)); err != nil {
+	} else if prefix, err := types.NewACIdentifier(strings.Replace(dirname, ",", "/", -1)); err != nil {
 		return "", err
 	} else {
 		return *prefix, nil

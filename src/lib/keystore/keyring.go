@@ -12,7 +12,7 @@ import (
 type Keyring struct {
 	openpgp.EntityList
 	paths    []string
-	prefixes []types.ACName
+	prefixes []types.ACIdentifier
 }
 
 func (kr *Keyring) loadFile(path string) error {
@@ -34,7 +34,7 @@ func (kr *Keyring) loadFile(path string) error {
 		return errors.Errorf("fingerprint mismatch: %q:%q", keyFile, fingerprint)
 	}
 
-	prefix, err := pathToACName(path)
+	prefix, err := pathToACIdentifier(path)
 	if err != nil {
 		return err
 	}
