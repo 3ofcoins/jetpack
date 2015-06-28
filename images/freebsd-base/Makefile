@@ -1,7 +1,7 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
 PARENT_IMAGE = `cat base.aci.id`
-CLEAN_FILES  = manifest.json base.aci.id base.manifest.json base.txz base.aci appc-metdata-client
+CLEAN_FILES  = manifest.json base.aci.id base.manifest.json base.txz base.aci appc-metadata-client
 BUILD_VARS   = http_proxy
 
 # Download base.txz and roll a base ACI off it. Needs security/fakeroot, is nicer with deskutils/pv
@@ -15,7 +15,7 @@ base.txz:
 
 base.aci: base.txz
 	sha256 -c ${BASE_SHA256} base.txz
-	./base.manifest.json.sh ${BASE_VERSION} > $@
+	./base.manifest.json.sh ${BASE_VERSION} > ./base.manifest.json
 	${MAKEACI} ./base.txz ./base.manifest.json $@
 
 base.aci.id: base.aci
