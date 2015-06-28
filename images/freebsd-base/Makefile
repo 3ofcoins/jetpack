@@ -1,7 +1,8 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
 PARENT_IMAGE = `cat base.aci.id`
-CLEAN_FILES  = manifest.json base.aci.id base.manifest.json base.txz base.aci appc-metadata-client
+TIDY_FILES   = manifest.json base.aci.id 
+CLEAN_FILES  = ${TIDY_FILES} base.manifest.json base.txz base.aci appc-metadata-client
 BUILD_VARS   = http_proxy
 
 # Download base.txz and roll a base ACI off it. Needs security/fakeroot, is nicer with deskutils/pv
@@ -46,5 +47,8 @@ build:
 
 manifest.json:
 	./manifest.json.sh > $@
+
+tidy:
+	rm -rf ${TIDY_FILES}
 
 .include "jetpack.image.mk"
