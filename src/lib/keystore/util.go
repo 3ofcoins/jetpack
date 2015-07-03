@@ -2,10 +2,13 @@ package keystore
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"golang.org/x/crypto/openpgp"
 
@@ -42,7 +45,7 @@ func KeyDescription(ety *openpgp.Entity) string {
 	return strings.Join(rv, "\n")
 }
 
-func reviewKey(prefix types.ACIdentifier, key *os.File, forceAccept bool) (bool, error) {
+func reviewKey(prefix types.ACIdentifier, key *os.File, fingerprint string) (bool, error) {
 	defer key.Seek(0, os.SEEK_SET)
 
 	kr, err := openpgp.ReadArmoredKeyRing(key)
@@ -59,7 +62,8 @@ func reviewKey(prefix types.ACIdentifier, key *os.File, forceAccept bool) (bool,
 		fmt.Println(KeyDescription(k))
 	}
 
-	if !forceAccept {
+	if fingerprint == "" {
+		// TODO: use UI, check if interactive
 		in := bufio.NewReader(os.Stdin)
 		for {
 			fmt.Printf("Are you sure you want to trust this key (yes/no)? ")
@@ -76,8 +80,21 @@ func reviewKey(prefix types.ACIdentifier, key *os.File, forceAccept bool) (bool,
 				fmt.Printf("Please enter 'yes' or 'no'")
 			}
 		}
+	} else if fpBytes, err := hex.DecodeString(
+		strings.Map(
+			// Strip spaces
+			func(r rune) rune {
+				if unicode.IsSpace(r) {
+					return -1
+				}
+				return r
+			}, fingerprint)); err != nil {
+		return false, errors.Trace(err)
+	} else if bytes.Compare(fpBytes, kr[0].PrimaryKey.Fingerprint[:]) != 0 {
+		fmt.Printf("Fingerprint mismatch (expected %#v)\n", fingerprint)
+		return false, nil
 	} else {
-		fmt.Println("Warning: trust fingerprint verification has been disabled")
+		return true, nil
 	}
 	return true, nil
 }

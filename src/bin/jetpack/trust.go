@@ -21,10 +21,12 @@ func init() {
 
 var trustPrefix types.ACIdentifier
 var trustRoot bool
+var trustFingerprint string
 
 func flTrust(fl *flag.FlagSet) {
 	fl.Var(&trustPrefix, "prefix", "Force image name prefix")
 	fl.BoolVar(&trustRoot, "root", false, "Root key (matches all images)")
+	fl.StringVar(&trustFingerprint, "fingerprint", "", "Specify key fingerprint to accept")
 	fetch.AllowHTTPFlag(fl)
 }
 
@@ -73,10 +75,10 @@ func trustKeys(args []string) error {
 		if trustPrefix.Empty() {
 			if acnLoc, err := types.NewACIdentifier(loc); err != nil {
 				return errors.Trace(err)
-			} else if err := Host.TrustKey(*acnLoc, ""); err != nil {
+			} else if err := Host.TrustKey(*acnLoc, "", trustFingerprint); err != nil {
 				return errors.Trace(err)
 			}
-		} else if err := Host.TrustKey(trustPrefix, loc); err != nil {
+		} else if err := Host.TrustKey(trustPrefix, loc, trustFingerprint); err != nil {
 			return errors.Trace(err)
 		}
 	}

@@ -38,12 +38,12 @@ func (ks *Keystore) prefixPath(prefix types.ACIdentifier) string {
 	return filepath.Join(ks.Path, strings.Replace(string(prefix), "/", ",", -1))
 }
 
-func (ks *Keystore) StoreTrustedKey(prefix types.ACIdentifier, key *os.File, forceAccept bool) (string, error) {
+func (ks *Keystore) StoreTrustedKey(prefix types.ACIdentifier, key *os.File, acceptFingerprint string) (string, error) {
 	if prefix.Empty() {
 		panic("Empty prefix!")
 	}
 
-	if accepted, err := reviewKey(prefix, key, forceAccept); err != nil {
+	if accepted, err := reviewKey(prefix, key, acceptFingerprint); err != nil {
 		return "", err
 	} else if !accepted {
 		return "", nil

@@ -464,7 +464,7 @@ func (h *Host) FindImage(query string) (*Image, error) {
 	}
 }
 
-func (h *Host) TrustKey(prefix types.ACIdentifier, location string) error {
+func (h *Host) TrustKey(prefix types.ACIdentifier, location, fingerprint string) error {
 	if location == "" {
 		if prefix == keystore.Root {
 			return errors.New("Cannot discover root key!")
@@ -479,8 +479,7 @@ func (h *Host) TrustKey(prefix types.ACIdentifier, location string) error {
 
 	defer kf.Close()
 
-	// TODO: --yes
-	path, err := h.Keystore().StoreTrustedKey(prefix, kf, false)
+	path, err := h.Keystore().StoreTrustedKey(prefix, kf, fingerprint)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -595,7 +594,7 @@ func (h *Host) importImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image
 	checkSig:
 		if ety, err := ks.CheckSignature(name, aci, asc); err == openpgp_err.ErrUnknownIssuer && !didKeyDiscovery {
 			ui.Println("Image signed by an unknown issuer, attempting to discover public key...")
-			if err := h.TrustKey(name, ""); err != nil {
+			if err := h.TrustKey(name, "", ""); err != nil {
 				return nil, errors.Trace(err)
 			}
 			didKeyDiscovery = true
