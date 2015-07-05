@@ -1,10 +1,9 @@
 package main
 
 import "flag"
-import "io/ioutil"
+
 import "os"
-import "strconv"
-import "strings"
+
 import "syscall" // Exec() is only in syscall, wtf?
 
 import "golang.org/x/sys/unix"
@@ -17,21 +16,21 @@ func JailAttach(jid int) error {
 	}
 }
 
-var JID int
-var Chroot, User, Group, AppName string
-var Environment = make(dictFlag)
+var JID, Uid, Gid int
+var Chroot, AppName string
+var Env = make(dictFlag)
 var Exec []string
 var WorkingDirectory, MetadataURL string
 
 func main() {
 	flag.IntVar(&JID, "jid", -1, "Jail ID")
+	flag.IntVar(&Uid, "uid", 0, "User to run as")
+	flag.IntVar(&Gid, "gid", 0, "Group to run as")
 	flag.StringVar(&Chroot, "chroot", "/", "Chroot within jail")
-	flag.StringVar(&User, "user", "root", "User to run as")
-	flag.StringVar(&Group, "group", "", "Group to run as")
 	flag.StringVar(&AppName, "name", "", "Application name")
 	flag.StringVar(&WorkingDirectory, "cwd", "/", "Working directory")
 	flag.StringVar(&MetadataURL, "mds", "", "Metadata server URL")
-	flag.Var(&Environment, "setenv", "Environment variables")
+	flag.Var(&Env, "setenv", "Environment variables")
 
 	flag.Parse()
 	Exec = flag.Args()
@@ -52,100 +51,23 @@ func main() {
 		panic(err)
 	}
 
-	Uid := -1
-	Gid := -1
-	var Username, Home, Shell string
+	if _, ok := Env["PATH"]; !ok {
+		Env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	}
 
-	if bytes, err := ioutil.ReadFile("/etc/passwd"); err != nil {
-		panic(err)
-	} else {
-		for _, line := range strings.Split(string(bytes), "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" || line[0] == '#' {
-				continue
-			}
-			fields := strings.Split(line, ":")
-			if fields[0] == User || fields[2] == User {
-				if uid, err := strconv.Atoi(fields[2]); err != nil {
-					panic(err)
-				} else {
-					Uid = uid
-				}
-				if gid, err := strconv.Atoi(fields[3]); err != nil {
-					panic(err)
-				} else {
-					Gid = gid
-				}
-				Username = fields[0]
-				Home = fields[5]
-				Shell = fields[6]
-				break
-			}
+	if _, ok := Env["TERM"]; !ok {
+		term := os.Getenv("TERM")
+		if term == "" {
+			term = "vt100"
 		}
+		Env["TERM"] = term
 	}
 
-	if Uid < 0 {
-		panic("User not found")
-	}
+	Env["AC_APP_NAME"] = AppName
+	Env["AC_METADATA_URL"] = MetadataURL
 
-	if Group != "" {
-		Gid = -1
-		if gid, err := strconv.Atoi(Group); err != nil {
-			if bytes, err := ioutil.ReadFile("/etc/group"); err != nil {
-				panic(err)
-			} else {
-				for _, line := range strings.Split(string(bytes), "\n") {
-					line = strings.TrimSpace(line)
-					if line == "" || line[0] == '#' {
-						continue
-					}
-					fields := strings.Split(line, ":")
-					if fields[0] == Group {
-						if gid, err := strconv.Atoi(fields[2]); err != nil {
-							panic(err)
-						} else {
-							Gid = gid
-						}
-						break
-					}
-				}
-			}
-		} else {
-			Gid = gid
-		}
-		if Gid < 0 {
-			panic("Group not found")
-		}
-	}
-
-	term := os.Getenv("TERM")
-	if term == "" {
-		term = "vt100"
-	}
-
-	os.Clearenv()
-
-	// Put environment in a map to avoid duplicates when App.Environment
-	// overrides one of the default variables
-
-	env := map[string]string{
-		"PATH":    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-		"USER":    Username,
-		"LOGNAME": Username,
-		"HOME":    Home,
-		"SHELL":   Shell,
-		"TERM":    term,
-	}
-
-	for k, v := range Environment {
-		env[k] = v
-	}
-
-	env["AC_APP_NAME"] = AppName
-	env["AC_METADATA_URL"] = MetadataURL
-
-	envv := make([]string, 0, len(env))
-	for k, v := range env {
+	envv := make([]string, 0, len(Env))
+	for k, v := range Env {
 		envv = append(envv, k+"="+v)
 	}
 
@@ -163,6 +85,8 @@ func main() {
 
 	// FIXME: setusercontext()?
 	// See https://github.com/freebsd/freebsd/blob/master/usr.sbin/jexec/jexec.c#L123-L126
+
+	os.Clearenv()
 
 	if err := syscall.Exec(Exec[0], Exec, envv); err != nil {
 		panic(err)

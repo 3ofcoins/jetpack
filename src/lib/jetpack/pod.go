@@ -18,6 +18,7 @@ import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
 import "github.com/juju/errors"
 
+import "lib/passwd"
 import "lib/run"
 import "lib/ui"
 import "lib/zfs"
@@ -298,44 +299,49 @@ func (c *Pod) prepJail() error {
 	for i, app := range c.Manifest.Apps {
 		rootno := strconv.Itoa(i)
 
-		fstab = append(fstab, fmt.Sprintf(". %v devfs ruleset=4 0 0\n",
-			c.Path("rootfs", rootno, "dev")))
-
 		img, err := c.Host.GetImageByHash(app.Image.ID)
 		if err != nil {
-			// TODO: someday we may offer to install missing images
 			return errors.Trace(err)
 		}
 
-		if os, _ := img.Manifest.GetLabel("os"); os == "linux" {
-			fstab = append(fstab,
-				fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Path("rootfs", rootno, "sys")),
-				fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Path("rootfs", rootno, "proc")),
-			)
+		if err := os.MkdirAll(c.Path("rootfs", rootno, "dev"), 0755); err != nil {
+			return errors.Trace(err)
 		}
 
-		if dnsServers, ok := c.Host.Properties.Get("ace.dns-servers"); !ok {
-			// By default, copy /etc/resolv.conf from host
-			if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+		if fi, err := os.Stat(c.Path("rootfs", rootno, "dev")); err == nil && fi.IsDir() {
+			// TODO: way to configure devfs
+			fstab = append(fstab, fmt.Sprintf(". %v devfs ruleset=4 0 0\n",
+				c.Path("rootfs", rootno, "dev")))
+		}
+
+		if osName, _ := img.Manifest.GetLabel("os"); osName == "linux" {
+			if fi, err := os.Stat(c.Path("rootfs", rootno, "proc")); err == nil && fi.IsDir() {
+				fstab = append(fstab, fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Path("rootfs", rootno, "proc")))
+			}
+			if fi, err := os.Stat(c.Path("rootfs", rootno, "sys")); err == nil && fi.IsDir() {
+				fstab = append(fstab, fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Path("rootfs", rootno, "sys")))
+			}
+		}
+
+		if fi, err := os.Stat(c.Path("rootfs", rootno, "etc")); err == nil && fi.IsDir() {
+			// TODO: option (isolator?) to prevent creation of resolv.conf
+			if dnsServers, ok := c.Host.Properties.Get("ace.dns-servers"); !ok {
+				// By default, copy /etc/resolv.conf from host
+				if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
+					return errors.Trace(err)
+				} else {
+					if err := ioutil.WriteFile(c.Path("rootfs", rootno, "etc/resolv.conf"), bb, 0644); err != nil {
+						return errors.Trace(err)
+					}
+				}
+			} else if resolvconf, err := os.Create(c.Path("rootfs", rootno, "etc/resolv.conf")); err != nil {
 				return errors.Trace(err)
 			} else {
-				if err := ioutil.WriteFile(c.Path("rootfs", rootno, "etc/resolv.conf"), bb, 0644); err != nil {
-					return errors.Trace(err)
+				for _, server := range strings.Fields(dnsServers) {
+					fmt.Fprintln(resolvconf, "nameserver", server)
 				}
+				resolvconf.Close()
 			}
-		} else if err := os.MkdirAll(c.Path("rootfs", rootno, "etc"), 0755); err != nil {
-			return errors.Trace(err)
-		} else if resolvconf, err := os.Create(c.Path("rootfs", rootno, "etc/resolv.conf")); err != nil {
-			return errors.Trace(err)
-		} else {
-			for _, server := range strings.Fields(dnsServers) {
-				fmt.Fprintln(resolvconf, "nameserver", server)
-			}
-			resolvconf.Close()
-		}
-
-		if err := os.MkdirAll(c.Path("rootfs", rootno, "dev"), 0555); err != nil {
-			return errors.Trace(err)
 		}
 
 		imgApp := app.App
@@ -547,11 +553,18 @@ func (c *Pod) Console(name types.ACName, user string) error {
 	return c.runApp(name, ConsoleApp(user))
 }
 
-func (c *Pod) getChroot(appName types.ACName) string {
+func (c *Pod) appNo(appName types.ACName) int {
 	for i, app := range c.Manifest.Apps {
 		if app.Name == appName {
-			return fmt.Sprintf("/%v", i)
+			return i
 		}
+	}
+	return -1
+}
+
+func (c *Pod) getChroot(appName types.ACName) string {
+	if no := c.appNo(appName); no >= 0 {
+		return fmt.Sprintf("/%v", no)
 	}
 	return "/"
 }
@@ -592,6 +605,10 @@ func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
 }
 
 func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []string, exec ...string) error {
+	if strings.HasPrefix(user, "/") || strings.HasPrefix(group, "/") {
+		return errors.New("Path-based user/group not supported yet, sorry")
+	}
+
 	// Ensure jail is created
 	jid := c.Jid()
 	if jid == 0 {
@@ -609,12 +626,28 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 		return errors.Trace(err)
 	}
 
-	if user == "" {
-		user = "0"
+	chroot := c.getChroot(name)
+	rootfs := c.Path("rootfs" + chroot)
+
+	pwf, err := passwd.ReadPasswd(filepath.Join(rootfs, "etc/passwd"))
+	if err != nil {
+		return errors.Trace(err)
 	}
 
-	if group == "" {
-		group = "0"
+	pwent := pwf.Find(user)
+	if pwent == nil {
+		return errors.Errorf("Cannot find user: %#v", user)
+	}
+
+	if group != "" {
+		grf, err := passwd.ReadGroup(filepath.Join(rootfs, "etc/group"))
+		if err != nil {
+			return errors.Trace(err)
+		}
+		pwent.Gid = grf.FindGid(group)
+		if pwent.Gid < 0 {
+			return errors.Errorf("Cannot find group: %#v", group)
+		}
 	}
 
 	if cwd == "" {
@@ -627,12 +660,16 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 			append(
 				[]string{
 					"-jid", strconv.Itoa(jid),
-					"-chroot", c.getChroot(name),
+					"-chroot", chroot,
 					"-name", string(name),
 					"-mds", mds,
-					"-user", user,
-					"-group", group,
+					"-uid", strconv.Itoa(pwent.Uid),
+					"-gid", strconv.Itoa(pwent.Gid),
 					"-cwd", cwd,
+					"-setenv", "USER=" + pwent.Username,
+					"-setenv", "LOGNAME=" + pwent.Username,
+					"-setenv", "HOME=" + pwent.Home,
+					"-setenv", "SHELL=" + pwent.Shell,
 				},
 				env...),
 			exec...)...).Run()
