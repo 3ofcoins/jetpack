@@ -1,25 +1,27 @@
 package jetpack
 
-import "encoding/json"
-import "fmt"
-import "io/ioutil"
-import "os"
-import "path"
-import "path/filepath"
-import "sort"
-import "strconv"
-import "strings"
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
-import "code.google.com/p/go-uuid/uuid"
-import "github.com/appc/spec/schema"
-import "github.com/appc/spec/schema/types"
-import "github.com/juju/errors"
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
+	"github.com/juju/errors"
 
-import "lib/passwd"
-import "lib/run"
-import "lib/ui"
-import "lib/zfs"
+	"lib/passwd"
+	"lib/run"
+	"lib/ui"
+	"lib/zfs"
+)
 
 type PodStatus uint
 
@@ -499,22 +501,6 @@ func (c *Pod) Console(name types.ACName, user string) error {
 	return c.runApp(name, ConsoleApp(user))
 }
 
-func (c *Pod) appNo(appName types.ACName) int {
-	for i, app := range c.Manifest.Apps {
-		if app.Name == appName {
-			return i
-		}
-	}
-	return -1
-}
-
-func (c *Pod) getChroot(appName types.ACName) string {
-	if no := c.appNo(appName); no >= 0 {
-		return fmt.Sprintf("/%v", no)
-	}
-	return "/"
-}
-
 func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
 	if _, err := c.Host.NeedMDS(); err != nil {
 		return errors.Trace(err)
@@ -530,13 +516,13 @@ func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
 		switch eh.Name {
 		case "pre-start":
 			// TODO: log
-			if err := c.stage2(name, "0", "0", app.WorkingDirectory, env, eh.Exec...); err != nil {
+			if err := c.stage2(name, "", "", app.WorkingDirectory, env, eh.Exec...); err != nil {
 				return errors.Trace(err)
 			}
 		case "post-stop":
 			defer func(exec []string) {
 				// TODO: log
-				if err := c.stage2(name, "0", "0", app.WorkingDirectory, env, exec...); err != nil {
+				if err := c.stage2(name, "", "", app.WorkingDirectory, env, exec...); err != nil {
 					if re != nil {
 						re = errors.Trace(err)
 					} // else? log?
@@ -550,7 +536,7 @@ func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
 	return errors.Trace(c.stage2(name, app.User, app.Group, app.WorkingDirectory, env, app.Exec...))
 }
 
-func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []string, exec ...string) error {
+func (c *Pod) stage2(app types.ACName, user, group string, cwd string, env []string, exec ...string) error {
 	if strings.HasPrefix(user, "/") || strings.HasPrefix(group, "/") {
 		return errors.New("Path-based user/group not supported yet, sorry")
 	}
@@ -572,7 +558,7 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 		return errors.Trace(err)
 	}
 
-	pwf, err := passwd.ReadPasswd(c.Path("rootfs", "app", name.String(), "rootfs", "etc", "passwd"))
+	pwf, err := passwd.ReadPasswd(c.Path("rootfs", "app", app.String(), "rootfs", "etc", "passwd"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -583,7 +569,7 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 	}
 
 	if group != "" {
-		grf, err := passwd.ReadGroup(c.Path("rootfs", "app", name.String(), "rootfs", "etc", "group"))
+		grf, err := passwd.ReadGroup(c.Path("rootfs", "app", app.String(), "rootfs", "etc", "group"))
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -603,7 +589,7 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 			append(
 				[]string{
 					"-jid", strconv.Itoa(jid),
-					"-app", string(name),
+					"-app", string(app),
 					"-mds", mds,
 					"-uid", strconv.Itoa(pwent.Uid),
 					"-gid", strconv.Itoa(pwent.Gid),

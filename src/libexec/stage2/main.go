@@ -2,14 +2,12 @@ package main
 
 import (
 	"flag"
+	"os"
 	"path/filepath"
+	"syscall"
+
+	"golang.org/x/sys/unix"
 )
-
-import "os"
-
-import "syscall" // Exec() is only in syscall, wtf?
-
-import "golang.org/x/sys/unix"
 
 func JailAttach(jid int) error {
 	if _, _, err := unix.Syscall(unix.SYS_JAIL_ATTACH, uintptr(jid), 0, 0); err == 0 {
