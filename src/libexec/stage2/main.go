@@ -1,6 +1,9 @@
 package main
 
-import "flag"
+import (
+	"flag"
+	"path/filepath"
+)
 
 import "os"
 
@@ -26,8 +29,7 @@ func main() {
 	flag.IntVar(&JID, "jid", -1, "Jail ID")
 	flag.IntVar(&Uid, "uid", 0, "User to run as")
 	flag.IntVar(&Gid, "gid", 0, "Group to run as")
-	flag.StringVar(&Chroot, "chroot", "/", "Chroot within jail")
-	flag.StringVar(&AppName, "name", "", "Application name")
+	flag.StringVar(&AppName, "app", "", "Application name")
 	flag.StringVar(&WorkingDirectory, "cwd", "/", "Working directory")
 	flag.StringVar(&MetadataURL, "mds", "", "Metadata server URL")
 	flag.Var(&Env, "setenv", "Environment variables")
@@ -41,10 +43,8 @@ func main() {
 		panic(err)
 	}
 
-	if Chroot != "/" {
-		if err := unix.Chroot(Chroot); err != nil {
-			panic(err)
-		}
+	if err := unix.Chroot(filepath.Join("/app", AppName, "rootfs")); err != nil {
+		panic(err)
 	}
 
 	if err := os.Chdir(WorkingDirectory); err != nil {

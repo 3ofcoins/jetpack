@@ -11,8 +11,6 @@ import "strconv"
 import "strings"
 import "time"
 
-import "golang.org/x/sys/unix"
-
 import "code.google.com/p/go-uuid/uuid"
 import "github.com/appc/spec/schema"
 import "github.com/appc/spec/schema/types"
@@ -102,20 +100,35 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		return nil, errors.Trace(err)
 	}
 
-	volumesDirCreated := false
-	for i, vol := range pod.Manifest.Volumes {
-		if vol.Kind == "empty" {
-			pod.ui.Debugf("Creating volume.%v for volume %v", i, vol.Name)
-			if !volumesDirCreated {
-				if err := os.Mkdir(ds.Path("volumes"), 0700); err != nil {
+	if err := os.Mkdir(ds.Path("rootfs", "app"), 0755); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	var fstab []string
+
+	if len(pod.Manifest.Volumes) > 0 {
+		for i, vol := range pod.Manifest.Volumes {
+			volPath := ds.Path("rootfs", "vol", vol.Name.String())
+			if err := os.MkdirAll(volPath, 0755); err != nil {
+				return nil, errors.Trace(err)
+			}
+			switch vol.Kind {
+			case "empty":
+				pod.ui.Debugf("Creating volume.%v for volume %v", i, vol.Name)
+				if volds, err := ds.CreateDataset(fmt.Sprintf("volume.%v", i), "-omountpoint="+volPath); err != nil {
+					return nil, errors.Trace(err)
+				} else if err := volds.Set("jetpack:name", string(vol.Name)); err != nil {
 					return nil, errors.Trace(err)
 				}
-				volumesDirCreated = true
-			}
-			if volds, err := ds.CreateDataset(fmt.Sprintf("volume.%v", i), "-omountpoint="+ds.Path("volumes", strconv.Itoa(i))); err != nil {
-				return nil, errors.Trace(err)
-			} else if err := volds.Set("jetpack:name", string(vol.Name)); err != nil {
-				return nil, errors.Trace(err)
+			case "host":
+				opts := "rw"
+				if vol.ReadOnly != nil && *vol.ReadOnly {
+					opts = "ro"
+				}
+				fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 0 0\n",
+					vol.Source, volPath, opts))
+			default:
+				return nil, errors.Errorf("Unknown volume kind: %v", vol.Kind)
 			}
 		}
 	}
@@ -127,7 +140,8 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 			return nil, errors.Annotate(err, rtApp.Image.ID.String())
 		}
 
-		rootds, err := img.Clone(ds.ChildName(fmt.Sprintf("rootfs.%v", i)), ds.Path("rootfs", strconv.Itoa(i)))
+		appRootfs := ds.Path("rootfs", strconv.Itoa(i))
+		rootds, err := img.Clone(ds.ChildName(fmt.Sprintf("rootfs.%v", i)), appRootfs)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -140,25 +154,67 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 			return nil, errors.Trace(err)
 		}
 
+		if err := os.Mkdir(ds.Path("rootfs", "app", rtApp.Name.String()), 0755); err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if err := os.Symlink(
+			filepath.Join("..", "..", strconv.Itoa(i)),
+			ds.Path("rootfs", "app", rtApp.Name.String(), "rootfs"),
+		); err != nil {
+			return nil, errors.Trace(err)
+		}
+
 		app := rtApp.App
 		if app == nil {
 			app = img.Manifest.App
 		}
 
-		if app != nil {
-			for _, mnt := range app.MountPoints {
-				if err := os.MkdirAll(rootds.Path(mnt.Path), 0755); err != nil && !os.IsExist(err) {
-					return nil, errors.Trace(err)
-				}
-			}
+		// TODO: way to disable auto-devfs? Custom ruleset?
+		if err := os.Mkdir(filepath.Join(appRootfs, "dev"), 0555); err != nil && !os.IsExist(err) {
+			return nil, errors.Trace(err)
 		}
+		fstab = append(fstab, fmt.Sprintf(". %v devfs ruleset=4 0 0\n", filepath.Join(appRootfs, "dev")))
+
 		if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
 			for _, dir := range []string{"sys", "proc"} {
-				if err := os.MkdirAll(rootds.Path(dir), 0755); err != nil && !os.IsExist(err) {
+				if err := os.MkdirAll(filepath.Join(appRootfs, dir), 0755); err != nil && !os.IsExist(err) {
 					return nil, errors.Trace(err)
 				}
 			}
+			fstab = append(fstab, fmt.Sprintf("linproc %v linprocfs rw 0 0\n", filepath.Join(appRootfs, "proc")))
+			fstab = append(fstab, fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", filepath.Join(appRootfs, "sys")))
 		}
+
+		if app != nil {
+			for _, mntpnt := range app.MountPoints {
+				if err := os.MkdirAll(filepath.Join(appRootfs, mntpnt.Path), 0755); err != nil && !os.IsExist(err) {
+					return nil, errors.Trace(err)
+				}
+				var mnt *schema.Mount
+				for _, cmnt := range rtApp.Mounts {
+					if cmnt.MountPoint == mntpnt.Name {
+						mnt = &cmnt
+						break
+					}
+				}
+				if mnt == nil {
+					return nil, errors.Errorf("Unfulfilled mount point %v:%v", rtApp.Name, mntpnt.Name)
+				}
+				opts := "rw"
+				if mntpnt.ReadOnly {
+					opts = "ro"
+				}
+				fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 1 0\n",
+					ds.Path("rootfs", "vol", mnt.Volume.String()),
+					filepath.Join(appRootfs, mntpnt.Path),
+					opts))
+			}
+		}
+	}
+
+	if err := ioutil.WriteFile(pod.Path("fstab"), []byte(strings.Join(fstab, "")), 0400); err != nil {
+		return nil, errors.Trace(err)
 	}
 
 	// FIXME: smarter IP allocation?
@@ -167,6 +223,10 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 	} else {
 		pod.ui.Debug("Using IP", ip)
 		pod.Manifest.Annotations.Set("ip-address", ip.String())
+	}
+
+	if err := ioutil.WriteFile(pod.Path("jail.conf"), []byte(pod.jailConf()), 0400); err != nil {
+		return nil, errors.Trace(err)
 	}
 
 	pod.ui.Debug("Saving manifest")
@@ -294,47 +354,20 @@ func (c *Pod) jailConf() string {
 }
 
 func (c *Pod) prepJail() error {
-	var fstab []string
-
-	for i, app := range c.Manifest.Apps {
-		rootno := strconv.Itoa(i)
-
-		img, err := c.Host.GetImageByHash(app.Image.ID)
-		if err != nil {
-			return errors.Trace(err)
-		}
-
-		if err := os.MkdirAll(c.Path("rootfs", rootno, "dev"), 0755); err != nil {
-			return errors.Trace(err)
-		}
-
-		if fi, err := os.Stat(c.Path("rootfs", rootno, "dev")); err == nil && fi.IsDir() {
-			// TODO: way to configure devfs
-			fstab = append(fstab, fmt.Sprintf(". %v devfs ruleset=4 0 0\n",
-				c.Path("rootfs", rootno, "dev")))
-		}
-
-		if osName, _ := img.Manifest.GetLabel("os"); osName == "linux" {
-			if fi, err := os.Stat(c.Path("rootfs", rootno, "proc")); err == nil && fi.IsDir() {
-				fstab = append(fstab, fmt.Sprintf("linproc %v linprocfs rw 0 0\n", c.Path("rootfs", rootno, "proc")))
-			}
-			if fi, err := os.Stat(c.Path("rootfs", rootno, "sys")); err == nil && fi.IsDir() {
-				fstab = append(fstab, fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", c.Path("rootfs", rootno, "sys")))
-			}
-		}
-
-		if fi, err := os.Stat(c.Path("rootfs", rootno, "etc")); err == nil && fi.IsDir() {
+	for _, app := range c.Manifest.Apps {
+		etcPath := c.Path("rootfs", "app", app.Name.String(), "rootfs", "etc")
+		if fi, err := os.Stat(etcPath); err == nil && fi.IsDir() {
 			// TODO: option (isolator?) to prevent creation of resolv.conf
 			if dnsServers, ok := c.Host.Properties.Get("ace.dns-servers"); !ok {
 				// By default, copy /etc/resolv.conf from host
 				if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
 					return errors.Trace(err)
 				} else {
-					if err := ioutil.WriteFile(c.Path("rootfs", rootno, "etc/resolv.conf"), bb, 0644); err != nil {
+					if err := ioutil.WriteFile(filepath.Join(etcPath, "resolv.conf"), bb, 0644); err != nil {
 						return errors.Trace(err)
 					}
 				}
-			} else if resolvconf, err := os.Create(c.Path("rootfs", rootno, "etc/resolv.conf")); err != nil {
+			} else if resolvconf, err := os.Create(filepath.Join(etcPath, "resolv.conf")); err != nil {
 				return errors.Trace(err)
 			} else {
 				for _, server := range strings.Fields(dnsServers) {
@@ -343,95 +376,8 @@ func (c *Pod) prepJail() error {
 				resolvconf.Close()
 			}
 		}
-
-		imgApp := app.App
-		if imgApp == nil {
-			imgApp = img.Manifest.App
-		}
-		if imgApp == nil {
-			continue
-		}
-
-		fulfilledMountPoints := make(map[types.ACName]bool)
-		for _, mnt := range app.Mounts {
-			var vol types.Volume
-			volNo := -1
-			for i, cvol := range c.Manifest.Volumes {
-				if cvol.Name == mnt.Volume {
-					vol = cvol
-					volNo = i
-					break
-				}
-			}
-			if volNo < 0 {
-				return errors.Errorf("Volume not found: %v", mnt.Volume)
-			}
-
-			var mntPoint *types.MountPoint
-			for _, mntp := range imgApp.MountPoints {
-				if mntp.Name == mnt.MountPoint {
-					mntPoint = &mntp
-					break
-				}
-			}
-			if mntPoint == nil {
-				return errors.Errorf("No mount point found: %v", mnt.MountPoint)
-			}
-
-			fulfilledMountPoints[mnt.MountPoint] = true
-
-			podPath := c.Path("rootfs", rootno, mntPoint.Path)
-			hostPath := vol.Source
-
-			if vol.Kind == "empty" {
-				hostPath = c.Path("volumes", strconv.Itoa(volNo))
-				var st unix.Stat_t
-				if err := unix.Stat(podPath, &st); err != nil {
-					if !os.IsNotExist(err) {
-						return errors.Trace(err)
-					} else {
-						// TODO: make path?
-					}
-				} else {
-					// Copy ownership & mode from image's already existing mount
-					// point.
-					// TODO: What if multiple images use same empty volume, and
-					// have conflicting modes?
-					if err := unix.Chmod(hostPath, uint32(st.Mode&07777)); err != nil {
-						return errors.Trace(err)
-					}
-					if err := unix.Chown(hostPath, int(st.Uid), int(st.Gid)); err != nil {
-						return errors.Trace(err)
-					}
-				}
-			}
-
-			opts := "rw"
-			if (vol.ReadOnly != nil && *vol.ReadOnly) || mntPoint.ReadOnly {
-				opts = "ro"
-			}
-
-			fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 0 0\n",
-				hostPath, podPath, opts))
-		}
-
-		var unfulfilled []types.ACName
-		for _, mntp := range imgApp.MountPoints {
-			if !fulfilledMountPoints[mntp.Name] {
-				unfulfilled = append(unfulfilled, mntp.Name)
-			}
-		}
-		if len(unfulfilled) > 0 {
-			return errors.Errorf("Unfulfilled mount points for %v: %v", img.Manifest.Name, unfulfilled)
-		}
 	}
-
-	if err := ioutil.WriteFile(c.Path("fstab"), []byte(strings.Join(fstab, "")), 0600); err != nil {
-		return errors.Trace(err)
-	}
-
-	return errors.Trace(
-		ioutil.WriteFile(c.Path("jail.conf"), []byte(c.jailConf()), 0400))
+	return nil
 }
 
 func (c *Pod) Status() PodStatus {
@@ -626,10 +572,7 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 		return errors.Trace(err)
 	}
 
-	chroot := c.getChroot(name)
-	rootfs := c.Path("rootfs" + chroot)
-
-	pwf, err := passwd.ReadPasswd(filepath.Join(rootfs, "etc/passwd"))
+	pwf, err := passwd.ReadPasswd(c.Path("rootfs", "app", name.String(), "rootfs", "etc", "passwd"))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -640,7 +583,7 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 	}
 
 	if group != "" {
-		grf, err := passwd.ReadGroup(filepath.Join(rootfs, "etc/group"))
+		grf, err := passwd.ReadGroup(c.Path("rootfs", "app", name.String(), "rootfs", "etc", "group"))
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -660,8 +603,7 @@ func (c *Pod) stage2(name types.ACName, user, group string, cwd string, env []st
 			append(
 				[]string{
 					"-jid", strconv.Itoa(jid),
-					"-chroot", chroot,
-					"-name", string(name),
+					"-app", string(name),
 					"-mds", mds,
 					"-uid", strconv.Itoa(pwent.Uid),
 					"-gid", strconv.Itoa(pwent.Gid),
