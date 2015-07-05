@@ -21,17 +21,7 @@ die_on_fail;
 # Check prerequisites
 run_command 'jetpack', 'show-image', '3ofcoins.net/freebsd-base';
 
-# Remove existing 3ofcoins.net/port-builder images
-{
-  my $imgs=`jetpack images -H -l`;
-  die "can't list images: $?" if $? > 0;
-  for (split "\n", $imgs) {
-    my ($id, $name) = split("\t", $_);
-    next unless $name =~ /^3ofcoins\.net\/port-builder[,:]/;
-    note("Destroying image $id ($name)\n");
-    system "jetpack destroy-image $id >/dev/null 2>&1"
-  }
-}
+destroy_images "3ofcoins.net/port-builder";
 
 my $builddir = dirname(dirname(Cwd::realpath(__FILE__)))."/images/portbuilder";
 
