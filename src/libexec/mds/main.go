@@ -88,6 +88,13 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		// HMAC sign/verify service.
 		return http.StatusNotImplemented, nil
 
+	case path == "pod/annotations" || path == "pod/annotations/":
+		anns := make([]string, len(pod.Manifest.Annotations))
+		for i, ann := range pod.Manifest.Annotations {
+			anns[i] = string(ann.Name)
+		}
+		return resp200(strings.Join(anns, "\n"))
+
 	case strings.HasPrefix(path, "pod/annotations/"):
 		// Pod annotation. 404 on nonexistent one.
 		annName := path[len("pod/annotations/"):]
@@ -116,6 +123,13 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 					} else {
 						return http.StatusOK, manifestJSON
 					}
+
+				case "annotations", "annotations/":
+					anns := make([]string, len(app.Annotations))
+					for i, ann := range app.Annotations {
+						anns[i] = string(ann.Name)
+					}
+					return resp200(strings.Join(anns, "\n"))
 
 				default:
 					if strings.HasPrefix(appPath, "annotations/") {
