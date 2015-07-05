@@ -585,7 +585,7 @@ func (h *Host) importImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image
 	if name.Empty() {
 		ui.Println("Starting import")
 	} else {
-		ui.Println("Starting import of %v", name)
+		ui.Printf("Starting import of %v", name)
 	}
 	if asc != nil {
 		ui.Debug("Checking signature")
