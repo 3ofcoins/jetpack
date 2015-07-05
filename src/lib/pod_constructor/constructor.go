@@ -1,7 +1,9 @@
 package pod_constructor
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"path"
 	"strings"
@@ -104,6 +106,7 @@ func stDispatchFlag(c *constructor, table map[string]stateFn) stateFn {
 
 func stGlobalFlag(c *constructor) stateFn {
 	if sw := stDispatchFlag(c, map[string]stateFn{
+		"f": stJsonFile,
 		"a": stAnnotation,
 		"v": stVolume,
 		// "i": stIsolator,
@@ -113,6 +116,17 @@ func stGlobalFlag(c *constructor) stateFn {
 	}
 
 	return stImage
+}
+
+func stJsonFile(c *constructor) stateFn {
+	if jsonBytes, err := ioutil.ReadFile(c.next()); err != nil {
+		c.err = errors.Trace(err)
+		return nil
+	} else if err := json.Unmarshal(jsonBytes, c.pm); err != nil {
+		c.err = errors.Trace(err)
+		return nil
+	}
+	return stGlobalFlag
 }
 
 func stAnnotation(c *constructor) stateFn {

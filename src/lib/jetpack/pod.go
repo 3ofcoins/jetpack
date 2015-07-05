@@ -323,6 +323,8 @@ func (c *Pod) prepJail() error {
 					return errors.Trace(err)
 				}
 			}
+		} else if err := os.MkdirAll(c.Path("rootfs", rootno, "etc"), 0755); err != nil {
+			return errors.Trace(err)
 		} else if resolvconf, err := os.Create(c.Path("rootfs", rootno, "etc/resolv.conf")); err != nil {
 			return errors.Trace(err)
 		} else {
@@ -330,6 +332,10 @@ func (c *Pod) prepJail() error {
 				fmt.Fprintln(resolvconf, "nameserver", server)
 			}
 			resolvconf.Close()
+		}
+
+		if err := os.MkdirAll(c.Path("rootfs", rootno, "dev"), 0555); err != nil {
+			return errors.Trace(err)
 		}
 
 		imgApp := app.App
