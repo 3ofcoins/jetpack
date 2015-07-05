@@ -89,8 +89,19 @@ uninstall: .PHONY
 reinstall: .PHONY uninstall .WAIT install
 .endif
 
+# appc/spec stuff
+spec = ${.CURDIR}/vendor/src/github.com/appc/spec
+
+${spec}/bin/actool ${spec}/bin/ace-validator:
+	cd ${spec} && bash ./build
+
+${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci: ${spec}/bin/actool ${spec}/bin/ace-validator
+	cd ${spec} && env NO_SIGNATURE=1 bash ./ace/build_aci
+
+validator-aci: ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci
+
 clean: .PHONY
-	rm -rf bin pkg tmp vendor/bin vendor/pkg .prefix ${const.go}
+	rm -rf bin pkg tmp vendor/bin vendor/pkg .prefix ${const.go} ${spec}/bin ${spec}/gopath
 
 # development helpers
 cloc:
