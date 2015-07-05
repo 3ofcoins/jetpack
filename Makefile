@@ -92,13 +92,10 @@ reinstall: .PHONY uninstall .WAIT install
 # appc/spec stuff
 spec = ${.CURDIR}/vendor/src/github.com/appc/spec
 
-${spec}/bin/actool ${spec}/bin/ace-validator:
-	cd ${spec} && bash ./build
-
-${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci: ${spec}/bin/actool ${spec}/bin/ace-validator
-	cd ${spec} && env NO_SIGNATURE=1 bash ./ace/build_aci
-
 validator-aci: ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci
+${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
+	sed -i~ s/linux/freebsd/ ${spec}/ace/*.json
+	cd ${spec} && bash ./build && env NO_SIGNATURE=1 bash ./ace/build_aci
 
 clean: .PHONY
 	rm -rf bin pkg tmp vendor/bin vendor/pkg .prefix ${const.go} ${spec}/bin ${spec}/gopath
