@@ -1,11 +1,12 @@
 package pod_constructor
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/juju/errors"
 
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema"
@@ -97,7 +98,7 @@ func stDispatchFlag(c *constructor, table map[string]stateFn) stateFn {
 			return stNext
 		}
 	}
-	c.err = ErrFlag(c.cur())
+	c.err = errors.Trace(ErrFlag(c.cur()))
 	return stFINI
 }
 
@@ -119,7 +120,7 @@ func stAnnotation(c *constructor) stateFn {
 		c.err = ENOPARSE
 		return nil
 	} else if name, err := types.NewACIdentifier(splut[0]); err != nil {
-		c.err = err
+		c.err = errors.Trace(err)
 		return nil
 	} else if app := c.app(); app == nil {
 		c.pm.Annotations.Set(*name, splut[1])
@@ -149,7 +150,7 @@ func stVolume(c *constructor) stateFn {
 	}
 
 	if v, err := types.VolumeFromString(arg); err != nil {
-		c.err = err
+		c.err = errors.Trace(err)
 		return nil
 	} else {
 		for _, vol := range c.pm.Volumes {
@@ -170,7 +171,7 @@ func stApp(c *constructor) stateFn {
 	// the default
 	if name := c.next(); name != "-" {
 		if err := rta.Name.Set(name); err != nil {
-			c.err = err
+			c.err = errors.Trace(err)
 			return nil
 		}
 	}
@@ -188,10 +189,10 @@ func stImage(c *constructor) stateFn {
 	if hash, err := types.NewHash(imgName); err == nil {
 		rta.Image.ID = *hash
 	} else if da, err := discovery.NewAppFromString(imgName); err != nil {
-		c.err = err
+		c.err = errors.Trace(err)
 		return nil
 	} else if labels, err := types.LabelsFromMap(da.Labels); err != nil {
-		c.err = err
+		c.err = errors.Trace(err)
 		return nil
 	} else {
 		rta.Image.Name = &da.Name
@@ -226,7 +227,7 @@ func stAppFlag(c *constructor) stateFn {
 func stName(c *constructor) stateFn {
 	rta := c.app()
 	if name, err := types.NewACName(c.next()); err != nil {
-		c.err = err
+		c.err = errors.Trace(err)
 		return nil
 	} else {
 		rta.Name = *name
@@ -249,11 +250,11 @@ func stMount(c *constructor) stateFn {
 
 	mnt := schema.Mount{}
 	if err := mnt.MountPoint.Set(splut[0]); err != nil {
-		c.err = err
+		c.err = errors.Trace(err)
 		return nil
 	}
 	if err := mnt.Volume.Set(splut[1%len(splut)]); err != nil {
-		c.err = err
+		c.err = errors.Trace(err)
 		return nil
 	}
 
