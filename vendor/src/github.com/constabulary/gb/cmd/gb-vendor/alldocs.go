@@ -28,7 +28,7 @@ Fetch a remote dependency
 
 Usage:
 
-        gb vendor fetch [-branch branch | -revision rev | -tag tag | -precaire] importpath
+        gb vendor fetch [-branch branch | -revision rev | -tag tag] [-precaire] [-no-recurse] importpath
 
 fetch vendors the upstream import path.
 
@@ -36,6 +36,8 @@ Flags:
 	-branch branch
 		fetch from the name branch. If not supplied the default upstream
 		branch will be used.
+	-no-recurse
+		do not fetch recursively.
 	-tag tag
 		fetch the specified tag. If not supplie the default upstream
 		branch will be used.
@@ -60,7 +62,7 @@ The second restriction is if you have used -tag or -revision while vendoring a d
 (to borrow a term from git) and cannot be updated.
 
 To update across branches, or from one tag/revision to another, you must first use gb vendor delete to remove the dependency, then
-gb vendor fetch [-tag | -revision | -branch] to replace it.
+gb vendor fetch [-tag | -revision | -branch ] [-precaire] to replace it.
 
 Flags:
 	-all

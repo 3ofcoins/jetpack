@@ -116,7 +116,13 @@ func (g *gc) compile() error {
 			// terrible hack for cgo files which come with an absolute path
 			continue
 		}
-		g.gofiles[i], _ = filepath.Rel(g.pkg.Projectdir(), filepath.Join(g.pkg.Dir, g.gofiles[i]))
+		fullpath := filepath.Join(g.pkg.Dir, g.gofiles[i])
+		path, err := filepath.Rel(g.pkg.Projectdir(), fullpath)
+		if err == nil {
+			g.gofiles[i] = path
+		} else {
+			g.gofiles[i] = fullpath
+		}
 	}
 	err := g.pkg.tc.Gc(g.pkg, includes, importpath, g.pkg.Projectdir(), g.Objfile(), g.gofiles, g.pkg.Complete())
 	g.pkg.Record("compile", time.Since(t0))
@@ -254,7 +260,7 @@ func (l *ld) link() error {
 		includes = append([]string{l.pkg.ExtraIncludes}, includes...)
 		target += ".test"
 	}
-	err := l.pkg.tc.Ld(l.pkg, includes, l.pkg.ldflags, target, l.afile.Pkgfile())
+	err := l.pkg.tc.Ld(l.pkg, includes, target, l.afile.Pkgfile())
 	l.pkg.Record("link", time.Since(t0))
 	return err
 }

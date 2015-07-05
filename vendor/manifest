@@ -21,12 +21,6 @@
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/constabulary/gb",
-			"repository": "https://github.com/constabulary/gb",
-			"revision": "56c44dae099faa0f94ce0491f12dffd812d947ba",
-			"branch": "master"
-		},
-		{
 			"importpath": "github.com/coreos/ioprogress",
 			"repository": "https://github.com/coreos/ioprogress",
 			"revision": "326b3ee6276a33c8bdcf480ca9c99228942ab970",
@@ -67,6 +61,12 @@
 			"repository": "https://github.com/appc/spec",
 			"revision": "25f997957b604657dd558fe5da664a8f1b2a12b7",
 			"branch": "HEAD"
+		},
+		{
+			"importpath": "github.com/constabulary/gb",
+			"repository": "https://github.com/constabulary/gb",
+			"revision": "f9325e15f221119f250e84cf8d4893687a1630ec",
+			"branch": "master"
 		}
 	]
 }
