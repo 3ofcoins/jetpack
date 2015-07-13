@@ -10,6 +10,7 @@ import (
 
 	"code.google.com/p/go-uuid/uuid"
 
+	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
@@ -181,7 +182,6 @@ func cmdWrapMustApp0(cmd func(*jetpack.Pod, types.ACName) error) func([]string) 
 	})
 }
 
-// Returns an image or pod named by NAME.
 func getImage(name string) (*jetpack.Image, error) {
 	if h, _ := types.NewHash(name); h != nil {
 		// Image hash
@@ -201,9 +201,16 @@ func getImage(name string) (*jetpack.Image, error) {
 		return found, nil
 	}
 
-	if img, err := Host.FindImage(name); err != nil && err != jetpack.ErrNotFound {
+	if app, err := discovery.NewAppFromString(name); err != nil {
+		return nil, errors.Trace(err)
+	} else if labels, err := types.LabelsFromMap(app.Labels); err != nil {
+		return nil, errors.Trace(err)
+	} else if img, err := Host.GetImage(types.Hash{}, app.Name, labels); err == jetpack.ErrNotFound {
+		// pass to FetchImage
+	} else if err != nil {
 		return nil, errors.Trace(err)
 	} else {
+		// err == nil, got image
 		return img, nil
 	}
 

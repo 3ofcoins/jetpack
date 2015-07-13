@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,6 +23,7 @@ import (
 	"github.com/magiconair/properties"
 	openpgp_err "golang.org/x/crypto/openpgp/errors"
 
+	"lib/acutil"
 	"lib/fetch"
 	"lib/keystore"
 	"lib/run"
@@ -327,18 +327,28 @@ func (h *Host) GetImage(hash types.Hash, name types.ACIdentifier, labels types.L
 			if !name.Empty() && name != img.Manifest.Name {
 				return nil, errors.Errorf("Name mismatch: image %v is %v, wanted %v", hash, img.Manifest.Name, name)
 			}
-			for _, label := range labels {
-				if v, ok := img.Manifest.Labels.Get(label.Name.String()); !ok {
-					return nil, errors.Errorf("Label mismatch: image %v has no label %v", hash, label.Name)
-				} else if label.Value != v {
-					return nil, errors.Errorf("Label mismatch: image %v label %v is %#v, wanted %#v", hash, label.Name, v, label.Value)
-				}
+			if !acutil.MatchLabels(labels, img.Manifest.Labels) {
+				return nil, stderrors.New("Label mismatch")
 			}
 			return img, nil
 		}
-	}
+	} else if imgs, err := h.Images(); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		for _, img := range imgs {
+			if img.Manifest.Name != name {
+				continue
+			}
+			if !acutil.MatchLabels(labels, img.Manifest.Labels) {
+				continue
+			}
+			// TODO: multiple matches?
+			return img, nil
+		}
 
-	return nil, stderrors.New("CAN'T HAPPEN")
+		// TODO: autofetch?
+		return nil, ErrNotFound
+	}
 }
 
 func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
@@ -385,112 +395,6 @@ func (h *Host) Images() ([]*Image, error) {
 		}
 	}
 	return rv, nil
-}
-
-func (h *Host) FindImages(query string) ([]*Image, error) {
-	// Empty query means all images
-	if query == "" {
-		if imgs, err := h.Images(); err != nil {
-			return nil, errors.Trace(err)
-		} else if len(imgs) == 0 {
-			return nil, ErrNotFound
-		} else {
-			return imgs, nil
-		}
-	}
-
-	// Try UUID
-	if id := uuid.Parse(query); id != nil {
-		if img, err := LoadImage(h, id); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			return []*Image{img}, nil
-		}
-	}
-
-	// We'll search for images, let's prepare the list now
-	imgs, err := h.Images()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	// Try hash
-	if hash, err := types.NewHash(query); err == nil {
-		for _, img := range imgs {
-			if img.Hash != nil && *img.Hash == *hash {
-				return []*Image{img}, nil
-			}
-		}
-		return nil, ErrNotFound
-	}
-
-	// Bad luck, we have a query. Let's transform it into a query string and parse it this way…
-	query = strings.Replace(query, ":", ",version=", 1)
-	query = strings.Replace(query, ",", "&", -1)
-	query = "name=" + query
-	v, err := url.ParseQuery(query)
-	if err != nil {
-		return nil, err
-	}
-
-	var name types.ACIdentifier
-	if namep, err := types.NewACIdentifier(v["name"][0]); err != nil {
-		return nil, err
-	} else {
-		delete(v, "name")
-		name = *namep
-	}
-
-	rv := []*Image{}
-images:
-	for _, img := range imgs {
-		if img.Manifest.Name == name {
-		labels:
-			for label, values := range v {
-				if imgvalue, ok := img.Manifest.GetLabel(label); ok {
-					for _, value := range values {
-						if imgvalue == value {
-							// We got a good value, next label
-							continue labels
-						}
-					}
-					// No good values were found, next image
-					continue images
-				} else {
-					continue images
-				}
-			}
-			// If we got here, image was not rejected, so it's a good one.
-			rv = append(rv, img)
-		}
-	}
-
-	if len(rv) == 0 {
-		return nil, ErrNotFound
-	} else {
-		return rv, nil
-	}
-}
-
-func (h *Host) FindImage(query string) (*Image, error) {
-	// Optimize for simple case
-	if id := uuid.Parse(query); id != nil {
-		if img, err := LoadImage(h, id); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			return img, nil
-		}
-	}
-
-	if imgs, err := h.FindImages(query); err != nil {
-		return nil, err
-	} else {
-		if len(imgs) == 1 {
-			return imgs[0], nil
-		} else {
-			return nil, ErrManyFound
-		}
-	}
 }
 
 // TODO: setting with flag override, also for allow-http
