@@ -32,60 +32,6 @@ func flExport(fl *flag.FlagSet) {
 	fl.BoolVar(&flExportFlat, "flat", false, "Export flattened image without dependencies")
 }
 
-// Returns an image or pod named by NAME.
-func getImage(name string) (*jetpack.Image, error) {
-	if h, _ := types.NewHash(name); h != nil {
-		// Image hash
-		var found *jetpack.Image
-		for _, img := range Host.Images() {
-			if strings.HasPrefix(img.Hash.String(), name) {
-				if found != nil {
-					return nil, jetpack.ErrManyFound
-				}
-				found = img
-			}
-		}
-		return found, nil
-	}
-
-	if img, err := Host.FindImage(name); err != nil && err != jetpack.ErrNotFound {
-		return nil, errors.Trace(err)
-	} else {
-		return img, nil
-	}
-
-	// TODO: customizable autofetch
-	if img, err := Host.FetchImage(name, ""); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		return img, nil
-	}
-
-	return nil, ErrUsage
-}
-
-func cmdWrapImage(cmd func(*jetpack.Image, []string) error) func([]string) error {
-	return func(args []string) error {
-		if len(args) == 0 {
-			return ErrUsage
-		}
-		if img, err := getImage(args[0]); err != nil {
-			return errors.Trace(err)
-		} else {
-			return errors.Trace(cmd(img, args[1:]))
-		}
-	}
-}
-
-func cmdWrapImage0(cmd func(*jetpack.Image) error) func([]string) error {
-	return cmdWrapImage(func(img *jetpack.Image, args []string) error {
-		if len(args) > 0 {
-			return ErrUsage
-		}
-		return cmd(img)
-	})
-}
-
 func cmdImageManifest(img *jetpack.Image) error {
 	if jsonManifest, err := json.MarshalIndent(img.Manifest, "", "  "); err != nil {
 		return errors.Trace(err)
