@@ -426,28 +426,18 @@ func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
 }
 
 func (h *Host) doGetImageDependency(dep types.Dependency) (*Image, error) {
+	var id types.Hash
 	if dep.ImageID != nil {
-		// If the dependency has an ID, do we already have it?
-		if img, err := h.GetImageByHash(*dep.ImageID); img != nil {
-			return img, err
-		} else if err != ErrNotFound {
-			return nil, errors.Trace(err)
-		}
-	} else if imgs, err := h.Images(); err != nil {
+		id = *dep.ImageID
+	}
+	if img, err := h.GetImage(id, dep.ImageName, dep.Labels); err == ErrNotFound {
+		// pass
+	} else if err != nil {
 		return nil, errors.Trace(err)
 	} else {
-	imgs:
-		for _, img := range imgs {
-			if img.Manifest.Name == dep.ImageName {
-				for _, label := range dep.Labels {
-					if val, ok := img.Manifest.Labels.Get(label.Name.String()); !ok || val != label.Value {
-						continue imgs
-					}
-				}
-				return img, nil
-			}
-		}
+		return img, nil
 	}
+	// TODO: validate size
 
 	// No luck so far, try to discover the dependency
 	app := discovery.App{Name: dep.ImageName, Labels: make(map[types.ACIdentifier]string)}
