@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/appc/spec/schema/types"
+	"github.com/juju/errors"
 )
 
 func init() {
@@ -30,12 +31,15 @@ func flListImages(fl *flag.FlagSet) {
 }
 
 func cmdListImages([]string) error {
-	images := Host.Images()
-	items := make([][]string, len(images))
-	for i, img := range images {
-		items[i] = []string{img.ID(), img.String()}
+	if images, err := Host.Images(); err != nil {
+		return errors.Trace(err)
+	} else {
+		items := make([][]string, len(images))
+		for i, img := range images {
+			items[i] = []string{img.ID(), img.String()}
+		}
+		return doList("ID\tNAME", items)
 	}
-	return doList("ID\tNAME", items)
 }
 
 func cmdListPods([]string) error {

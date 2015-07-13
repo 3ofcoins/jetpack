@@ -186,12 +186,16 @@ func getImage(name string) (*jetpack.Image, error) {
 	if h, _ := types.NewHash(name); h != nil {
 		// Image hash
 		var found *jetpack.Image
-		for _, img := range Host.Images() {
-			if strings.HasPrefix(img.Hash.String(), name) {
-				if found != nil {
-					return nil, jetpack.ErrManyFound
+		if imgs, err := Host.Images(); err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			for _, img := range imgs {
+				if strings.HasPrefix(img.Hash.String(), name) {
+					if found != nil {
+						return nil, jetpack.ErrManyFound
+					}
+					found = img
 				}
-				found = img
 			}
 		}
 		return found, nil

@@ -31,6 +31,7 @@ import (
 	"lib/zfs"
 )
 
+var ErrUsage = stderrors.New("Invalid usage")
 var ErrNotFound = stderrors.New("Not found")
 var ErrManyFound = stderrors.New("Multiple results found")
 
@@ -80,6 +81,9 @@ func NewHost(configPath string) (*Host, error) {
 
 	return &h, nil
 }
+
+// Host-global stuff
+//////////////////////////////////////////////////////////////////////////////
 
 func (h *Host) Path(elem ...string) string {
 	return h.Dataset.Path(elem...)
@@ -141,10 +145,20 @@ func (h *Host) Initialize() error {
 	return nil
 }
 
-func (h *Host) Keystore() *keystore.Keystore {
-	return keystore.New(h.Path("keys"))
-}
+func (h *Host) HostIP() (net.IP, *net.IPNet, error) {
+	ifi, err := net.InterfaceByName(h.Properties.MustGetString("jail.interface"))
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
 
+	addrs, err := ifi.Addrs()
+	if err != nil {
+		return nil, nil, errors.Trace(err)
+	}
+
+	ip, ipnet, err := net.ParseCIDR(addrs[0].String())
+	return ip, ipnet, errors.Trace(err)
+}
 func (h *Host) getJailStatus(name string, refresh bool) (JailStatus, error) {
 	if refresh || h.jailStatusCache == nil || time.Now().Sub(h.jailStatusTimestamp) > (2*time.Second) {
 		// FIXME: nicer cache/expiry implementation?
@@ -179,21 +193,6 @@ func (h *Host) getJailStatus(name string, refresh bool) (JailStatus, error) {
 	return h.jailStatusCache[name], nil
 }
 
-func (h *Host) HostIP() (net.IP, *net.IPNet, error) {
-	ifi, err := net.InterfaceByName(h.Properties.MustGetString("jail.interface"))
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	addrs, err := ifi.Addrs()
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	ip, ipnet, err := net.ParseCIDR(addrs[0].String())
-	return ip, ipnet, errors.Trace(err)
-}
-
 func (h *Host) nextIP() (net.IP, error) {
 	ip, ipnet, err := h.HostIP()
 	if err != nil {
@@ -220,6 +219,9 @@ func (h *Host) nextIP() (net.IP, error) {
 		return nil, errors.New("Out of IPs")
 	}
 }
+
+// Pods
+//////////////////////////////////////////////////////////////////////////////
 
 func (h *Host) ReifyPodManifest(pm *schema.PodManifest) (*schema.PodManifest, error) {
 	for i, rtapp := range pm.Apps {
@@ -290,13 +292,6 @@ func (h *Host) GetPod(id uuid.UUID) (*Pod, error) {
 	}
 }
 
-func (h *Host) FindPod(query string) (*Pod, error) {
-	if id := uuid.Parse(query); id != nil {
-		return h.GetPod(id)
-	}
-	return nil, ErrNotFound
-}
-
 func (h *Host) Pods() []*Pod {
 	mm, _ := filepath.Glob(h.Path("pods/*/manifest"))
 	rv := make([]*Pod, 0, len(mm))
@@ -312,8 +307,38 @@ func (h *Host) Pods() []*Pod {
 	return rv
 }
 
-func (h *Host) GetImageByUUID(id uuid.UUID) (*Image, error) {
-	return LoadImage(h, id)
+// Images
+//////////////////////////////////////////////////////////////////////////////
+
+func (h *Host) GetImage(hash types.Hash, name types.ACIdentifier, labels types.Labels) (*Image, error) {
+	if hash.Empty() && name.Empty() {
+		return nil, ErrUsage
+	}
+
+	if !hash.Empty() {
+		// TODO: get rid of GetImageByHash
+		if img, err := h.GetImageByHash(hash); err == ErrNotFound {
+			// TODO: autofetch?
+			return nil, err
+		} else if err != nil {
+			return nil, errors.Trace(err)
+		} else {
+			// TODO: extract this sanity check to a separate function, or to method on Image
+			if !name.Empty() && name != img.Manifest.Name {
+				return nil, errors.Errorf("Name mismatch: image %v is %v, wanted %v", hash, img.Manifest.Name, name)
+			}
+			for _, label := range labels {
+				if v, ok := img.Manifest.Labels.Get(label.Name.String()); !ok {
+					return nil, errors.Errorf("Label mismatch: image %v has no label %v", hash, label.Name)
+				} else if label.Value != v {
+					return nil, errors.Errorf("Label mismatch: image %v label %v is %#v, wanted %#v", hash, label.Name, v, label.Value)
+				}
+			}
+			return img, nil
+		}
+	}
+
+	return nil, stderrors.New("CAN'T HAPPEN")
 }
 
 func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
@@ -327,19 +352,18 @@ func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
 		if id := uuid.Parse(idStr); id == nil {
 			return nil, errors.Errorf("Invalid UUID: %v", idStr)
 		} else {
-			return h.GetImageByUUID(id)
+			return LoadImage(h, id)
 		}
 	}
 }
 
-// TODO: return error instead of panicking
-func (h *Host) Images() []*Image {
+func (h *Host) Images() ([]*Image, error) {
 	mm, _ := filepath.Glob(h.Path("images/*/manifest"))
 	rv := make([]*Image, 0, len(mm))
 	for _, m := range mm {
 		d := filepath.Dir(m)
 		if fi, err := os.Lstat(d); err != nil {
-			panic(err)
+			return nil, err
 		} else {
 			if !fi.IsDir() {
 				// This is a checksum symlink, skip it.
@@ -349,8 +373,8 @@ func (h *Host) Images() []*Image {
 		}
 
 		if id := uuid.Parse(filepath.Base(d)); id == nil {
-			panic(fmt.Sprintf("Invalid UUID: %#v", filepath.Base(d)))
-		} else if img, err := h.GetImageByUUID(id); err != nil {
+			return nil, errors.Errorf("Invalid UUID: %#v", filepath.Base(d))
+		} else if img, err := LoadImage(h, id); err != nil {
 			id := filepath.Base(d)
 			if img != nil {
 				id = img.UUID.String()
@@ -360,13 +384,15 @@ func (h *Host) Images() []*Image {
 			rv = append(rv, img)
 		}
 	}
-	return rv
+	return rv, nil
 }
 
 func (h *Host) FindImages(query string) ([]*Image, error) {
 	// Empty query means all images
 	if query == "" {
-		if imgs := h.Images(); len(imgs) == 0 {
+		if imgs, err := h.Images(); err != nil {
+			return nil, errors.Trace(err)
+		} else if len(imgs) == 0 {
 			return nil, ErrNotFound
 		} else {
 			return imgs, nil
@@ -375,7 +401,7 @@ func (h *Host) FindImages(query string) ([]*Image, error) {
 
 	// Try UUID
 	if id := uuid.Parse(query); id != nil {
-		if img, err := h.GetImageByUUID(id); err != nil {
+		if img, err := LoadImage(h, id); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			return []*Image{img}, nil
@@ -383,7 +409,10 @@ func (h *Host) FindImages(query string) ([]*Image, error) {
 	}
 
 	// We'll search for images, let's prepare the list now
-	imgs := h.Images()
+	imgs, err := h.Images()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
 
 	// Try hash
 	if hash, err := types.NewHash(query); err == nil {
@@ -446,7 +475,7 @@ images:
 func (h *Host) FindImage(query string) (*Image, error) {
 	// Optimize for simple case
 	if id := uuid.Parse(query); id != nil {
-		if img, err := h.GetImageByUUID(id); err != nil {
+		if img, err := LoadImage(h, id); err != nil {
 			return nil, errors.Trace(err)
 		} else {
 			return img, nil
@@ -462,35 +491,6 @@ func (h *Host) FindImage(query string) (*Image, error) {
 			return nil, ErrManyFound
 		}
 	}
-}
-
-func (h *Host) TrustKey(prefix types.ACIdentifier, location, fingerprint string) error {
-	if location == "" {
-		if prefix == keystore.Root {
-			return errors.New("Cannot discover root key!")
-		}
-		location = prefix.String()
-	}
-
-	_, kf, err := fetch.OpenPubKey(location)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	defer kf.Close()
-
-	path, err := h.Keystore().StoreTrustedKey(prefix, kf, fingerprint)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if path == "" {
-		h.ui.Println("Key NOT accepted")
-	} else {
-		h.ui.Printf("Key accepted and saved as %v\n", path)
-	}
-
-	return nil
 }
 
 // TODO: setting with flag override, also for allow-http
@@ -529,10 +529,11 @@ func (h *Host) doGetImageDependency(dep types.Dependency) (*Image, error) {
 		} else if err != ErrNotFound {
 			return nil, errors.Trace(err)
 		}
+	} else if imgs, err := h.Images(); err != nil {
+		return nil, errors.Trace(err)
 	} else {
-		// Look for dependency in store by name/labels
 	imgs:
-		for _, img := range h.Images() {
+		for _, img := range imgs {
 			if img.Manifest.Name == dep.ImageName {
 				for _, label := range dep.Labels {
 					if val, ok := img.Manifest.Labels.Get(label.Name.String()); !ok || val != label.Value {
@@ -746,4 +747,40 @@ func (h *Host) importImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image
 	}
 
 	return img, nil
+}
+
+// Keystore and trust
+//////////////////////////////////////////////////////////////////////////////
+
+func (h *Host) Keystore() *keystore.Keystore {
+	return keystore.New(h.Path("keys"))
+}
+
+func (h *Host) TrustKey(prefix types.ACIdentifier, location, fingerprint string) error {
+	if location == "" {
+		if prefix == keystore.Root {
+			return errors.New("Cannot discover root key!")
+		}
+		location = prefix.String()
+	}
+
+	_, kf, err := fetch.OpenPubKey(location)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	defer kf.Close()
+
+	path, err := h.Keystore().StoreTrustedKey(prefix, kf, fingerprint)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if path == "" {
+		h.ui.Println("Key NOT accepted")
+	} else {
+		h.ui.Printf("Key accepted and saved as %v\n", path)
+	}
+
+	return nil
 }
