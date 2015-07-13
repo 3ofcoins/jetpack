@@ -71,7 +71,17 @@ func (pwf PasswdFile) FindByUid(uid int) *PasswdEntry {
 
 func (pwf PasswdFile) Find(spec string) *PasswdEntry {
 	if spec == "" {
-		return pwf.FindByUid(0)
+		if pwent := pwf.FindByUid(0); pwent != nil {
+			return pwent
+		} else {
+			return &PasswdEntry{
+				Username: "root",
+				Uid:      0,
+				Gid:      0,
+				Home:     "/root",
+				Shell:    "/bin/sh",
+			}
+		}
 	}
 	if pwent := pwf.FindByUsername(spec); pwent != nil {
 		return pwent

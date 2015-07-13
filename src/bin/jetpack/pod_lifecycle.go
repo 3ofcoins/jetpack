@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"code.google.com/p/go-uuid/uuid"
-
+	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
 	"lib/jetpack"
@@ -16,23 +15,16 @@ import (
 
 func init() {
 	AddCommand("prepare ...", "Prepare a pod", cmdPrepare, flPrepare)
-	AddCommand("run UUID|...", "Run a pod", cmdRun, flRun)
+	AddCommand("run UUID[:APP]", "Run a pod", cmdWrapMustApp0(cmdRun), nil)
 }
 
-var flDryRun bool
+var flDryRun, flRun, flDestroy bool
 
 func flPrepare(fl *flag.FlagSet) {
-	flRunPrepareCommon(fl)
-	fl.BoolVar(&flDryRun, "n", false, "Dry run (don't actually create pod, just show reified manifest)")
-}
-
-func flRun(fl *flag.FlagSet) {
-	flRunPrepareCommon(fl)
-	flAppName(fl)
-}
-
-func flRunPrepareCommon(fl *flag.FlagSet) {
 	SaveIDFlag(fl)
+	fl.BoolVar(&flDryRun, "n", false, "Dry run (don't actually create pod, just show reified manifest)")
+	fl.BoolVar(&flRun, "run", false, "Run created pod")
+	fl.BoolVar(&flDestroy, "destroy", false, "Destroy created pod")
 }
 
 func cmdPrepare(args []string) error {
@@ -41,29 +33,19 @@ func cmdPrepare(args []string) error {
 	} else if pod == nil {
 		// Dry run is on, manifest has been displayed, nothing to do for us
 	} else {
-		fmt.Println(pod.UUID) // TODO: pod show
-	}
-	return nil
-}
-
-func cmdRun(args []string) error {
-	if pod, err := getOrPreparePod(args); err != nil {
-		return errors.Trace(err)
-	} else if err := guessAppNameFlag(pod); err != nil {
-		return errors.Trace(err)
-	} else {
-		return errors.Trace(pod.RunApp(AppNameFlag))
-	}
-}
-
-func getOrPreparePod(args []string) (*jetpack.Pod, error) {
-	if len(args) == 1 {
-		if id := uuid.Parse(args[0]); id != nil {
-			return Host.GetPod(id)
+		if flDestroy {
+			defer pod.Destroy()
+		}
+		if flRun {
+			if len(pod.Manifest.Apps) > 1 {
+				return errors.New("Pod has more than one app")
+			}
+			return errors.Trace(pod.RunApp(pod.Manifest.Apps[0].Name))
+		} else {
+			fmt.Println(pod.UUID) // TODO: pod show
 		}
 	}
-
-	return preparePod(args)
+	return nil
 }
 
 func preparePod(args []string) (*jetpack.Pod, error) {
@@ -93,4 +75,8 @@ func preparePod(args []string) (*jetpack.Pod, error) {
 			return pod, nil
 		}
 	}
+}
+
+func cmdRun(pod *jetpack.Pod, appName types.ACName) error {
+	return errors.Trace(pod.RunApp(appName))
 }
