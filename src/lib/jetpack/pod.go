@@ -137,7 +137,7 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 
 	for i, rtApp := range pod.Manifest.Apps {
 		pod.ui.Debugf("Cloning rootfs.%d for app %v", i, rtApp.Name)
-		img, err := h.GetImageByHash(rtApp.Image.ID)
+		img, err := h.getRuntimeImage(rtApp.Image)
 		if err != nil {
 			return nil, errors.Annotate(err, rtApp.Image.ID.String())
 		}
@@ -485,7 +485,7 @@ func (c *Pod) RunApp(name types.ACName) error {
 func (c *Pod) runRuntimeApp(rtapp *schema.RuntimeApp) error {
 	app := rtapp.App
 	if app == nil {
-		img, err := c.Host.GetImageByHash(rtapp.Image.ID)
+		img, err := c.Host.getRuntimeImage(rtapp.Image)
 		if err != nil {
 			return errors.Trace(err)
 		}

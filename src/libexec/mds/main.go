@@ -116,7 +116,7 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 					return resp200(app.Image.ID)
 
 				case "image/manifest":
-					if img, err := Host.GetImageByHash(app.Image.ID); err != nil {
+					if img, err := Host.GetImage(app.Image.ID, "", nil); err != nil {
 						panic(err)
 					} else if manifestJSON, err := json.Marshal(img.Manifest); err != nil {
 						panic(err)
@@ -136,7 +136,7 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 						annName := appPath[len("annotations/"):]
 						if val, ok := app.Annotations.Get(annName); ok {
 							return resp200(val)
-						} else if img, err := Host.GetImageByHash(app.Image.ID); err != nil {
+						} else if img, err := Host.GetImage(app.Image.ID, "", nil); err != nil {
 							panic(err)
 						} else if val, ok := img.Manifest.Annotations.Get(annName); ok {
 							return resp200(val)

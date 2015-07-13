@@ -4,7 +4,6 @@ import (
 	"crypto/sha512"
 	"encoding/json"
 	stderrors "errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -225,19 +224,9 @@ func (h *Host) nextIP() (net.IP, error) {
 
 func (h *Host) ReifyPodManifest(pm *schema.PodManifest) (*schema.PodManifest, error) {
 	for i, rtapp := range pm.Apps {
-		// TODO: appc/spec PR unifying RuntimeImage & Dependency
-		dep := types.Dependency{Labels: rtapp.Image.Labels}
-		if rtapp.Image.Name != nil {
-			dep.ImageName = *rtapp.Image.Name
-		}
-
-		if !rtapp.Image.ID.Empty() {
-			dep.ImageID = &rtapp.Image.ID
-		}
-
-		img, err := h.GetImageDependency(&dep)
+		img, err := h.getRuntimeImage(rtapp.Image)
 		if err != nil {
-			return nil, errors.Trace(err)
+			return nil, err
 		}
 
 		pm.Apps[i].Image.ID = *img.Hash
@@ -310,26 +299,97 @@ func (h *Host) Pods() []*Pod {
 // Images
 //////////////////////////////////////////////////////////////////////////////
 
+// Returns (fetches, if needed and `allow.autodiscovery` is on) image for RuntimeImage
+func (h *Host) getRuntimeImage(rtimg schema.RuntimeImage) (*Image, error) {
+	var name types.ACIdentifier
+	if rtimg.Name != nil {
+		name = *rtimg.Name
+	}
+	return h.GetImage(rtimg.ID, name, rtimg.Labels)
+}
+
+func (h *Host) getImageDependency(dep types.Dependency) (*Image, error) {
+	var hash types.Hash
+	if dep.ImageID != nil {
+		hash = *dep.ImageID
+	}
+	return h.GetImage(hash, dep.ImageName, dep.Labels)
+	// TODO: validate dep.Size
+}
+
 func (h *Host) GetImage(hash types.Hash, name types.ACIdentifier, labels types.Labels) (*Image, error) {
+	if img, err := h.getImage(hash, name, labels); err != nil {
+		return nil, errors.Trace(err)
+	} else if err := doubleCheckImage(img, hash, name, labels); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		return img, nil
+	}
+}
+
+func (h *Host) GetLocalImage(hash types.Hash, name types.ACIdentifier, labels types.Labels) (*Image, error) {
+	if img, err := h.getLocalImage(hash, name, labels); err != nil {
+		return nil, errors.Trace(err)
+	} else if err := doubleCheckImage(img, hash, name, labels); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		return img, nil
+	}
+}
+
+func (h *Host) FetchImage(hash types.Hash, name types.ACIdentifier, labels types.Labels) (*Image, error) {
+	if img, err := h.fetchImage(name, labels); err != nil {
+		return nil, errors.Trace(err)
+	} else if err := doubleCheckImage(img, hash, name, labels); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		return img, nil
+	}
+}
+
+func doubleCheckImage(img *Image, hash types.Hash, name types.ACIdentifier, labels types.Labels) error {
+	if !hash.Empty() && hash != *img.Hash {
+		return stderrors.New("Image hash mismatch")
+	}
+	if !name.Empty() && name != img.Manifest.Name {
+		return stderrors.New("Image name mismatch")
+	}
+	if !acutil.MatchLabels(labels, img.Manifest.Labels) {
+		return stderrors.New("Image label mismatch")
+	}
+	return nil
+}
+
+func (h *Host) getImage(hash types.Hash, name types.ACIdentifier, labels types.Labels) (*Image, error) {
+	if img, err := h.getLocalImage(hash, name, labels); err == nil {
+		return img, nil
+	} else if err == ErrNotFound {
+		// TODO: possibility to switch off autodiscovery?
+		if name.Empty() {
+			// Can't (auto)discover anonymous image
+			return nil, err
+		}
+		return h.fetchImage(name, labels)
+	} else {
+		return nil, errors.Trace(err)
+	}
+}
+
+func (h *Host) getLocalImage(hash types.Hash, name types.ACIdentifier, labels types.Labels) (*Image, error) {
 	if hash.Empty() && name.Empty() {
-		return nil, ErrUsage
+		return nil, errors.Trace(ErrUsage)
 	}
 
 	if !hash.Empty() {
-		// TODO: get rid of GetImageByHash
-		if img, err := h.GetImageByHash(hash); err == ErrNotFound {
-			// TODO: autofetch?
-			return nil, err
+		if idStr, err := os.Readlink(h.Path("images", hash.String())); os.IsNotExist(err) {
+			return nil, ErrNotFound
 		} else if err != nil {
 			return nil, errors.Trace(err)
+		} else if id := uuid.Parse(idStr); id == nil {
+			return nil, errors.Errorf("Invalid UUID: %v", idStr)
+		} else if img, err := LoadImage(h, id); err != nil {
+			return nil, errors.Trace(err)
 		} else {
-			// TODO: extract this sanity check to a separate function, or to method on Image
-			if !name.Empty() && name != img.Manifest.Name {
-				return nil, errors.Errorf("Name mismatch: image %v is %v, wanted %v", hash, img.Manifest.Name, name)
-			}
-			if !acutil.MatchLabels(labels, img.Manifest.Labels) {
-				return nil, stderrors.New("Label mismatch")
-			}
 			return img, nil
 		}
 	} else if imgs, err := h.Images(); err != nil {
@@ -346,24 +406,16 @@ func (h *Host) GetImage(hash types.Hash, name types.ACIdentifier, labels types.L
 			return img, nil
 		}
 
-		// TODO: autofetch?
 		return nil, ErrNotFound
 	}
 }
 
-func (h *Host) GetImageByHash(hash types.Hash) (*Image, error) {
-	if idStr, err := os.Readlink(h.Path("images", hash.String())); err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNotFound
-		} else {
-			return nil, errors.Trace(err)
-		}
+func (h *Host) fetchImage(name types.ACIdentifier, labels types.Labels) (*Image, error) {
+	if aci, asc, err := fetch.DiscoverACI(discovery.App{Name: name, Labels: labels.ToMap()}); err != nil {
+		return nil, errors.Trace(err)
 	} else {
-		if id := uuid.Parse(idStr); id == nil {
-			return nil, errors.Errorf("Invalid UUID: %v", idStr)
-		} else {
-			return LoadImage(h, id)
-		}
+		fmt.Println(name, aci, asc)
+		return h.importImage(name, aci, asc)
 	}
 }
 
@@ -395,82 +447,6 @@ func (h *Host) Images() ([]*Image, error) {
 		}
 	}
 	return rv, nil
-}
-
-// TODO: setting with flag override, also for allow-http
-var flagAllowNoSignature = false
-
-func AllowNoSignatureFlag(fl *flag.FlagSet) {
-	if fl == nil {
-		fl = flag.CommandLine
-	}
-	fl.BoolVar(&flagAllowNoSignature, "insecure-allow-no-signature", false, "Allow non-signed images")
-}
-
-func (h *Host) FetchImage(name, sigLocation string) (*Image, error) {
-	if name, aci, asc, err := fetch.OpenACI(name, sigLocation); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		defer aci.Close()
-		if asc == nil {
-			if flagAllowNoSignature {
-				h.ui.Println("WARNING: no signature, proceeding as requested")
-			} else {
-				return nil, errors.New("No signature")
-			}
-		} else {
-			defer asc.Close()
-		}
-		return h.importImage(name, aci, asc)
-	}
-}
-
-func (h *Host) doGetImageDependency(dep types.Dependency) (*Image, error) {
-	var id types.Hash
-	if dep.ImageID != nil {
-		id = *dep.ImageID
-	}
-	if img, err := h.GetImage(id, dep.ImageName, dep.Labels); err == ErrNotFound {
-		// pass
-	} else if err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		return img, nil
-	}
-	// TODO: validate size
-
-	// No luck so far, try to discover the dependency
-	app := discovery.App{Name: dep.ImageName, Labels: make(map[types.ACIdentifier]string)}
-	for _, label := range dep.Labels {
-		app.Labels[label.Name] = label.Value
-	}
-	if aci, asc, err := fetch.DiscoverACI(app); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		return h.importImage(dep.ImageName, aci, asc)
-	}
-}
-
-func (h *Host) GetImageDependency(dep *types.Dependency) (*Image, error) {
-	if img, err := h.doGetImageDependency(*dep); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		// Double check the image vs spec
-		if dep.ImageID != nil && *img.Hash != *dep.ImageID {
-			return nil, errors.Errorf("Dependency specified hash %v, we got %v", dep.ImageID, img.Hash)
-		}
-		if dep.ImageName != img.Manifest.Name {
-			return nil, errors.Errorf("Dependency specified app %v, got image named %v", dep.ImageName, img.Manifest.Name)
-		}
-		for _, label := range dep.Labels {
-			if val, ok := img.Manifest.Labels.Get(label.Name.String()); !ok {
-				return nil, errors.Errorf("Image doesn't have needed label %v", label.Name)
-			} else if val != label.Value {
-				return nil, errors.Errorf("Requested label %v=%#v, got value %#v instead", label.Name, label.Value, val)
-			}
-		}
-		return img, nil
-	}
 }
 
 func (h *Host) importImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image, erv error) {
@@ -559,7 +535,7 @@ func (h *Host) importImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image
 	} else {
 		for i, dep := range img.Manifest.Dependencies {
 			ui.Println("Looking for dependency:", dep.ImageName, dep.Labels, dep.ImageID)
-			if dimg, err := h.GetImageDependency(&dep); err != nil {
+			if dimg, err := h.getImageDependency(dep); err != nil {
 				return nil, errors.Trace(err)
 			} else {
 				// We get a copy of the dependency struct when iterating, not

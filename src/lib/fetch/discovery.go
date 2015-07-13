@@ -81,7 +81,7 @@ func discoverACI(app discovery.App, asc *os.File) (*os.File, *os.File, error) {
 					break
 				}
 			}
-			if asc == nil {
+			if err != nil {
 				return nil, nil, err
 			}
 		}

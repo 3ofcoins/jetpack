@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"unicode"
 
@@ -182,46 +183,29 @@ func cmdWrapMustApp0(cmd func(*jetpack.Pod, types.ACName) error) func([]string) 
 	})
 }
 
+func parseImageName(name string) (types.ACIdentifier, types.Labels, error) {
+	app, err := discovery.NewAppFromString(name)
+	if err != nil {
+		return "", nil, errors.Trace(err)
+	}
+
+	if app.Labels["os"] == "" {
+		app.Labels["os"] = runtime.GOOS
+	}
+	if app.Labels["arch"] == "" {
+		app.Labels["arch"] = runtime.GOARCH
+	}
+
+	labels, err := types.LabelsFromMap(app.Labels)
+	if err != nil {
+		return "", nil, errors.Trace(err)
+	}
+
+	return app.Name, labels, nil
+}
+
 func getImage(name string) (*jetpack.Image, error) {
-	if h, _ := types.NewHash(name); h != nil {
-		// Image hash
-		var found *jetpack.Image
-		if imgs, err := Host.Images(); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			for _, img := range imgs {
-				if strings.HasPrefix(img.Hash.String(), name) {
-					if found != nil {
-						return nil, jetpack.ErrManyFound
-					}
-					found = img
-				}
-			}
-		}
-		return found, nil
-	}
-
-	if app, err := discovery.NewAppFromString(name); err != nil {
-		return nil, errors.Trace(err)
-	} else if labels, err := types.LabelsFromMap(app.Labels); err != nil {
-		return nil, errors.Trace(err)
-	} else if img, err := Host.GetImage(types.Hash{}, app.Name, labels); err == jetpack.ErrNotFound {
-		// pass to FetchImage
-	} else if err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		// err == nil, got image
-		return img, nil
-	}
-
-	// TODO: customizable autofetch
-	if img, err := Host.FetchImage(name, ""); err != nil {
-		return nil, errors.Trace(err)
-	} else {
-		return img, nil
-	}
-
-	return nil, ErrUsage
+	return nil, errors.New("NFY")
 }
 
 func getPod(name string) (*jetpack.Pod, error) {

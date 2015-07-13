@@ -51,7 +51,8 @@ func cmdShowImage(img *jetpack.Image) error {
 	if len(img.Manifest.Dependencies) > 0 {
 		output += "Dependencies"
 		for _, dep := range img.Manifest.Dependencies {
-			if dimg, err := Host.GetImageByHash(*dep.ImageID); err != nil {
+			if dimg, err := Host.GetImage(*dep.ImageID, "", nil); err != nil {
+				// FIXME: export GetImageDependency?
 				return errors.Trace(err)
 			} else {
 				output += fmt.Sprintf("\t%v %v\n", types.ShortHash(dimg.Hash.String()), dimg)

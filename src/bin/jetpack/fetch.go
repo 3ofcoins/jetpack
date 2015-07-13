@@ -5,23 +5,19 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
 	"lib/fetch"
-	"lib/jetpack"
 )
 
 func init() {
 	AddCommand("fetch LOCATION", "Fetch an image to local store", cmdFetch, flFetch)
 }
 
-var SigLocation string
-
 func flFetch(fl *flag.FlagSet) {
 	fetch.AllowHTTPFlag(fl)
-	jetpack.AllowNoSignatureFlag(fl)
 	SaveIDFlag(fl)
-	fl.StringVar(&SigLocation, "sig", "", "Provide explicit signature location")
 }
 
 func cmdFetch(args []string) error {
@@ -31,17 +27,22 @@ func cmdFetch(args []string) error {
 			return err
 		} else {
 			idf = f
-			defer f.Close()
+			defer idf.Close()
 		}
 	}
 
 	for _, name := range args {
-		if img, err := Host.FetchImage(name, SigLocation); err != nil {
+		if name, labels, err := parseImageName(name); err != nil {
 			return errors.Trace(err)
-		} else if err := cmdShowImage(img); err != nil {
+		} else if img, err := Host.FetchImage(types.Hash{}, name, labels); err != nil {
 			return errors.Trace(err)
-		} else if idf != nil {
-			fmt.Fprintln(idf, img.Hash)
+		} else {
+			if idf != nil {
+				fmt.Fprintln(idf, img.Hash)
+			}
+			if err := cmdShowImage(img); err != nil {
+				return errors.Trace(err)
+			}
 		}
 	}
 
