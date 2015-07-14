@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha512"
 	stderrors "errors"
 	"flag"
 	"fmt"
@@ -88,12 +89,12 @@ func cmdWrapErr(fn func() error) CommandHandler {
 	return func([]string) error { return errors.Trace(fn()) }
 }
 
-func cmdWrapImage(cmd func(*jetpack.Image, []string) error) func([]string) error {
+func cmdWrapImage(cmd func(*jetpack.Image, []string) error, localOnly bool) func([]string) error {
 	return func(args []string) error {
 		if len(args) == 0 {
 			return ErrUsage
 		}
-		if img, err := getImage(args[0]); err != nil {
+		if img, err := getImage(args[0], localOnly); err != nil {
 			return errors.Trace(err)
 		} else {
 			return errors.Trace(cmd(img, args[1:]))
@@ -101,13 +102,13 @@ func cmdWrapImage(cmd func(*jetpack.Image, []string) error) func([]string) error
 	}
 }
 
-func cmdWrapImage0(cmd func(*jetpack.Image) error) func([]string) error {
+func cmdWrapImage0(cmd func(*jetpack.Image) error, localOnly bool) func([]string) error {
 	return cmdWrapImage(func(img *jetpack.Image, args []string) error {
 		if len(args) > 0 {
 			return ErrUsage
 		}
 		return cmd(img)
-	})
+	}, localOnly)
 }
 
 func cmdWrapPod(cmd func(*jetpack.Pod, []string) error) func([]string) error {
@@ -204,8 +205,34 @@ func parseImageName(name string) (types.ACIdentifier, types.Labels, error) {
 	return app.Name, labels, nil
 }
 
-func getImage(name string) (*jetpack.Image, error) {
-	return nil, errors.New("NFY")
+const hashSize = sha512.Size*2 + len("sha512-")
+
+func getImage(name string, localOnly bool) (*jetpack.Image, error) {
+	if h, err := types.NewHash(name); err == nil {
+		if len(name) < hashSize {
+			// Short hash. Iterate over images, return first prefix match.
+			// FIXME: what about multiple matches?
+			name = strings.ToLower(name)
+			if imgs, err := Host.Images(); err != nil {
+				return nil, errors.Trace(err)
+			} else {
+				for _, img := range imgs {
+					if strings.HasPrefix(img.Hash.String(), name) {
+						return img, nil
+					}
+				}
+				return nil, jetpack.ErrNotFound
+			}
+		}
+		return Host.GetImage(*h, "", nil)
+	}
+	if name, labels, err := parseImageName(name); err != nil {
+		return nil, errors.Trace(err)
+	} else if localOnly {
+		return Host.GetLocalImage(types.Hash{}, name, labels)
+	} else {
+		return Host.GetImage(types.Hash{}, name, labels)
+	}
 }
 
 func getPod(name string) (*jetpack.Pod, error) {

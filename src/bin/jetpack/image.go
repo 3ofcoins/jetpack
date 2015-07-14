@@ -19,11 +19,11 @@ import (
 )
 
 func init() {
-	AddCommand("show-image IMAGE", "Show image info", cmdWrapImage0(cmdShowImage), nil)
-	AddCommand("image-manifest IMAGE", "Show image manifest", cmdWrapImage0(cmdImageManifest), nil)
-	AddCommand("destroy-image IMAGE", "Destroy an image", cmdWrapImage0(cmdDestroyImage), nil)
-	AddCommand("export IMAGE [FILE]", "Export image to an ACI file", cmdWrapImage(cmdExportImage), flExport)
-	AddCommand("build IMAGE COMMAND ARGS...", "Build a niew image", cmdWrapImage(cmdBuild), flBuild)
+	AddCommand("show-image IMAGE", "Show image info", cmdWrapImage0(cmdShowImage, true), nil)
+	AddCommand("image-manifest IMAGE", "Show image manifest", cmdWrapImage0(cmdImageManifest, true), nil)
+	AddCommand("destroy-image IMAGE", "Destroy an image", cmdWrapImage0(cmdDestroyImage, true), nil)
+	AddCommand("export IMAGE [FILE]", "Export image to an ACI file", cmdWrapImage(cmdExportImage, true), flExport)
+	AddCommand("build IMAGE COMMAND ARGS...", "Build a niew image", cmdWrapImage(cmdBuild, false), flBuild)
 }
 
 var flExportFlat bool
