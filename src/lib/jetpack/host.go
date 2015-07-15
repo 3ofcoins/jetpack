@@ -415,7 +415,7 @@ func (h *Host) fetchImage(name types.ACIdentifier, labels types.Labels) (*Image,
 		return nil, errors.Trace(err)
 	} else {
 		fmt.Println(name, aci, asc)
-		return h.importImage(name, aci, asc)
+		return h.ImportImage(name, aci, asc)
 	}
 }
 
@@ -449,7 +449,7 @@ func (h *Host) Images() ([]*Image, error) {
 	return rv, nil
 }
 
-func (h *Host) importImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image, erv error) {
+func (h *Host) ImportImage(name types.ACIdentifier, aci, asc *os.File) (_ *Image, erv error) {
 	newId := uuid.NewRandom()
 	newIdStr := newId.String()
 	ui := ui.NewUI("magenta", "import", newIdStr)

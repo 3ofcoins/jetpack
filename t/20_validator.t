@@ -3,7 +3,7 @@ use warnings;
 use strict;
 use autodie qw(:all);
 
-use Test::Most tests => 5;
+use Test::Most tests => 4;
 use Test::JetpackHelpers;
 
 use File::Spec::Functions;
@@ -16,7 +16,7 @@ for my $imgname ( qw(ace-validator-main ace-validator-sidekick) ) {
   my $aci = catfile(APPC_SPEC_BIN, "$imgname.aci");
   ok(-f $aci, "have $imgname.aci");
   destroy_images "coreos.com/$imgname";
-  run_command 'jetpack', 'fetch', '-insecure-allow-no-signature', $aci;
+  run_command 'jetpack', 'import', $aci;
 }
 
 # TODO: make validate work
