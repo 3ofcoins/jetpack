@@ -13,9 +13,11 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 
 	"github.com/appc/spec/discovery"
+	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
+	"lib/acutil"
 	"lib/jetpack"
 )
 
@@ -133,55 +135,14 @@ func cmdWrapPod0(cmd func(*jetpack.Pod) error) func([]string) error {
 	})
 }
 
-func cmdWrapApp(cmd func(*jetpack.Pod, types.ACName, []string) error) func([]string) error {
+func cmdWrapPodPrepare0(cmd func(*jetpack.Pod) error) func([]string) error {
 	return func(args []string) error {
-		if len(args) == 0 {
-			return ErrUsage
-		}
-		pieces := strings.SplitN(args[0], ":", 2)
-		if pod, err := getPod(pieces[0]); err != nil {
+		if pod, err := getOrPreparePod(args); err != nil {
 			return errors.Trace(err)
-		} else if len(pieces) == 1 {
-			if len(pod.Manifest.Apps) == 1 {
-				return errors.Trace(cmd(pod, pod.Manifest.Apps[0].Name, args[1:]))
-			} else {
-				return errors.Trace(cmd(pod, types.ACName(""), args[1:]))
-			}
-		} else if appName, err := types.NewACName(pieces[1]); err != nil {
-			return errors.Trace(err)
-		} else if rta := pod.Manifest.Apps.Get(*appName); rta == nil {
-			return errors.Errorf("Pod %v has no app %v", pod.UUID, appName)
 		} else {
-			return errors.Trace(cmd(pod, *appName, args[1:]))
+			return cmd(pod)
 		}
 	}
-}
-
-func cmdWrapApp0(cmd func(*jetpack.Pod, types.ACName) error) func([]string) error {
-	return cmdWrapApp(func(pod *jetpack.Pod, appName types.ACName, args []string) error {
-		if len(args) > 0 {
-			return ErrUsage
-		}
-		return cmd(pod, appName)
-	})
-}
-
-func cmdWrapMustApp(cmd func(*jetpack.Pod, types.ACName, []string) error) func([]string) error {
-	return cmdWrapApp(func(pod *jetpack.Pod, appName types.ACName, args []string) error {
-		if appName.Empty() {
-			return errors.Errorf("No app name provided, and pod %v has multiple apps", pod.UUID)
-		}
-		return cmd(pod, appName, args)
-	})
-}
-
-func cmdWrapMustApp0(cmd func(*jetpack.Pod, types.ACName) error) func([]string) error {
-	return cmdWrapMustApp(func(pod *jetpack.Pod, appName types.ACName, args []string) error {
-		if len(args) > 0 {
-			return ErrUsage
-		}
-		return cmd(pod, appName)
-	})
 }
 
 func parseImageName(name string) (types.ACIdentifier, types.Labels, error) {
@@ -242,4 +203,37 @@ func getPod(name string) (*jetpack.Pod, error) {
 	}
 	// TODO: pod name
 	return nil, ErrUsage
+}
+
+func getPodManifest(args []string) (*schema.PodManifest, error) {
+	if err := acutil.ParseApps(thePodManifest, args); err != nil {
+		return nil, errors.Trace(err)
+	} else if acutil.IsPodManifestEmpty(thePodManifest) {
+		return nil, ErrUsage
+	} else if pm, err := Host.ReifyPodManifest(thePodManifest); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		return pm, nil
+	}
+}
+
+func getOrPreparePod(args []string) (*jetpack.Pod, error) {
+	switch len(args) {
+	case 0:
+		return nil, ErrUsage
+	case 1:
+		if id := uuid.Parse(args[0]); id != nil {
+			// Pod UUID
+			return Host.GetPod(id)
+		}
+		fallthrough
+	default:
+		if pm, err := getPodManifest(args); err != nil {
+			return nil, err
+		} else if pod, err := Host.CreatePod(pm); err != nil {
+			return nil, err
+		} else {
+			return pod, nil
+		}
+	}
 }

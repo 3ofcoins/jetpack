@@ -20,7 +20,7 @@ func init() {
 	AddCommand("ps POD [ARGS...]", "Show pod's process list (ps)", cmdWrapPod(cmdPodCmd("/bin/ps", "-J")), nil)
 	AddCommand("top POD [ARGS...]", "Show pod's process list (top)", cmdWrapPod(cmdPodCmd("/usr/bin/top", "-J")), nil)
 	AddCommand("killall POD [ARGS...]", "Kill pod's processes", cmdWrapPod(cmdPodCmd("/usr/bin/killall", "-j")), nil)
-	AddCommand("console POD[:APP]", "Open a console in pod environment", cmdWrapMustApp0(cmdConsole), flConsole)
+	// AddCommand("console POD[:APP]", "Open a console in pod environment", cmdWrapMustApp0(cmdConsole), flConsole)
 }
 
 func cmdPodManifest(pod *jetpack.Pod) error {

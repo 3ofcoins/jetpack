@@ -3,6 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/appc/spec/schema"
+
+	"lib/acutil"
 )
 
 // Custom flag types
@@ -30,4 +34,10 @@ var Quiet bool
 
 func QuietFlag(fl *flag.FlagSet, desc string) {
 	fl.BoolVar(&Quiet, "q", false, fmt.Sprintf("quiet (%v)", desc))
+}
+
+var thePodManifest = schema.BlankPodManifest()
+
+func flPodManifest(fl *flag.FlagSet) {
+	acutil.PodManifestFlags(fl, thePodManifest)
 }

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 
+	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 )
@@ -114,9 +116,78 @@ func (pmjf *PodManifestJSONFlag) Set(val string) error {
 	}
 }
 
+type MountsFlag []schema.Mount
+
+func (mf *MountsFlag) String() string {
+	return fmt.Sprint(*mf)
+}
+
+func (mf *MountsFlag) Set(val string) error {
+	mnt := schema.Mount{}
+	pieces := strings.SplitN(val, ":", 2)
+	if name, err := types.NewACName(pieces[0]); err != nil {
+		return err
+	} else {
+		mnt.Volume = *name
+	}
+	if len(pieces) == 1 {
+		mnt.MountPoint = mnt.Volume
+	} else if name, err := types.NewACName(pieces[1]); err != nil {
+		return err
+	} else {
+		mnt.MountPoint = *name
+	}
+	*mf = append(*mf, mnt)
+	return nil
+}
+
 func PodManifestFlags(fl *flag.FlagSet, pm *schema.PodManifest) {
 	fl.Var((*PodManifestJSONFlag)(pm), "f", "Read JSON pod manifest file")
 	fl.Var((*AnnotationsFlag)(&pm.Annotations), "a", "Add annotation (NAME=VALUE)")
 	fl.Var((*ExposedPortsFlag)(&pm.Ports), "p", "Expose port (NAME[=HOST_PORT])")
 	fl.Var((*VolumesFlag)(&pm.Volumes), "v", "Define volume")
+}
+
+func parseApp(args []string) ([]string, *schema.RuntimeApp, error) {
+	if len(args) == 0 {
+		return nil, nil, nil
+	}
+
+	rtapp := schema.RuntimeApp{}
+
+	// Parse first argument (image name)
+	if h, err := types.NewHash(args[0]); err == nil {
+		rtapp.Image.ID = *h
+		rtapp.Name.Set(h.String()) // won't err
+	} else if dapp, err := discovery.NewAppFromString(args[0]); err == nil {
+		rtapp.Image.Name = &dapp.Name
+		rtapp.Name.Set(path.Base(dapp.Name.String())) // won't err here
+		if ll, err := types.LabelsFromMap(dapp.Labels); err != nil {
+			return args, nil, err
+		} else {
+			rtapp.Image.Labels = ll
+		}
+	} else {
+		return args, nil, err
+	}
+
+	fl := flag.NewFlagSet(args[0], flag.ExitOnError)
+	fl.Var(&rtapp.Name, "name", "App name")
+	fl.Var((*AnnotationsFlag)(&rtapp.Annotations), "a", "Add annotation (NAME=VALUE)")
+	fl.Var((*MountsFlag)(&rtapp.Mounts), "m", "Mount volume (VOLUME[:MOUNTPOINT])")
+	// TODO: app override
+	fl.Parse(args[1:])
+	return fl.Args(), &rtapp, nil
+}
+
+func ParseApps(pm *schema.PodManifest, args []string) error {
+	for len(args) > 0 {
+		if rest, rtapp, err := parseApp(args); err != nil {
+			return err
+		} else {
+			pm.Apps = append(pm.Apps, *rtapp)
+			args = rest
+		}
+	}
+	return nil
 }
