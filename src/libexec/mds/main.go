@@ -35,7 +35,7 @@ func clientIP(r *http.Request) string {
 }
 
 func resp200(v interface{}) (int, []byte) {
-	return http.StatusOK, []byte(fmt.Sprintf("%v", v))
+	return http.StatusOK, []byte(fmt.Sprint(v))
 }
 
 func resp404() (int, []byte) {
@@ -49,11 +49,7 @@ func resp500(err error) (int, []byte) {
 func doServeMetadata(r *http.Request) (int, []byte) {
 	if r.URL.Path == "/" {
 		// Root URL. We introduce ourselves, no questions asked.
-		return http.StatusOK, []byte(fmt.Sprintf(
-			"Jetpack metadata service version %v (%v) built on %v\n",
-			jetpack.Version,
-			jetpack.Revision,
-			jetpack.BuildTimestamp))
+		return http.StatusOK, []byte(fmt.Sprintf("Jetpack metadata service version %v\n", jetpack.Version()))
 	}
 
 	if r.URL.Path == "/_info" {
@@ -224,13 +220,11 @@ var SigningKey []byte
 
 func makeMDSInfo() (*jetpack.MDSInfo, error) {
 	mdsi := &jetpack.MDSInfo{
-		Pid:            os.Getpid(),
-		Uid:            os.Getuid(),
-		Gid:            os.Getgid(),
-		Version:        jetpack.Version,
-		Revision:       jetpack.Revision,
-		BuildTimestamp: jetpack.BuildTimestamp,
-		Port:           Host.Properties.MustGetInt("mds.port"),
+		Pid:     os.Getpid(),
+		Uid:     os.Getuid(),
+		Gid:     os.Getgid(),
+		Version: jetpack.Version(),
+		Port:    jetpack.Config().MustGetInt("mds.port"),
 	}
 	if ip, _, err := Host.HostIP(); err != nil {
 		return nil, err
@@ -241,21 +235,9 @@ func makeMDSInfo() (*jetpack.MDSInfo, error) {
 }
 
 func main() {
-	configPath := jetpack.DefaultConfigPath
-	help := false
-
-	if cfg := os.Getenv("JETPACK_CONF"); cfg != "" {
-		configPath = cfg
-	}
-
-	flag.StringVar(&configPath, "config", configPath, "Configuration file")
-	flag.BoolVar(&help, "h", false, "Show help")
-	flag.BoolVar(&help, "help", false, "Show help")
-
 	flag.Parse()
-	// args := flag.Args()
 
-	if host, err := jetpack.NewHost(configPath); err != nil {
+	if host, err := jetpack.NewHost(); err != nil {
 		log.Fatalln("Error initializing host:", err)
 	} else {
 		Host = host
@@ -267,7 +249,7 @@ func main() {
 		Info = mdsi
 	}
 
-	if s, err := hex.DecodeString(Host.Properties.MustGet("mds.signing-key")); err != nil {
+	if s, err := hex.DecodeString(jetpack.Config().MustGet("mds.signing-key")); err != nil {
 		panic(err)
 	} else {
 		SigningKey = s

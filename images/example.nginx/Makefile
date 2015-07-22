@@ -1,4 +1,4 @@
-.MAKEFLAGS: -I${../../share:L:tA}
+.MAKEFLAGS: -I${${JETPACK:Ujetpack} config path.share:L:sh}
 
 PARENT_IMAGE = 3ofcoins.net/freebsd-base
 BUILD_VARS = DEVEL http_proxy

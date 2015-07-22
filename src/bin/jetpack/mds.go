@@ -5,33 +5,21 @@ import (
 	"os"
 
 	"github.com/juju/errors"
+
+	"lib/jetpack"
 )
+
+// FIXME: THE WHOLE THING
 
 func init() {
 	AddCommand("mds [stop|restart]", "Manage metadata service process", cmdMds, nil)
 }
 
-// FIXME: logic here, in lib/jetpack/mds.go, and the line in
-// lib/jetpack/pod.go looks like it was written on jetlag. Which it
-// was. Needs rewrite, but works.
-
-func boolProp(val bool) string {
-	if val {
-		return "on"
-	} else {
-		return "off"
-	}
-}
-
-const doAutostart = true
-
 func cmdMds(args []string) error {
-	Host.Properties.Set("mds.autostart", boolProp(doAutostart))
-
 	if len(args) > 0 {
 		switch args[0] {
 		case "stop", "restart":
-			Host.Properties.Set("mds.autostart", "off")
+			jetpack.Config().Set("mds.autostart", "off")
 			if mdsi, _ := Host.NeedMDS(); mdsi == nil {
 				// Already down
 				if args[0] != "restart" {
@@ -47,7 +35,7 @@ func cmdMds(args []string) error {
 				}
 			}
 			if args[0] == "restart" {
-				Host.Properties.Set("mds.autostart", "on")
+				jetpack.Config().Set("mds.autostart", "on")
 			}
 		}
 	}

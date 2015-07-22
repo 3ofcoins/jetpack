@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
+
+	"lib/jetpack"
 )
 
 func init() {
@@ -15,12 +17,12 @@ func init() {
 
 func cmdConfig(args []string) error {
 	if len(args) == 0 {
-		lines := strings.Split(Host.Properties.String(), "\n")
+		lines := strings.Split(jetpack.Config().String(), "\n")
 		sort.Strings(lines)
 		fmt.Println(strings.Join(lines[1:], "\n")) // first "line" is empty due to trailing newline
 	} else {
 		for _, propName := range args {
-			if val, ok := Host.Properties.Get(propName); ok {
+			if val, ok := jetpack.Config().Get(propName); ok {
 				fmt.Println(val)
 			} else {
 				return errors.Errorf("No such property: %v", propName)

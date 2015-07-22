@@ -8,7 +8,6 @@ import (
 	"github.com/juju/errors"
 
 	"lib/jetpack"
-	"lib/ui"
 )
 
 const AppName = "jetpack"
@@ -24,18 +23,9 @@ func Die(err error) {
 var Host *jetpack.Host
 
 func main() {
-	configPath := jetpack.DefaultConfigPath
-
-	if cfg := os.Getenv("JETPACK_CONF"); cfg != "" {
-		configPath = cfg
-	}
-
-	flag.StringVar(&configPath, "config", configPath, "Configuration file")
-	flag.BoolVar(&ui.Debug, "debug", false, "Show debugging info")
-
 	flag.Parse()
 
-	if h, err := jetpack.NewHost(configPath); err != nil {
+	if h, err := jetpack.NewHost(); err != nil {
 		Die(err)
 	} else {
 		Host = h

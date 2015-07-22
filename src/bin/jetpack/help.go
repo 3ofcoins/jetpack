@@ -10,7 +10,7 @@ import (
 
 func init() {
 	AddCommand("help [COMMAND]", "Show help", cmdHelp, nil)
-	AddCommand("version", "Show jetpack version", cmdVersion, flVersion)
+	AddCommand("version", "Show jetpack version", cmdVersion, nil)
 }
 
 func cmdHelp(args []string) error {
@@ -29,26 +29,13 @@ func cmdHelp(args []string) error {
 	}
 }
 
-func flVersion(fl *flag.FlagSet) {
-	QuietFlag(fl, "show only version number")
-}
-
 func cmdVersion([]string) error {
-	if Quiet {
-		fmt.Println(jetpack.Version)
-	} else {
-		isdev := ""
-		if jetpack.IsDevelopment {
-			isdev = " (development)"
-		}
-		fmt.Printf("JetPack %v (%v), compiled on %v%v\n",
-			jetpack.Version, jetpack.Revision, jetpack.BuildTimestamp, isdev)
-	}
+	fmt.Println(jetpack.Version())
 	return nil
 }
 
 func Help() {
-	fmt.Fprintf(os.Stderr, "Usage: %v [OPTION...] COMMAND [ARGS...]\nCommands:\n", AppName)
+	fmt.Fprintf(os.Stderr, "Jetpack version %v\nUsage: %v [OPTION...] COMMAND [ARGS...]\nCommands:\n", jetpack.Version(), AppName)
 
 	cmds := make([][]string, len(Commands))
 	i := 0

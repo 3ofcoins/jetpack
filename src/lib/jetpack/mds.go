@@ -19,18 +19,18 @@ import (
 )
 
 type MDSInfo struct {
-	Pid, Uid, Gid, Port                   int
-	Version, Revision, BuildTimestamp, IP string
+	Pid, Uid, Gid, Port int
+	Version, IP         string
 }
 
 func (mdsi *MDSInfo) String() string {
 	return fmt.Sprintf("MDS[%d] (u%d g%d %v:%d %v)",
-		mdsi.Pid, mdsi.Uid, mdsi.Gid, mdsi.IP, mdsi.Port, mdsi.Revision)
+		mdsi.Pid, mdsi.Uid, mdsi.Gid, mdsi.IP, mdsi.Port, mdsi.Version)
 }
 
 func (h *Host) GetMDSUGID() (int, int) {
 	if h.mdsUid < 0 {
-		u, err := user.Lookup(h.Properties.MustGetString("mds.user"))
+		u, err := user.Lookup(Config().MustGetString("mds.user"))
 		if err != nil {
 			panic(err)
 		}
@@ -51,7 +51,7 @@ func (h *Host) MetadataURL() (string, error) {
 		return "", errors.Trace(err)
 	} else {
 		url := fmt.Sprintf("http://%v", hostip)
-		if mdport := h.Properties.MustGetInt("mds.port"); mdport != 80 {
+		if mdport := Config().MustGetInt("mds.port"); mdport != 80 {
 			url = fmt.Sprintf("%v:%v", url, mdport)
 		}
 		return url, nil
@@ -90,16 +90,8 @@ func (h *Host) GetMDSInfo() (*MDSInfo, error) {
 }
 
 func (h *Host) validateMDSInfo(mdsi *MDSInfo) error {
-	if mdsi.Version != Version {
-		return errors.Errorf("Version mismatch: ours %v, mds %v", Version, mdsi.Version)
-	}
-
-	if mdsi.Revision != Revision {
-		return errors.Errorf("Revision mismatch: ours %v, mds %v", Revision, mdsi.Revision)
-	}
-
-	if mdsi.BuildTimestamp != BuildTimestamp {
-		return errors.Errorf("BuildTimestamp mismatch: ours %v, mds %v", BuildTimestamp, mdsi.BuildTimestamp)
+	if mdsi.Version != Version() {
+		return errors.Errorf("Version mismatch: ours %v, mds %v", Version(), mdsi.Version)
 	}
 
 	uid, gid := h.GetMDSUGID()
@@ -112,7 +104,7 @@ func (h *Host) validateMDSInfo(mdsi *MDSInfo) error {
 		return errors.Errorf("GID mismatch: should be %d, is %d", gid, mdsi.Gid)
 	}
 
-	if port := h.Properties.MustGetInt("mds.port"); mdsi.Port != port {
+	if port := Config().MustGetInt("mds.port"); mdsi.Port != port {
 		return errors.Errorf("Port mismatch: expected %d, got %d", port, mdsi.Port)
 	}
 
@@ -143,7 +135,7 @@ func (h *Host) checkMDS() (*MDSInfo, error) {
 
 func (h *Host) startMDS() (*MDSInfo, error) {
 	var log *os.File
-	if logPath := h.Properties.GetString("mds.logfile", ""); logPath != "" && logPath != "/dev/null" {
+	if logPath := Config().GetString("mds.logfile", ""); logPath != "" && logPath != "/dev/null" {
 		if lf, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600); err != nil {
 			return nil, errors.Trace(err)
 		} else {
@@ -151,9 +143,10 @@ func (h *Host) startMDS() (*MDSInfo, error) {
 		}
 	}
 
-	cmd := run.Command("/usr/sbin/daemon",
-		"-u", h.Properties.MustGetString("mds.user"),
-		filepath.Join(LibexecPath, "mds"))
+	cmd := run.Command("/usr/sbin/daemon", append([]string{
+		"-u", Config().MustGetString("mds.user"),
+		filepath.Join(Config().MustGetString("path.libexec"), "mds")},
+		ConfigFlags()...)...)
 	cmd.Cmd.Stdin = nil
 	cmd.Cmd.Stdout = log
 	cmd.Cmd.Stderr = log
@@ -196,7 +189,7 @@ func (h *Host) startMDS() (*MDSInfo, error) {
 func (h *Host) NeedMDS() (*MDSInfo, error) {
 	if mdsi, err := h.checkMDS(); err != nil && mdsi == nil {
 		h.ui.Println("Metadata service down:", err)
-		if h.Properties.MustGetBool("mds.autostart") {
+		if Config().MustGetBool("mds.autostart") {
 			mdsi, err = h.startMDS()
 		}
 		return mdsi, errors.Trace(err)

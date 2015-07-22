@@ -19,7 +19,6 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
-	"github.com/magiconair/properties"
 	openpgp_err "golang.org/x/crypto/openpgp/errors"
 
 	"lib/acutil"
@@ -42,8 +41,7 @@ type JailStatus struct {
 var NoJailStatus = JailStatus{}
 
 type Host struct {
-	Dataset    *zfs.Dataset
-	Properties *properties.Properties
+	Dataset *zfs.Dataset
 
 	jailStatusTimestamp time.Time
 	jailStatusCache     map[string]JailStatus
@@ -51,15 +49,8 @@ type Host struct {
 	ui                  *ui.UI
 }
 
-func NewHost(configPath string) (*Host, error) {
+func NewHost() (*Host, error) {
 	h := Host{mdsUid: -1, mdsGid: -1}
-	h.Properties = properties.MustLoadFiles(
-		[]string{
-			filepath.Join(SharedPath, "jetpack.conf.defaults"),
-			configPath,
-		},
-		properties.UTF8,
-		true)
 
 	// FIXME: changing global switch based on struct instance
 	// variable. There should be only one instance created at a time
@@ -67,10 +58,10 @@ func NewHost(configPath string) (*Host, error) {
 
 	// If debug is already on (e.g. from a command line switch), we keep
 	// it.
-	ui.Debug = ui.Debug || h.Properties.GetBool("debug", false)
+	ui.Debug = ui.Debug || Config().GetBool("debug", false)
 	h.ui = ui.NewUI("green", "jetpack", "")
 
-	if ds, err := zfs.GetDataset(h.Properties.MustGetString("root.zfs")); err == zfs.ErrNotFound {
+	if ds, err := zfs.GetDataset(Config().MustGetString("root.zfs")); err == zfs.ErrNotFound {
 		return &h, nil
 	} else if err != nil {
 		return nil, err
@@ -88,20 +79,8 @@ func (h *Host) Path(elem ...string) string {
 	return h.Dataset.Path(elem...)
 }
 
-func (h *Host) GetPrefixProperties(prefix string) map[string]string {
-	rv := make(map[string]string)
-	pl := len(prefix)
-	pp := h.Properties.FilterPrefix(prefix)
-	for _, pk := range pp.Keys() {
-		if pv, ok := pp.Get(pk); ok && pv != "" {
-			rv[pk[pl:]] = pv
-		}
-	}
-	return rv
-}
-
 func (h *Host) zfsOptions(prefix string, opts ...string) []string {
-	for k, v := range h.GetPrefixProperties(prefix) {
+	for k, v := range ConfigPrefix(prefix) {
 		opts = append(opts, fmt.Sprintf("-o%v=%v", k, v))
 	}
 	return opts
@@ -114,13 +93,13 @@ func (h *Host) Initialize() error {
 
 	// We use GetString, as user can specify "root.zfs.mountpoint=" (set
 	// to empty string) in config to unset property
-	if mntpnt := h.Properties.GetString("root.zfs.mountpoint", ""); mntpnt != "" {
+	if mntpnt := Config().GetString("root.zfs.mountpoint", ""); mntpnt != "" {
 		if err := os.MkdirAll(mntpnt, 0755); err != nil {
 			return errors.Trace(err)
 		}
 	}
 
-	dsName := h.Properties.MustGetString("root.zfs")
+	dsName := Config().MustGetString("root.zfs")
 	dsOptions := h.zfsOptions("root.zfs.", "-p")
 	h.ui.Printf("Creating ZFS dataset %v %v", dsName, dsOptions)
 	if ds, err := zfs.CreateDataset(dsName, dsOptions...); err != nil {
@@ -145,7 +124,7 @@ func (h *Host) Initialize() error {
 }
 
 func (h *Host) HostIP() (net.IP, *net.IPNet, error) {
-	ifi, err := net.InterfaceByName(h.Properties.MustGetString("jail.interface"))
+	ifi, err := net.InterfaceByName(Config().MustGetString("jail.interface"))
 	if err != nil {
 		return nil, nil, errors.Trace(err)
 	}

@@ -318,13 +318,13 @@ func (c *Pod) jailConf() string {
 	parameters := map[string]string{
 		"exec.clean":    "true",
 		"host.hostuuid": c.UUID.String(),
-		"interface":     c.Host.Properties.MustGetString("jail.interface"),
+		"interface":     Config().MustGetString("jail.interface"),
 		"path":          c.Path("rootfs"),
 		"persist":       "true",
 		"mount.fstab":   c.Path("fstab"),
 	}
 
-	for pk, pv := range c.Host.GetPrefixProperties("ace.jailConf.") {
+	for pk, pv := range ConfigPrefix("ace.jailConf.") {
 		parameters[pk] = pv
 	}
 
@@ -360,7 +360,7 @@ func (c *Pod) prepJail() error {
 		etcPath := c.Path("rootfs", "app", app.Name.String(), "rootfs", "etc")
 		if fi, err := os.Stat(etcPath); err == nil && fi.IsDir() {
 			// TODO: option (isolator?) to prevent creation of resolv.conf
-			if dnsServers, ok := c.Host.Properties.Get("ace.dns-servers"); !ok {
+			if dnsServers, ok := Config().Get("ace.dns-servers"); !ok {
 				// By default, copy /etc/resolv.conf from host
 				if bb, err := ioutil.ReadFile("/etc/resolv.conf"); err != nil {
 					return errors.Trace(err)
@@ -401,7 +401,7 @@ func (c *Pod) runJail(op string) error {
 		return err
 	}
 	verbosity := "-q"
-	if c.Host.Properties.GetBool("debug", false) {
+	if Config().GetBool("debug", false) {
 		verbosity = "-v"
 	}
 	c.ui.Debug("Running: jail", op)
@@ -460,7 +460,7 @@ func (c *Pod) Destroy() error {
 }
 
 func (c *Pod) jailName() string {
-	return c.Host.Properties.MustGetString("jail.namePrefix") + c.UUID.String()
+	return Config().MustGetString("jail.namePrefix") + c.UUID.String()
 }
 
 func (c *Pod) jailStatus(refresh bool) (JailStatus, error) {
@@ -583,22 +583,21 @@ func (c *Pod) stage2(app types.ACName, user, group string, cwd string, env []str
 		cwd = "/"
 	}
 
-	return run.Command(
-		filepath.Join(LibexecPath, "stage2"),
-		append(
-			append(
-				[]string{
-					"-jid", strconv.Itoa(jid),
-					"-app", string(app),
-					"-mds", mds,
-					"-uid", strconv.Itoa(pwent.Uid),
-					"-gid", strconv.Itoa(pwent.Gid),
-					"-cwd", cwd,
-					"-setenv", "USER=" + pwent.Username,
-					"-setenv", "LOGNAME=" + pwent.Username,
-					"-setenv", "HOME=" + pwent.Home,
-					"-setenv", "SHELL=" + pwent.Shell,
-				},
-				env...),
-			exec...)...).Run()
+	stage2 := filepath.Join(Config().MustGetString("path.libexec"), "stage2")
+	args := ConfigFlags()
+	args = append(args,
+		"-jid", strconv.Itoa(jid),
+		"-app", string(app),
+		"-mds", mds,
+		"-uid", strconv.Itoa(pwent.Uid),
+		"-gid", strconv.Itoa(pwent.Gid),
+		"-cwd", cwd,
+		"-setenv", "USER="+pwent.Username,
+		"-setenv", "LOGNAME="+pwent.Username,
+		"-setenv", "HOME="+pwent.Home,
+		"-setenv", "SHELL="+pwent.Shell,
+	)
+	args = append(args, env...)
+	args = append(args, exec...)
+	return run.Command(stage2, args...).Run()
 }

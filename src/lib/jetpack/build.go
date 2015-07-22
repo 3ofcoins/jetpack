@@ -75,7 +75,7 @@ func (img *Image) writeACI(w io.Writer, packlist *os.File) (*types.Hash, error) 
 	faucet = io.TeeReader(faucet, hash)
 
 	var compressor *run.Cmd = nil
-	if compression := img.Host.Properties.GetString("images.aci.compression", "no"); compression != "none" {
+	if compression := Config().GetString("images.aci.compression", "no"); compression != "none" {
 		switch compression {
 		case "xz":
 			compressor = run.Command("xz", "-z", "-c")

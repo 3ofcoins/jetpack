@@ -1,7 +1,6 @@
 /bin
 .fuse*
 /tmp
-/.prefix
 /jetpack.conf
 /.vagrant
 /vendor/bin
