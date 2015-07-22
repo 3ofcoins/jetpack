@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strconv"
 
 	"github.com/appc/spec/schema/types"
@@ -14,6 +16,8 @@ import (
 )
 
 func init() {
+	AddCommand("prepare ...", "Prepare a pod", cmdPrepare, flPrepare)
+	AddCommand("run ...", "Run a pod", cmdWrapPodPrepare0(cmdRun), flRun)
 	AddCommand("manifest POD", "Show pod manifest", cmdWrapPod0(cmdPodManifest), nil)
 	AddCommand("destroy POD", "Destroy a pod", cmdWrapPod0(cmdDestroyPod), nil)
 	AddCommand("kill POD", "Kill a running pod", cmdWrapPod0(cmdKillPod), nil)
@@ -21,6 +25,74 @@ func init() {
 	AddCommand("top POD [ARGS...]", "Show pod's process list (top)", cmdWrapPod(cmdPodCmd("/usr/bin/top", "-J")), nil)
 	AddCommand("killall POD [ARGS...]", "Kill pod's processes", cmdWrapPod(cmdPodCmd("/usr/bin/killall", "-j")), nil)
 	// AddCommand("console POD[:APP]", "Open a console in pod environment", cmdWrapMustApp0(cmdConsole), flConsole)
+}
+
+var flDryRun bool
+
+func flPrepare(fl *flag.FlagSet) {
+	SaveIDFlag(fl)
+	flPodManifest(fl)
+	fl.BoolVar(&flDryRun, "n", false, "Dry run (don't actually create pod, just show reified manifest)")
+}
+
+func cmdPrepare(args []string) error {
+	if pm, err := getPodManifest(args); err != nil {
+		return errors.Trace(err)
+	} else if flDryRun {
+		if jb, err := json.MarshalIndent(pm, "", "  "); err != nil {
+			return errors.Trace(err)
+		} else {
+			// TODO: is it a good place?
+			fmt.Println(string(jb))
+			return nil
+		}
+	} else if pod, err := Host.CreatePod(pm); err != nil {
+		return errors.Trace(err)
+	} else {
+		if SaveID != "" {
+			if err := ioutil.WriteFile(SaveID, []byte(pod.UUID.String()), 0644); err != nil {
+				return errors.Trace(err)
+			}
+		}
+		if !Quiet {
+			// TODO: show pod
+			fmt.Println(pod.UUID)
+		}
+		return nil
+	}
+}
+
+var flAppName types.ACName
+var flDestroy bool
+
+func flRun(fl *flag.FlagSet) {
+	flPodManifest(fl)
+	SaveIDFlag(fl)
+	fl.Var(&flAppName, "app", "Specify app to run for a multi-app pod")
+	fl.BoolVar(&flDestroy, "destroy", false, "Destroy pod when done")
+}
+
+func cmdRun(pod *jetpack.Pod) (erv error) {
+	if flAppName.Empty() {
+		if len(pod.Manifest.Apps) != 1 {
+			return errors.New("Multi-app pod! Please use -app=NAME to choose")
+		} else {
+			flAppName = pod.Manifest.Apps[0].Name
+		}
+	}
+	if flDestroy {
+		defer func() {
+			if err := pod.Destroy(); err != nil {
+				if erv == nil {
+					erv = err
+				} else {
+					// TODO: UI
+					fmt.Fprintln(os.Stderr, "ERROR destroying pod:", err)
+				}
+			}
+		}()
+	}
+	return errors.Trace(pod.RunApp(flAppName))
 }
 
 func cmdPodManifest(pod *jetpack.Pod) error {
