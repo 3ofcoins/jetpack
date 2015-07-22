@@ -4,7 +4,7 @@
     "name": "coreos.com/ace-validator-sidekick",
     "labels": [
         { "name": "version", "value": "0.6.1" },
-        { "name": "os", "value": "linux" },
+        { "name": "os", "value": "freebsd" },
         { "name": "arch", "value": "amd64" }
     ],
     "app": {
