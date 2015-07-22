@@ -1,11 +1,11 @@
 #!/bin/sh
 set -x
 
-jetpack run $1:ace-validator-sidekick &
+jetpack run -app=ace-validator-sidekick $1 &
 skpid=$!
 sleep 0.5
 
-jetpack run $1:ace-validator-main
+jetpack run -app=ace-validator-main $1
 mrv=$?
 
 wait $skpid

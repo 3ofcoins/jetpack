@@ -25,6 +25,13 @@
 
    - name: add user
      user: name=_jetpack group=_jetpack createhome=no home=/var/jetpack shell=/usr/sbin/nologin system=yes
+
+   - name: generate signing key
+     command: "openssl rand -hex 32"
+     register: jetpack_mds_signing_key
+
+   - name: write jetpack.conf
+     template: src=usr/local/etc/jetpack.conf.j2 dest=/usr/local/etc/jetpack.conf owner=root group=_jetpack mode=0640
    
    - name: init Jetpack
      command: "jetpack init"

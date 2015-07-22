@@ -7,7 +7,7 @@ use autodie qw(:all);
 use File::Slurp;
 use File::Spec::Functions;
 
-use Test::Most tests => 6;
+use Test::Most tests => 5;
 use Test::Command;
 use Test::JetpackHelpers;
 
@@ -19,7 +19,7 @@ restore_fail;
 
 my $pkgdir = workdir('vol.packages');
 my $idfile = catfile(workdir, "pod.id");
-run_command 'jetpack', 'prepare', "-saveid=$idfile", '--',
+run_command 'jetpack', 'run', "-saveid=$idfile",
   '-v', 'ports:/usr/ports',
   '-v', 'distfiles:/usr/ports/distfiles',
   '-v', "packages:$pkgdir",
@@ -28,7 +28,6 @@ run_command 'jetpack', 'prepare', "-saveid=$idfile", '--',
   '-a', 'make=package install';
 
 chomp(my $pod = read_file($idfile));
-run_command 'jetpack', 'run', $pod;
 
 ok(glob("$pkgdir/All/figlet-*.txz"), "figlet package has been built");
 

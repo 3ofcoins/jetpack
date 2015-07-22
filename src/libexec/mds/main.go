@@ -1,6 +1,13 @@
 package main
 
-import "encoding/json"
+import (
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/hex"
+	"encoding/json"
+
+	"code.google.com/p/go-uuid/uuid"
+)
 import "flag"
 import "fmt"
 import "log"
@@ -84,9 +91,41 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 			return http.StatusOK, manifestJSON
 		}
 
-	case path == "pod/hmac/sign" || path == "pod/hmac/verify":
-		// HMAC sign/verify service.
-		return http.StatusNotImplemented, nil
+	case path == "pod/hmac/sign":
+		content := r.FormValue("content")
+		if content == "" {
+			return http.StatusBadRequest, []byte("content form value not found\n")
+		}
+		h := hmac.New(sha512.New, SigningKey)
+		h.Write(pod.UUID)
+		h.Write([]byte(content))
+		return resp200(hex.EncodeToString(h.Sum(nil)))
+
+	case path == "pod/hmac/verify":
+		uuid := uuid.Parse(r.FormValue("uid"))
+		if uuid == nil {
+			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid UUID: %#v\n", r.FormValue("uid")))
+		}
+
+		sig, err := hex.DecodeString(r.FormValue("signature"))
+		if err != nil {
+			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid signature: %#v\n", r.FormValue("signature")))
+		}
+
+		content := r.FormValue("content")
+		if content == "" {
+			return http.StatusBadRequest, []byte("content form value not found\n")
+		}
+
+		h := hmac.New(sha512.New, SigningKey)
+		h.Write(uuid)
+		h.Write([]byte(content))
+
+		if hmac.Equal(sig, h.Sum(nil)) {
+			return http.StatusOK, nil
+		} else {
+			return http.StatusForbidden, nil
+		}
 
 	case path == "pod/annotations" || path == "pod/annotations/":
 		anns := make([]string, len(pod.Manifest.Annotations))
@@ -181,6 +220,7 @@ func ServeMetadata(w http.ResponseWriter, r *http.Request) {
 }
 
 var Info *jetpack.MDSInfo
+var SigningKey []byte
 
 func makeMDSInfo() (*jetpack.MDSInfo, error) {
 	mdsi := &jetpack.MDSInfo{
@@ -225,6 +265,12 @@ func main() {
 		log.Fatalln("Error getting listen IP:", err)
 	} else {
 		Info = mdsi
+	}
+
+	if s, err := hex.DecodeString(Host.Properties.MustGet("mds.signing-key")); err != nil {
+		panic(err)
+	} else {
+		SigningKey = s
 	}
 
 	addr := fmt.Sprintf("%v:%d", Info.IP, Info.Port)

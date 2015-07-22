@@ -5,6 +5,7 @@ import (
 	stderrors "errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
@@ -233,6 +234,11 @@ func getOrPreparePod(args []string) (*jetpack.Pod, error) {
 		} else if pod, err := Host.CreatePod(pm); err != nil {
 			return nil, err
 		} else {
+			if SaveID != "" {
+				if err := ioutil.WriteFile(SaveID, []byte(pod.UUID.String()), 0644); err != nil {
+					return nil, err
+				}
+			}
 			return pod, nil
 		}
 	}

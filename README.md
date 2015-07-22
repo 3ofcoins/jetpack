@@ -90,6 +90,14 @@ sopihisticated setup can be desired to limit pods'
 connectivity. In the long run, Jetpack will probably manage its own
 `pf` anchor.
 
+You will need to create a `jetpack.conf` file (by default,
+`/usr/local/etc/jetpack.conf`) with at least following settings:
+
+    mds.signing-key = RANDOM_HEX_KEY
+
+You can generate random hex keys by running `openssl rand -hex 32` and
+pasting its output.
+
 ### Using Jetpack
 
 Run `jetpack` without any arguments to see available commands. Use

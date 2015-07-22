@@ -58,6 +58,7 @@ var flDestroy bool
 
 func flRun(fl *flag.FlagSet) {
 	flPodManifest(fl)
+	SaveIDFlag(fl)
 	fl.Var(&flAppName, "app", "Specify app to run for a multi-app pod")
 	fl.BoolVar(&flDestroy, "destroy", false, "Destroy pod when done")
 }

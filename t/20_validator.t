@@ -3,7 +3,7 @@ use warnings;
 use strict;
 use autodie qw(:all);
 
-use Test::Most tests => 4;
+use Test::Most tests => 5;
 use Test::JetpackHelpers;
 
 use File::Spec::Functions;
@@ -19,5 +19,4 @@ for my $imgname ( qw(ace-validator-main ace-validator-sidekick) ) {
   run_command 'jetpack', 'import', $aci;
 }
 
-# TODO: make validate work
-# run_command(fixture("validate.sh"));
+run_command(fixture("validate.sh"));
