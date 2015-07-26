@@ -3,7 +3,7 @@ package keystore
 // Heavily based on https://github.com/coreos/rkt/blob/master/pkg/keystore/keystore.go
 
 // We don't use rkt's keystore, because we want to escape ACIdentifier to
-// avoid path travelrsal issues and not to worry about prefix
+// avoid path traversal issues and not to worry about prefix
 // collisions.
 
 import (
