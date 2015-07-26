@@ -1,5 +1,11 @@
 package keystore
 
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+)
+
 var sampleKeys = []string{
 	// 3ofcoins.net provisional key
 	`-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -98,4 +104,51 @@ var sampleKeyFingerprints = []string{
 	"4706dc5d5c214bc3ad127c6d53ccc2d63a162664",
 	"bff313cdaa560b16a8987b8f72abf5f6799d33bc",
 	"8b86de38890ddb7291867b025210bd8888182190",
+}
+
+func asFile(args ...interface{}) (_ *os.File, erv error) {
+	if f, err := ioutil.TempFile("", "jetpack.test.keystore."); err != nil {
+		return nil, err
+	} else {
+		defer func() {
+			if erv != nil {
+				f.Close()
+			}
+		}()
+
+		if err := os.Remove(f.Name()); err != nil {
+			return nil, err
+		}
+		if _, err := fmt.Fprint(f, args...); err != nil {
+			return nil, err
+		}
+		if _, err := f.Seek(0, 0); err != nil {
+			return nil, err
+		}
+		return f, nil
+	}
+}
+
+var openedSampleKeys = make(map[int]*os.File)
+
+func openSampleKey(i int) *os.File {
+	if f := openedSampleKeys[i]; f != nil {
+		if _, err := f.Seek(0, 0); err != nil {
+			panic(err)
+		}
+		return f
+	}
+	if f, err := asFile(sampleKeys[i]); err != nil {
+		panic(err)
+	} else {
+		openedSampleKeys[i] = f
+		return f
+	}
+}
+
+func closeSampleKeys() {
+	for i, f := range openedSampleKeys {
+		f.Close()
+		delete(openedSampleKeys, i)
+	}
 }

@@ -1,7 +1,6 @@
 package keystore
 
 import (
-	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -21,13 +20,25 @@ func newStore() *Keystore {
 	return New(storePath)
 }
 
-func testImport(t *testing.T, prefix types.ACName, subdir string) {
+func testImport(t *testing.T, prefix types.ACIdentifier, subdir string) {
+	// Redirect stdout (how to DRY?)
+	origStdout := os.Stdout
+	defer func() { os.Stdout = origStdout }()
+	if devnull, err := os.Create("/dev/null"); err != nil {
+		panic(err)
+	} else {
+		os.Stdout = devnull
+		defer devnull.Close()
+	}
+
+	defer closeSampleKeys()
+
 	ks := newStore()
 	defer os.RemoveAll(ks.Path)
 
 	for i, key := range sampleKeys {
 		fingerprint := sampleKeyFingerprints[i]
-		keyPath, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(key)), true)
+		keyPath, err := ks.StoreTrustedKey(prefix, openSampleKey(i), fingerprint)
 
 		if err != nil {
 			t.Errorf("Error storing key #%d: %v\n", i, err)
@@ -48,20 +59,20 @@ func testImport(t *testing.T, prefix types.ACName, subdir string) {
 }
 
 func TestImportRoot(t *testing.T) {
-	testImport(t, Root, "_")
+	testImport(t, Root, "@")
 }
 
 func TestImportPrefix(t *testing.T) {
-	testImport(t, types.ACName("example.com"), "_example.com")
+	testImport(t, types.ACIdentifier("example.com"), "example.com")
 }
 
 func TestImportPrefixEscaped(t *testing.T) {
-	testImport(t, types.ACName("example.com/foo"), "_example.com%2Ffoo")
+	testImport(t, types.ACIdentifier("example.com/foo"), "example.com,foo")
 }
 
-func checkKeyCount(t *testing.T, ks *Keystore, expected map[types.ACName]int) {
+func checkKeyCount(t *testing.T, ks *Keystore, expected map[types.ACIdentifier]int) {
 	for name, expectedKeys := range expected {
-		if kr, err := ks.GetKeyring(name); err != nil {
+		if kr, err := ks.GetKeysFor(name); err != nil {
 			t.Errorf("Error getting keyring for %v: %v\n", name, err)
 		} else if actualKeys := kr.Len(); actualKeys != expectedKeys {
 			t.Errorf("Expected %d keys for %v, got %d instead\n", expectedKeys, name, actualKeys)
@@ -70,50 +81,61 @@ func checkKeyCount(t *testing.T, ks *Keystore, expected map[types.ACName]int) {
 }
 
 func TestGetKeyring(t *testing.T) {
+	// Redirect stdout (how to DRY?)
+	origStdout := os.Stdout
+	defer func() { os.Stdout = origStdout }()
+	if devnull, err := os.Create("/dev/null"); err != nil {
+		panic(err)
+	} else {
+		os.Stdout = devnull
+		defer devnull.Close()
+	}
+
 	ks := newStore()
 	defer os.RemoveAll(ks.Path)
+	defer closeSampleKeys()
 
-	if _, err := ks.StoreTrustedKey(types.ACName("example.com/foo"), bytes.NewReader([]byte(sampleKeys[0])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(types.ACIdentifier("example.com/foo"), openSampleKey(0), sampleKeyFingerprints[0]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(types.ACName("example.com/foo/bar"), bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(types.ACIdentifier("example.com/foo/bar"), openSampleKey(1), sampleKeyFingerprints[1]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	checkKeyCount(t, ks, map[types.ACName]int{
-		types.ACName("eggsample.com"):           0,
-		types.ACName("eggsample.com/foo"):       0,
-		types.ACName("eggsample.com/foo/bar"):   0,
-		types.ACName("example.com"):             0,
-		types.ACName("example.com/foo"):         1,
-		types.ACName("example.com/foo/baz"):     1,
-		types.ACName("example.com/foo/bar"):     2,
-		types.ACName("example.com/foo/bar/baz"): 2,
-		types.ACName("example.com/foobar"):      1,
-		types.ACName("example.com/baz"):         0,
+	checkKeyCount(t, ks, map[types.ACIdentifier]int{
+		types.ACIdentifier("eggsample.com"):           0,
+		types.ACIdentifier("eggsample.com/foo"):       0,
+		types.ACIdentifier("eggsample.com/foo/bar"):   0,
+		types.ACIdentifier("example.com"):             0,
+		types.ACIdentifier("example.com/foo"):         1,
+		types.ACIdentifier("example.com/foo/baz"):     1,
+		types.ACIdentifier("example.com/foo/bar"):     2,
+		types.ACIdentifier("example.com/foo/bar/baz"): 2,
+		types.ACIdentifier("example.com/foobar"):      1,
+		types.ACIdentifier("example.com/baz"):         0,
 	})
 
-	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, openSampleKey(2), sampleKeyFingerprints[2]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	checkKeyCount(t, ks, map[types.ACName]int{
-		types.ACName("eggsample.com"):           1,
-		types.ACName("eggsample.com/foo"):       1,
-		types.ACName("eggsample.com/foo/bar"):   1,
-		types.ACName("example.com"):             1,
-		types.ACName("example.com/foo"):         2,
-		types.ACName("example.com/foo/baz"):     2,
-		types.ACName("example.com/foo/bar"):     3,
-		types.ACName("example.com/foo/bar/baz"): 3,
-		types.ACName("example.com/foobar"):      2,
-		types.ACName("example.com/baz"):         1,
+	checkKeyCount(t, ks, map[types.ACIdentifier]int{
+		types.ACIdentifier("eggsample.com"):           1,
+		types.ACIdentifier("eggsample.com/foo"):       1,
+		types.ACIdentifier("eggsample.com/foo/bar"):   1,
+		types.ACIdentifier("example.com"):             1,
+		types.ACIdentifier("example.com/foo"):         2,
+		types.ACIdentifier("example.com/foo/baz"):     2,
+		types.ACIdentifier("example.com/foo/bar"):     3,
+		types.ACIdentifier("example.com/foo/bar/baz"): 3,
+		types.ACIdentifier("example.com/foobar"):      2,
+		types.ACIdentifier("example.com/baz"):         1,
 	})
 }
 
-func countKeys(kr *Keyring) map[types.ACName]int {
-	rv := make(map[types.ACName]int)
+func countKeys(kr *Keyring) map[types.ACIdentifier]int {
+	rv := make(map[types.ACIdentifier]int)
 	for _, prefix := range kr.prefixes {
 		rv[prefix] = rv[prefix] + 1
 	}
@@ -121,24 +143,35 @@ func countKeys(kr *Keyring) map[types.ACName]int {
 }
 
 func TestGetAllKeyrings(t *testing.T) {
+	// Redirect stdout (how to DRY?)
+	origStdout := os.Stdout
+	defer func() { os.Stdout = origStdout }()
+	if devnull, err := os.Create("/dev/null"); err != nil {
+		panic(err)
+	} else {
+		os.Stdout = devnull
+		defer devnull.Close()
+	}
+
 	ks := newStore()
 	defer os.RemoveAll(ks.Path)
+	defer closeSampleKeys()
 
-	prefix := types.ACName("example.com/foo")
+	prefix := types.ACIdentifier("example.com/foo")
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, openSampleKey(0), sampleKeyFingerprints[0]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, openSampleKey(1), sampleKeyFingerprints[1]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, openSampleKey(2), sampleKeyFingerprints[2]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	kr, err := ks.GetKeyring(Root)
+	kr, err := ks.GetAllKeys()
 	if err != nil {
 		t.Errorf("Error getting all keyrings: %v\n", err)
 		t.FailNow()
@@ -163,7 +196,7 @@ func TestGetAllKeyrings(t *testing.T) {
 	}
 }
 
-type acNames []types.ACName
+type acNames []types.ACIdentifier
 
 // sort.Interface
 func (acn acNames) Len() int           { return len(acn) }
@@ -171,33 +204,44 @@ func (acn acNames) Less(i, j int) bool { return acn[i].String() < acn[j].String(
 func (acn acNames) Swap(i, j int)      { acn[i], acn[j] = acn[j], acn[i] }
 
 func TestUntrustKey(t *testing.T) {
+	// Redirect stdout (how to DRY?)
+	origStdout := os.Stdout
+	defer func() { os.Stdout = origStdout }()
+	if devnull, err := os.Create("/dev/null"); err != nil {
+		panic(err)
+	} else {
+		os.Stdout = devnull
+		defer devnull.Close()
+	}
+
 	ks := newStore()
 	defer os.RemoveAll(ks.Path)
+	defer closeSampleKeys()
 
-	prefix := types.ACName("example.com/foo")
-	prefix2 := types.ACName("example.org/bar")
+	prefix := types.ACIdentifier("example.com/foo")
+	prefix2 := types.ACIdentifier("example.org/bar")
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[0])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, openSampleKey(0), sampleKeyFingerprints[0]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix, bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix, openSampleKey(1), sampleKeyFingerprints[1]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[1])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix2, openSampleKey(1), sampleKeyFingerprints[1]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(prefix2, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(prefix2, openSampleKey(2), sampleKeyFingerprints[2]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	if _, err := ks.StoreTrustedKey(Root, bytes.NewReader([]byte(sampleKeys[2])), true); err != nil {
+	if _, err := ks.StoreTrustedKey(Root, openSampleKey(2), sampleKeyFingerprints[2]); err != nil {
 		t.Errorf("Error storing key: %v\n", err)
 	}
 
-	kr, err := ks.GetKeyring(Root)
+	kr, err := ks.GetAllKeys()
 	if err != nil {
 		panic(err)
 	}
@@ -211,13 +255,13 @@ func TestUntrustKey(t *testing.T) {
 		t.Errorf("Error untrusting key: %v %v\n", err, prefixes)
 	} else {
 		sort.Sort(acNames(prefixes))
-		expectedPrefixes := []types.ACName{Root, prefix2}
+		expectedPrefixes := []types.ACIdentifier{Root, prefix2}
 		if !reflect.DeepEqual(prefixes, expectedPrefixes) {
 			t.Errorf("Expected removed prefixes to be %v, got %v instead.\n", expectedPrefixes, prefixes)
 		}
 	}
 
-	kr, err = ks.GetKeyring(Root)
+	kr, err = ks.GetAllKeys()
 	if err != nil {
 		panic(err)
 	}
