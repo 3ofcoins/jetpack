@@ -553,7 +553,7 @@ func (c *Pod) stage2(app types.ACName, user, group string, cwd string, env []str
 		}
 	}
 
-	mds, err := c.Host.MetadataURL()
+	mds, err := c.Host.MetadataURL(c.UUID)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -584,19 +584,18 @@ func (c *Pod) stage2(app types.ACName, user, group string, cwd string, env []str
 	}
 
 	stage2 := filepath.Join(Config().MustGetString("path.libexec"), "stage2")
-	args := ConfigFlags()
-	args = append(args,
+	args := []string{
 		"-jid", strconv.Itoa(jid),
 		"-app", string(app),
 		"-mds", mds,
 		"-uid", strconv.Itoa(pwent.Uid),
 		"-gid", strconv.Itoa(pwent.Gid),
 		"-cwd", cwd,
-		"-setenv", "USER="+pwent.Username,
-		"-setenv", "LOGNAME="+pwent.Username,
-		"-setenv", "HOME="+pwent.Home,
-		"-setenv", "SHELL="+pwent.Shell,
-	)
+		"-setenv", "USER=" + pwent.Username,
+		"-setenv", "LOGNAME=" + pwent.Username,
+		"-setenv", "HOME=" + pwent.Home,
+		"-setenv", "SHELL=" + pwent.Shell,
+	}
 	args = append(args, env...)
 	args = append(args, exec...)
 	return run.Command(stage2, args...).Run()

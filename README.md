@@ -94,6 +94,7 @@ You will need to create a `jetpack.conf` file (by default,
 `/usr/local/etc/jetpack.conf`) with at least following settings:
 
     mds.signing-key = RANDOM_HEX_KEY
+    mds.token-key = RANDOM_HEX_KEY
 
 You can generate random hex keys by running `openssl rand -hex 32` and
 pasting its output.

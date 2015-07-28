@@ -42,8 +42,23 @@ func resp404() (int, []byte) {
 	return http.StatusNotFound, nil
 }
 
+func resp403() (int, []byte) {
+	return http.StatusForbidden, nil
+}
+
 func resp500(err error) (int, []byte) {
 	return http.StatusInternalServerError, []byte(err.Error())
+}
+
+// Returns path, token. If token is not provided, empty string is
+// returned.
+func extractToken(url string) (string, string) {
+	if strings.HasPrefix(url, "/~") {
+		pieces := strings.SplitN(url[2:], "/", 2)
+		return "/" + pieces[1], pieces[0]
+	} else {
+		return url, ""
+	}
 }
 
 func doServeMetadata(r *http.Request) (int, []byte) {
@@ -52,7 +67,14 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		return http.StatusOK, []byte(fmt.Sprintf("Jetpack metadata service version %v\n", jetpack.Version()))
 	}
 
-	if r.URL.Path == "/_info" {
+	path, token := extractToken(r.URL.Path)
+	r.RequestURI = path // Strip token from future logs
+
+	if path == "/_info" {
+		if !jetpack.VerifyMetadataToken(uuid.NIL, token) {
+			return resp403()
+		}
+		r.URL.User = url.User("host")
 		if body, err := json.Marshal(Info); err != nil {
 			return resp500(err)
 		} else {
@@ -60,20 +82,25 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		}
 	}
 
-	if !strings.HasPrefix(r.URL.Path, "/acMetadata/v1/") {
-		// Not a metadata service request.
-		return resp404()
-	}
-
+	// All other requests should be coming from a pod.
 	pod := getPod(clientIP(r))
 	if pod == nil {
-		return http.StatusTeapot, []byte("You are not a pod. For you, I am a teapot.")
+		return http.StatusTeapot, []byte("You are not a real pod. For you, I am a teapot.")
 	}
 
 	// hack hack hack
 	r.URL.User = url.User(pod.UUID.String())
 
-	path := r.URL.Path[len("/acMetadata/v1/"):]
+	if !jetpack.VerifyMetadataToken(pod.UUID, token) {
+		return http.StatusTeapot, []byte("You are not a real pod. For you, I am a teapot.")
+	}
+
+	if !strings.HasPrefix(path, "/acMetadata/v1/") {
+		// Not a metadata service request.
+		return resp404()
+	}
+
+	path = path[len("/acMetadata/v1/"):]
 	switch {
 
 	case path == "pod/uuid":
@@ -191,7 +218,7 @@ func ServeMetadata(w http.ResponseWriter, r *http.Request) {
 	status, body := doServeMetadata(r)
 
 	if body == nil {
-		body = []byte(http.StatusText(status))
+		body = []byte(http.StatusText(status) + "\n")
 	}
 
 	// log_format combined '$remote_addr - $remote_user [$time_local] ' '"$request" $status $body_bytes_sent ' '"$http_referer" "$http_user_agent"';

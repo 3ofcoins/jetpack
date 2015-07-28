@@ -1,6 +1,9 @@
 package jetpack
 
 import (
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +14,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
 
 	"github.com/juju/errors"
 
@@ -46,7 +51,66 @@ func (h *Host) GetMDSUGID() (int, int) {
 	return h.mdsUid, h.mdsGid
 }
 
-func (h *Host) MetadataURL() (string, error) {
+var metadataTokenSecret []byte
+
+func metadataToken(id uuid.UUID) []byte {
+	if id == nil {
+		return nil
+	}
+
+	if metadataTokenSecret == nil {
+		if hexSecret, ok := Config().Get("mds.token-key"); !ok {
+			metadataTokenSecret = []byte{}
+		} else if secret, err := hex.DecodeString(hexSecret); err != nil {
+			panic(err)
+		} else {
+			metadataTokenSecret = secret
+		}
+	}
+
+	if len(metadataTokenSecret) == 0 {
+		return nil
+	}
+
+	h := hmac.New(sha512.New, metadataTokenSecret)
+	h.Write(id)
+	return h.Sum(nil)
+}
+
+// MetadataToken returns a hex-encoded metadata token for a UUID. If
+// config property `mds.token-secret` is unset or id is nil, returns
+// nil.
+func MetadataToken(id uuid.UUID) string {
+	if tk := metadataToken(id); tk == nil {
+		return ""
+	} else {
+		return hex.EncodeToString(tk)
+	}
+}
+
+// VerifyMetadataToken verifies a received token for UUID. If id is
+// empty or config property `mds.token-secret` is unset, `received`
+// should be an empty string.
+func VerifyMetadataToken(id uuid.UUID, received string) bool {
+	expected := metadataToken(id)
+	if expected == nil {
+		return received == ""
+	}
+
+	if len(received) != sha512.Size*2 {
+		// Not a proper SHA-512 checksum; sanity check before decoding hex
+		// to avoid trying to parse obviously wrong (and possibly
+		// malicious) tokens
+		return false
+	}
+	if receivedBytes, err := hex.DecodeString(received); err != nil {
+		return false
+	} else {
+		return hmac.Equal(receivedBytes, expected)
+	}
+}
+
+func (h *Host) metadataURLBase() (string, error) {
 	if hostip, _, err := h.HostIP(); err != nil {
 		return "", errors.Trace(err)
 	} else {
@@ -58,10 +122,23 @@ func (h *Host) MetadataURL() (string, error) {
 	}
 }
 
+// MetadataURL returns URL of the metadata service for pod with
+// provided UUID.
+func (h *Host) MetadataURL(id uuid.UUID) (string, error) {
+	if url, err := h.metadataURLBase(); err != nil {
+		return "", errors.Trace(err)
+	} else {
+		if token := MetadataToken(id); token != "" {
+			url = fmt.Sprintf("%v/~%v", url, token)
+		}
+		return url, nil
+	}
+}
+
 func (h *Host) GetMDSInfo() (*MDSInfo, error) {
 	var mdsi MDSInfo
 
-	url, err := h.MetadataURL()
+	url, err := h.MetadataURL(uuid.NIL)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -157,7 +234,7 @@ func (h *Host) startMDS() (*MDSInfo, error) {
 	}
 
 	// Wait for port...
-	addr, err := h.MetadataURL()
+	addr, err := h.MetadataURL(uuid.NIL)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
