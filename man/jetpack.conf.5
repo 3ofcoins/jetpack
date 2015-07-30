@@ -1,0 +1,101 @@
+.\" -*- nroff -*-
+.Dd $Mdocdate$
+.Dt JETPACK.CONF 5
+.Os
+.Sh NAME
+.Nm jetpack.conf
+.Nd Configuration file for
+.Xr jetpack 1
+.Sh DESCRIPTION
+The file
+.Nm
+contains runtime configuration for
+.Xr jetpack 1 .
+.Pp
+TODO: describe properties file syntax
+.Pp
+.Ss Essential Variables
+.Bl -tag -width indent
+.It Va root.zfs
+.Pq Dq Li zroot/jetpack
+Root ZFS dataset for Jetpack runtime data
+.It Va mds.signing-key
+.Pq unset, obligatory
+Secret for signing feature of the metadata service encoded as a
+hexadecimal string. Run
+.Ql openssl rand -hex 32
+to generate a new key.
+.It Va mds.token-key
+.Pq unset, highly recommended
+Secret for generating authenticated URLs for the metadata service,
+encoded as a hexadecimal string. Run
+.Ql openssl rand -hex 32
+to generate a new key.
+.It Va jail.inferface
+.Pq Dq Li lo1
+Network interface that will be assigned to jails. Should be configured
+with an IP and a netmask (e.g. cloned in
+.Xr rc.conf 5 ).
+.El
+.Ss Remaining Variables
+.Bl -tag -width indent
+.It Va ace.dns-servers
+.It Va ace.jailConf.
+.Pq Dq Li osrelease=10.1-RELEASE-p9, securelevel=2
+.It Va allow.autodiscovery
+.Pq Dq Li on
+.It Va allow.http
+.Pq Dq Li off
+.It Va allow.no-signature
+.Pq Dq Li off
+.It Va debug
+.Pq Dq Li off
+.It Va images.aci.compression
+.Pq Dq Li xz
+.It Va images.zfs.atime
+.Pq Dq Li off
+.It Va images.zfs.compress
+.Pq Dq Li lz4
+.It Va jail.namePrefix
+.Pq Dq Li jetpack/
+.It Va mds.logfile
+Path to log file of the metadata service. If left unset or set to
+.Dq Li - ,
+the metadata service will log to the standard error. If set to
+.Dq Li /dev/null
+or
+.Dq Li none ,
+then log messages of the metadata service will be discarded. The
+metadata service will open the log file before setting UID to
+.Va mds.user .
+.It Va mds.pidfile
+If set, medatada service will save its uid in the named file. The
+metadata service will write the pid file before setting UID to
+.Va mds.user ,
+and will
+.Em not
+remove this file on exit (it won't be possible because of the lower
+UID).
+.It Va mds.port
+.Pq Dq Li 1104
+Port for the metadata service to listen on. The metadata service will
+start listening before setting UID to
+.Va mds.user .
+.It Va mds.user
+.Pq Dq Li _jetpack
+Metadata service will run as this user. Files written by
+.Xr jetpack 1
+will be made readable by this user's group.
+.It Va path.libexec
+.Pq Dq Li ${path.prefix}/libexec/jetpack
+Directory containing helper binaries.
+.It Va path.prefix
+.Pq Dq Li /usr/local
+Installation prefix. The default value may be changed during the build.
+.It Va path.share
+.Pq Dq Li ${path.prefix}/share/jetpack
+Directory containing data files.
+.It Va root.zfs.mountpoint
+.Pq Dq Li /var/jetpack
+Root directory for Jetpack runtime data
+.El

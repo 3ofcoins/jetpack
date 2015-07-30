@@ -29,11 +29,8 @@ images.zfs.atime=off
 images.zfs.compress=lz4
 jail.interface = lo1
 jail.namePrefix = jetpack/
-mds.autostart = on
-mds.logfile = /var/log/jetpack.mds.log
 mds.port = 1104
 mds.user = _jetpack
-path.config = ${path.prefix}/etc/jetpack.conf
 path.libexec = ${path.prefix}/libexec/jetpack
 path.share = ${path.prefix}/share/jetpack
 path.prefix = %v
@@ -72,7 +69,7 @@ func init() {
 
 func ConfigFlags() []string {
 	rv := make([]string, 1+len(ConfigOverrides))
-	rv[0] = fmt.Sprintf("-config=%v", Config().MustGet("path.config"))
+	rv[0] = fmt.Sprintf("-config=%v", configPath)
 	i := 1
 	for k, v := range ConfigOverrides {
 		rv[i] = fmt.Sprintf("-o=%v=%v", k, v)
@@ -82,6 +79,7 @@ func ConfigFlags() []string {
 }
 
 var configProperties *properties.Properties
+var configPath string
 
 func Config() *properties.Properties {
 	if configProperties == nil {
@@ -107,9 +105,7 @@ func Config() *properties.Properties {
 					panic(err)
 				}
 			}
-			if _, _, err := props.Set("path.config", cfgPath); err != nil {
-				panic(err)
-			}
+			configPath = cfgPath
 			configProperties = props
 		}
 	}
