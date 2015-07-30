@@ -26,17 +26,6 @@ e.g. `make prefix=/opt/jetpack`.
 If you don't intend to install Jetpack and only use it in-place,
 prefix is irrelevant.
 
-Using in-place
---------------
-
-After building, use script `jetpack` in the repository root to run
-Jetpack without installing. It can be symlinked to a directory in
-`$PATH`, or called with a script that uses `sudo` to run it as root.
-
-When using in-place, the configuration file is `jetpack.conf` in the
-main source directory (next to this file). Copy `jetpack.conf.sample`
-to `jetpack.conf` and edit to your liking.
-
 Installation
 ------------
 
@@ -61,3 +50,16 @@ following will install files compiled for `/usr/local` prefix into
 root access:
 
     $ make install DESTDIR=`pwd`/destroot
+
+Running Jetpack without installation
+------------------------------------
+
+After building, use script `script/jetpack` in the repository root to
+run Jetpack without installing. It can be symlinked to a directory in
+`$PATH`, or called with a script that uses `sudo` to run it as root.
+To run the metadata service (in foreground), add yourself to the
+`_jetpack` group, and run `script/mds`.
+
+When running Jetpack in-place, the configuration file is
+`jetpack.conf` in the main source directory (next to this file). Copy
+`jetpack.conf.sample` to `jetpack.conf` and edit to your liking.

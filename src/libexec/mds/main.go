@@ -5,6 +5,10 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
+	"io/ioutil"
+	"net"
+
+	"golang.org/x/sys/unix"
 
 	"code.google.com/p/go-uuid/uuid"
 )
@@ -270,19 +274,57 @@ func main() {
 		Host = host
 	}
 
-	if mdsi, err := makeMDSInfo(); err != nil {
-		log.Fatalln("Error getting listen IP:", err)
-	} else {
-		Info = mdsi
-	}
-
 	if s, err := hex.DecodeString(jetpack.Config().MustGet("mds.signing-key")); err != nil {
 		panic(err)
 	} else {
 		SigningKey = s
 	}
 
+	switch lfPath, _ := jetpack.Config().Get("mds.logfile"); lfPath {
+	case "-", "":
+		log.SetOutput(os.Stderr)
+	case "none", "/dev/null":
+		log.SetOutput(ioutil.Discard)
+	default:
+		if lf, err := os.OpenFile(lfPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0640); err != nil {
+			log.Fatalf("Cannot open log file %#v: %v", lfPath, err)
+		} else {
+			log.SetOutput(lf)
+			defer lf.Close()
+		}
+	}
+
+	if pfPath, ok := jetpack.Config().Get("mds.pidfile"); ok {
+		if err := ioutil.WriteFile(pfPath, []byte(fmt.Sprintln(os.Getpid())), 0644); err != nil {
+			log.Fatalf("Cannot write pidfile %#v: %v", pfPath, err)
+		}
+	}
+
 	addr := fmt.Sprintf("%v:%d", Info.IP, Info.Port)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("Cannot listen on %v: %v", addr, err)
+	}
+
+	if !jetpack.Config().GetBool("mds.keep-uid", false) {
+		uid, gid := jetpack.MDSUidGid()
+		if err := unix.Setgroups(nil); err != nil {
+			log.Fatal("Cannot clear groups:", err)
+		}
+		if err := unix.Setresgid(gid, gid, gid); err != nil {
+			log.Fatal("Cannot drop gid:", err)
+		}
+		if err := unix.Setresuid(uid, uid, uid); err != nil {
+			log.Fatal("Cannot drop uid:", err)
+		}
+	}
+
+	if mdsi, err := makeMDSInfo(); err != nil {
+		log.Fatalln("Error preparing info object:", err)
+	} else {
+		Info = mdsi
+	}
+
 	log.Println("Listening on:", addr)
-	log.Fatal(http.ListenAndServe(addr, http.HandlerFunc(ServeMetadata)))
+	log.Fatal(http.Serve(listener, http.HandlerFunc(ServeMetadata)))
 }

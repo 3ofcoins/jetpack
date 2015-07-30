@@ -58,6 +58,12 @@ with an IP and a netmask (e.g. cloned in
 .Pq Dq Li lz4
 .It Va jail.namePrefix
 .Pq Dq Li jetpack/
+.It Va mds.keep-uid
+.Pq Dq Li off
+If on, metadata service won't try to change user ID, and internal
+service check of
+.Xr jetpack 1
+won't check for correct UID.
 .It Va mds.logfile
 Path to log file of the metadata service. If left unset or set to
 .Dq Li - ,

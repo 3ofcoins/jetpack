@@ -222,7 +222,7 @@ func (img *Image) sealImage() error {
 	img.Timestamp = time.Now()
 
 	// Set access mode for the metadata server
-	_, mdsGID := img.Host.GetMDSUGID()
+	_, mdsGID := MDSUidGid()
 	if err := os.Chown(img.Path(), 0, mdsGID); err != nil {
 		return errors.Trace(err)
 	}

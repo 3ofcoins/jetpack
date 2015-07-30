@@ -7,20 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
-	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
-	"time"
 
 	"code.google.com/p/go-uuid/uuid"
 
 	"github.com/juju/errors"
-
-	"lib/run"
-	"lib/ui"
 )
 
 type MDSInfo struct {
@@ -33,22 +26,26 @@ func (mdsi *MDSInfo) String() string {
 		mdsi.Pid, mdsi.Uid, mdsi.Gid, mdsi.IP, mdsi.Port, mdsi.Version)
 }
 
-func (h *Host) GetMDSUGID() (int, int) {
-	if h.mdsUid < 0 {
+var mdsUid = -1
+var mdsGid = -1
+
+// Returns UID and GID that metadata server is configured to run as.
+func MDSUidGid() (int, int) {
+	if mdsUid < 0 {
 		u, err := user.Lookup(Config().MustGetString("mds.user"))
 		if err != nil {
 			panic(err)
 		}
-		h.mdsUid, err = strconv.Atoi(u.Uid)
+		mdsUid, err = strconv.Atoi(u.Uid)
 		if err != nil {
 			panic(err)
 		}
-		h.mdsGid, err = strconv.Atoi(u.Gid)
+		mdsGid, err = strconv.Atoi(u.Gid)
 		if err != nil {
 			panic(err)
 		}
 	}
-	return h.mdsUid, h.mdsGid
+	return mdsUid, mdsGid
 }
 
 var metadataTokenSecret []byte
@@ -110,7 +107,9 @@ func VerifyMetadataToken(id uuid.UUID, received string) bool {
 	}
 }
 
-func (h *Host) metadataURLBase() (string, error) {
+// MetadataURL returns URL of the metadata service for pod with
+// provided UUID.
+func (h *Host) MetadataURL(id uuid.UUID) (string, error) {
 	if hostip, _, err := h.HostIP(); err != nil {
 		return "", errors.Trace(err)
 	} else {
@@ -118,16 +117,6 @@ func (h *Host) metadataURLBase() (string, error) {
 		if mdport := Config().MustGetInt("mds.port"); mdport != 80 {
 			url = fmt.Sprintf("%v:%v", url, mdport)
 		}
-		return url, nil
-	}
-}
-
-// MetadataURL returns URL of the metadata service for pod with
-// provided UUID.
-func (h *Host) MetadataURL(id uuid.UUID) (string, error) {
-	if url, err := h.metadataURLBase(); err != nil {
-		return "", errors.Trace(err)
-	} else {
 		if token := MetadataToken(id); token != "" {
 			url = fmt.Sprintf("%v/~%v", url, token)
 		}
@@ -171,14 +160,15 @@ func (h *Host) validateMDSInfo(mdsi *MDSInfo) error {
 		return errors.Errorf("Version mismatch: ours %v, mds %v", Version(), mdsi.Version)
 	}
 
-	uid, gid := h.GetMDSUGID()
+	if !Config().GetBool("mds.keep-uid", false) {
+		uid, gid := MDSUidGid()
+		if mdsi.Uid != uid {
+			return errors.Errorf("UID mismatch: should be %d, is %d", uid, mdsi.Uid)
+		}
 
-	if mdsi.Uid != uid {
-		return errors.Errorf("UID mismatch: should be %d, is %d", uid, mdsi.Uid)
-	}
-
-	if mdsi.Gid != gid {
-		return errors.Errorf("GID mismatch: should be %d, is %d", gid, mdsi.Gid)
+		if mdsi.Gid != gid {
+			return errors.Errorf("GID mismatch: should be %d, is %d", gid, mdsi.Gid)
+		}
 	}
 
 	if port := Config().MustGetInt("mds.port"); mdsi.Port != port {
@@ -196,7 +186,7 @@ func (h *Host) validateMDSInfo(mdsi *MDSInfo) error {
 
 // Returns: (nil, err) if MDS can't be contacted for info; (info, err)
 // if info was wrong; (info, nil) if everything's fine.
-func (h *Host) checkMDS() (*MDSInfo, error) {
+func (h *Host) CheckMDS() (*MDSInfo, error) {
 	mdsi, err := h.GetMDSInfo()
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -208,73 +198,4 @@ func (h *Host) checkMDS() (*MDSInfo, error) {
 	}
 
 	return mdsi, nil
-}
-
-func (h *Host) startMDS() (*MDSInfo, error) {
-	var log *os.File
-	if logPath := Config().GetString("mds.logfile", ""); logPath != "" && logPath != "/dev/null" {
-		if lf, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600); err != nil {
-			return nil, errors.Trace(err)
-		} else {
-			log = lf
-		}
-	}
-
-	cmd := run.Command("/usr/sbin/daemon", append([]string{
-		"-u", Config().MustGetString("mds.user"),
-		filepath.Join(Config().MustGetString("path.libexec"), "mds")},
-		ConfigFlags()...)...)
-	cmd.Cmd.Stdin = nil
-	cmd.Cmd.Stdout = log
-	cmd.Cmd.Stderr = log
-	cmd.Cmd.Dir = "/"
-
-	if err := cmd.Run(); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	// Wait for port...
-	addr, err := h.MetadataURL(uuid.NIL)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	// Hack hack hack: we just strip the "http://" prefix
-	addr = addr[7:]
-
-	spin := ui.NewSpinner("Waiting for MDS", ui.SuffixElapsed(), nil)
-	defer spin.Finish()
-	haveConnection := false
-	for i := 0; i < 50; i++ {
-		time.Sleep(100 * time.Millisecond)
-		if conn, err := net.Dial("tcp", addr); err != nil {
-			spin.Step()
-		} else {
-			spin.Finish()
-			conn.Close()
-			haveConnection = true
-			break
-		}
-	}
-
-	if haveConnection {
-		return h.checkMDS()
-	} else {
-		return nil, errors.New("Timeout waiting for metadata service")
-	}
-}
-
-func (h *Host) NeedMDS() (*MDSInfo, error) {
-	if mdsi, err := h.checkMDS(); err != nil && mdsi == nil {
-		h.ui.Println("Metadata service down:", err)
-		if Config().MustGetBool("mds.autostart") {
-			mdsi, err = h.startMDS()
-		}
-		return mdsi, errors.Trace(err)
-	} else if err != nil {
-		h.ui.Printf("ERROR: %v: %v", mdsi, err)
-		return mdsi, errors.Trace(err)
-	} else {
-		h.ui.Debug(mdsi)
-		return mdsi, nil
-	}
 }

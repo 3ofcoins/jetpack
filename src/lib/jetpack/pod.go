@@ -89,7 +89,7 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		}
 	}()
 
-	_, mdsGID := h.GetMDSUGID()
+	_, mdsGID := MDSUidGid()
 	if err := os.Chown(ds.Mountpoint, 0, mdsGID); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -502,7 +502,7 @@ func (c *Pod) Console(name types.ACName, user string) error {
 }
 
 func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
-	if _, err := c.Host.NeedMDS(); err != nil {
+	if _, err := c.Host.CheckMDS(); err != nil {
 		return errors.Trace(err)
 	}
 

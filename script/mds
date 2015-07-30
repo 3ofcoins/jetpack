@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+rootdir="$(dirname "$(dirname "$(realpath "$0")")")"
+exec "${rootdir}/bin/mds" \
+     -config="${rootdir}/jetpack.conf" \
+     -o="path.libexec=${rootdir}/bin" \
+     -o="path.share=${rootdir}/share" \
+     -o="mds.logfile=-" \
+     -o="mds.keep-uid=on" \
+     "${@}"

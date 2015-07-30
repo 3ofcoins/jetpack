@@ -39,9 +39,8 @@ The code is mounted under `/vagrant`.
 
 ### Configuring the system
 
-First, build Jetpack and install it system-wide or in-place. The
-[INSTALL.md](INSTALL.md) document contains the installation
-instructions.
+First, build Jetpack and install it (see the [INSTALL.md](INSTALL.md)
+document for installation instructions).
 
 You will obviously need a ZFS pool for Jetpack's datasets. By default,
 Jetpack will create a `zroot/jetpack` dataset and mount it at
@@ -152,13 +151,7 @@ something is not clear, it's a bug in the documentation!
 
 #### Running the Metadata Service
 
-To start the metadata service as a daemon, run `jetpack mds`. The
-metadata service will be started automatically if needed.
-
-You can also start the service in foreground logging to standard
-output, but you're going to need to use `sudo` or `su` to run it:
-
-    # sudo -H -u _jetpack $LIBEXECDIR/mds
+To start the metadata service, run `$(jetpack config path.libexecdir)/mds`.
 
 Building Images
 ---------------
