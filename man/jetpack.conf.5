@@ -11,8 +11,8 @@ The file
 .Nm
 contains runtime configuration for
 .Xr jetpack 1 .
-.Pp
-TODO: describe properties file syntax
+.Ss Syntax
+FIXME
 .Pp
 .Ss Essential Variables
 .Bl -tag -width indent
@@ -34,8 +34,11 @@ to generate a new key.
 .It Va jail.inferface
 .Pq Dq Li lo1
 Network interface that will be assigned to jails. Should be configured
-with an IP and a netmask (e.g. cloned in
-.Xr rc.conf 5 ).
+with an IP and a netmask
+.Po
+e.g. cloned in
+.Xr rc.conf 5
+.Pc .
 .El
 .Ss Remaining Variables
 .Bl -tag -width indent
@@ -105,3 +108,27 @@ Directory containing data files.
 .Pq Dq Li /var/jetpack
 Root directory for Jetpack runtime data
 .El
+.Sh FILES
+.Bl -tag -width indent
+.It Pa /usr/local/etc/jetpack.conf
+Default location of the configuration file
+.El
+.Sh EXAMPLES
+.Bd -literal
+root.zfs = tank/jetpack
+ace.dns-servers = 172.23.0.1
+images.aci.compression=gzip
+mds.signing-key = 8530a21fd79035372ce58cefa3f8ad057178c800cb58d95b4d44a115e25c9f7c
+mds.token-key = f26b8016886b387a80457b310d81e5a43c04f5149eb9cef382e388ab437712ad
+.Ed
+.Sh SEE ALSO
+.Xr jetpack 1 ,
+.Xr jetpack-mds 8
+.Sh SECURITY CONSIDERATIONS
+As
+.Nm
+includes secret keys for the metadata service, it should not be world-
+or group-readable.
+.Sh AUTHORS
+.An Maciej Pasternacki
+.Aq Mt maciej@3ofcoins.net
