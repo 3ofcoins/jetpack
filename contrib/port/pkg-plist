@@ -1,0 +1,7 @@
+bin/jetpack
+etc/jetpack.conf.sample
+libexec/jetpack/mds
+libexec/jetpack/stage2
+%%DATADIR%%/jetpack.image.mk
+%%DATADIR%%/makeaci.sh
+share/man/man5/jetpack.conf.5

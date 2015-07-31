@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# $FreeBSD$
+#
+# PROVIDE: jetpack_mds
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+#
+# Add these lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# jetpack_mds_enable (bool):	Set to NO by default.
+#				Set it to YES to enable Jetpack metadata service.
+
+. /etc/rc.subr
+
+name=jetpack_mds
+rcvar=jetpack_mds_enable
+desc="Jetpack metadata service"
+
+load_rc_config $name
+
+: ${jetpack_mds_enable:=NO}
+: ${jetpack_conf="%%PREFIX%%/etc/jetpack.conf"}
+: ${jetpack_mds_conf="${jetpack_conf}"}
+
+procname="%%PREFIX%%/libexec/jetpack/mds"
+command=/usr/sbin/daemon
+pidfile=/var/run/${name}.pid
+logfile=/var/log/${name}.log
+
+command_args="-c -f ${procname} -config=${jetpack_mds_conf} -o mds.pidfile=$pidfile -o mds.logfile=$logfile ${jetpack_opts} ${jetpack_mds_opts}"
+
+run_rc_command "$1"

@@ -1,0 +1,2 @@
+Jetpack is an implementation of the App Container Specification for
+FreeBSD, using jails for isolation and ZFS for layered storage.
