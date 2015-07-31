@@ -79,7 +79,7 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 			return resp403()
 		}
 		r.URL.User = url.User("host")
-		if body, err := json.Marshal(Info); err != nil {
+		if body, err := json.Marshal(&Info); err != nil {
 			return resp500(err)
 		} else {
 			return http.StatusOK, body
@@ -246,33 +246,29 @@ func ServeMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var Info *jetpack.MDSInfo
+var Info jetpack.MDSInfo
 var SigningKey []byte
-
-func makeMDSInfo() (*jetpack.MDSInfo, error) {
-	mdsi := &jetpack.MDSInfo{
-		Pid:     os.Getpid(),
-		Uid:     os.Getuid(),
-		Gid:     os.Getgid(),
-		Version: jetpack.Version(),
-		Port:    jetpack.Config().MustGetInt("mds.port"),
-	}
-	if ip, _, err := Host.HostIP(); err != nil {
-		return nil, err
-	} else {
-		mdsi.IP = ip.String()
-	}
-	return mdsi, nil
-}
 
 func main() {
 	flag.Parse()
+
+	Info.Pid = os.Getpid()
+	Info.Uid = -1
+	Info.Gid = -1
+	Info.Version = jetpack.Version()
 
 	if host, err := jetpack.NewHost(); err != nil {
 		log.Fatalln("Error initializing host:", err)
 	} else {
 		Host = host
 	}
+
+	if hostip, _, err := Host.HostIP(); err != nil {
+		panic(err)
+	} else {
+		Info.IP = hostip.String()
+	}
+	Info.Port = jetpack.Config().MustGetInt("mds.port")
 
 	if s, err := hex.DecodeString(jetpack.Config().MustGet("mds.signing-key")); err != nil {
 		panic(err)
@@ -319,11 +315,8 @@ func main() {
 		}
 	}
 
-	if mdsi, err := makeMDSInfo(); err != nil {
-		log.Fatalln("Error preparing info object:", err)
-	} else {
-		Info = mdsi
-	}
+	Info.Uid = os.Getuid()
+	Info.Gid = os.Getgid()
 
 	log.Println("Listening on:", addr)
 	log.Fatal(http.Serve(listener, http.HandlerFunc(ServeMetadata)))
