@@ -475,33 +475,39 @@ func (c *Pod) Jid() int {
 	}
 }
 
-func (c *Pod) RunApp(name types.ACName) error {
-	if rta := c.Manifest.Apps.Get(name); rta != nil {
-		return c.runRuntimeApp(rta)
+func (c *Pod) GetApp(name types.ACName) *types.App {
+	rtapp := c.Manifest.Apps.Get(name)
+	if rtapp == nil {
+		return nil
 	}
-	return ErrNotFound
-}
-
-func (c *Pod) runRuntimeApp(rtapp *schema.RuntimeApp) error {
 	app := rtapp.App
 	if app == nil {
 		img, err := c.Host.getRuntimeImage(rtapp.Image)
 		if err != nil {
-			return errors.Trace(err)
+			// FIXME: Report error to UI? Panic?
+			return nil
 		}
 		app = img.Manifest.App
 		if app == nil {
 			app = ConsoleApp("root")
 		}
 	}
-	return c.runApp(rtapp.Name, app)
+	return app
 }
 
 func (c *Pod) Console(name types.ACName, user string) error {
-	return c.runApp(name, ConsoleApp(user))
+	return c.RunApp(name, ConsoleApp(user))
 }
 
-func (c *Pod) runApp(name types.ACName, app *types.App) (re error) {
+func (c *Pod) RunApp(name types.ACName, app *types.App) (re error) {
+	if rtapp := c.Manifest.Apps.Get(name); rtapp == nil {
+		return ErrNotFound
+	}
+
+	if app == nil {
+		app = c.GetApp(name)
+	}
+
 	if _, err := c.Host.CheckMDS(); err != nil {
 		return errors.Trace(err)
 	}
