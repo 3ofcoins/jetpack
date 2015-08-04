@@ -57,12 +57,6 @@
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/constabulary/gb",
-			"repository": "https://github.com/constabulary/gb",
-			"revision": "f9325e15f221119f250e84cf8d4893687a1630ec",
-			"branch": "master"
-		},
-		{
 			"importpath": "github.com/appc/spec",
 			"repository": "https://github.com/appc/spec",
 			"revision": "18969bafabb4637b7647bd7666ca83398d624637",

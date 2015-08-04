@@ -1,11 +1,7 @@
 prefix	?= /usr/local
-GB	?= vendor/bin/gb
 
-all: ${GB}
-	${GB} build -ldflags "-X lib/jetpack.prefix ${prefix}" bin/jetpack ${echo src/libexec/*:L:sh:S/^src\///} github.com/appc/spec/actool
-
-${GB}:
-	env GOBIN=${GB:H} GOPATH=${.CURDIR}/vendor go install github.com/constabulary/gb/...
+all:
+	gb build -ldflags "-X lib/jetpack.prefix ${prefix}" bin/jetpack ${echo src/libexec/*:L:sh:S/^src\///} github.com/appc/spec/actool
 
 install: .PHONY bin/jetpack
 	set -e -x ; \
@@ -30,10 +26,3 @@ ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
 
 clean: .PHONY
 	rm -rf bin pkg tmp vendor/bin vendor/pkg ${spec}/bin ${spec}/gopath
-
-# development helpers
-cloc:
-	cloc --exclude-dir=vendor .
-
-ack:
-	ack --type=go --ignore-dir=vendor -w ${q}

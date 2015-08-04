@@ -10,7 +10,7 @@ COMMENT=	App Container runtime
 
 LICENSE=	BSD3CLAUSE
 
-BUILD_DEPENDS=	${LOCALBASE}/bin/go:${PORTSDIR}/lang/go
+BUILD_DEPENDS=	gb>=0.0.0.2015080301:${PORTSDIR}/devel/gb
 
 USE_GITHUB=	yes
 GH_ACCOUNT=	3ofcoins

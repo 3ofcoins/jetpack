@@ -10,10 +10,11 @@ Prerequisites
  - FreeBSD OS (developed and tested on 10.1 with current updates)
  - Git (to check out this repository)
  - Go (developed and tested on Go 1.4)
+ - Gb (port `devel/gb`)
  
  To install prerequisites, run:
 
-    # pkg install go git
+    # pkg install go gb git
 
 Building
 --------
