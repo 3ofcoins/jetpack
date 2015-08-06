@@ -49,10 +49,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/appc/spec/schema"
@@ -471,24 +469,7 @@ func ValidateMetadataSvc() results {
 // checkMount checks that the given string is a mount point, and that it is
 // mounted appropriately read-only or not according to the given bool
 func checkMount(d string, readonly bool) error {
-	// or....
-	// os.Stat(path).Sys().(*syscall.Stat_t).Dev
-	sfs1 := &syscall.Statfs_t{}
-	if err := syscall.Statfs(d, sfs1); err != nil {
-		return fmt.Errorf("error calling statfs on %q: %v", d, err)
-	}
-	sfs2 := &syscall.Statfs_t{}
-	if err := syscall.Statfs(filepath.Dir(d), sfs2); err != nil {
-		return fmt.Errorf("error calling statfs on %q: %v", d, err)
-	}
-	if isSameFilesystem(sfs1, sfs2) {
-		return fmt.Errorf("%q is not a mount point", d)
-	}
-	ro := sfs1.Flags&syscall.O_RDONLY == 1
-	if ro != readonly {
-		return fmt.Errorf("%q mounted ro=%t, want %t", d, ro, readonly)
-	}
-	return nil
+	return checkMountImpl(d, readonly)
 }
 
 // assertNotExistsAndCreate asserts that a file at the given path does not
