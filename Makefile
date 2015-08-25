@@ -1,7 +1,14 @@
 prefix	?= /usr/local
 
-all:
-	gb build -ldflags "-X lib/jetpack.prefix ${prefix}" bin/jetpack ${echo src/libexec/*:L:sh:S/^src\///} github.com/appc/spec/actool
+all: bin/jetpack bin/mds bin/actool bin/stage2
+
+bin/jetpack bin/mds bin/actool: .gb.build.
+.PHONY: .gb.build.
+.gb.build.:
+	gb build -ldflags "-X lib/jetpack.prefix ${prefix}" bin/jetpack libexec/mds github.com/appc/spec/actool
+
+bin/stage2: stage2.c
+	${CC} ${CFLAGS} ${LDFLAGS} -o $@ stage2.c
 
 install: .PHONY bin/jetpack
 	set -e -x ; \

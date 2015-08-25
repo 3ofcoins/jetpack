@@ -515,7 +515,7 @@ func (c *Pod) RunApp(name types.ACName, app *types.App) (re error) {
 	env := []string{}
 
 	for _, env_var := range app.Environment {
-		env = append(env, "-setenv", env_var.Name+"="+env_var.Value)
+		env = append(env, env_var.Name+"="+env_var.Value)
 	}
 
 	for _, eh := range app.EventHandlers {
@@ -545,6 +545,31 @@ func (c *Pod) RunApp(name types.ACName, app *types.App) (re error) {
 func (c *Pod) stage2(app types.ACName, user, group string, cwd string, env []string, exec ...string) error {
 	if strings.HasPrefix(user, "/") || strings.HasPrefix(group, "/") {
 		return errors.New("Path-based user/group not supported yet, sorry")
+	}
+
+	hasPath := false
+	hasTerm := false
+
+	for _, envVar := range env {
+		if strings.HasPrefix(envVar, "PATH=") {
+			hasPath = true
+		}
+		if strings.HasPrefix(envVar, "TERM=") {
+			hasTerm = true
+		}
+	}
+
+	if !hasPath {
+		env = append(env, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+	}
+
+	if !hasTerm {
+		// TODO: TERM= only if we're attached to a terminal
+		term := os.Getenv("TERM")
+		if term == "" {
+			term = "vt100"
+		}
+		env = append(env, "TERM="+term)
 	}
 
 	// Ensure jail is created
@@ -591,16 +616,12 @@ func (c *Pod) stage2(app types.ACName, user, group string, cwd string, env []str
 
 	stage2 := filepath.Join(Config().MustGetString("path.libexec"), "stage2")
 	args := []string{
-		"-jid", strconv.Itoa(jid),
-		"-app", string(app),
-		"-mds", mds,
-		"-uid", strconv.Itoa(pwent.Uid),
-		"-gid", strconv.Itoa(pwent.Gid),
-		"-cwd", cwd,
-		"-setenv", "USER=" + pwent.Username,
-		"-setenv", "LOGNAME=" + pwent.Username,
-		"-setenv", "HOME=" + pwent.Home,
-		"-setenv", "SHELL=" + pwent.Shell,
+		fmt.Sprintf("%d:%d:%d:%s:%s", jid, pwent.Uid, pwent.Gid, app, cwd),
+		"AC_METADATA_URL=" + mds,
+		"USER=" + pwent.Username,
+		"LOGNAME=" + pwent.Username,
+		"HOME=" + pwent.Home,
+		"SHELL=" + pwent.Shell,
 	}
 	args = append(args, env...)
 	args = append(args, exec...)
