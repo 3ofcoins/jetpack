@@ -1,11 +1,20 @@
 prefix	?= /usr/local
 
+# The old syntax for the `-X` argumant to go compiler's ldflags has
+# been deprecated at Go 1.5.
+go_version := ${go version:L:sh:Mgo*.*:S/^go//}
+.if ${go_version} >= 1.5
+go_ldflags="-X lib/jetpack.prefix=${prefix}"
+.else
+go_ldflags="-X lib/jetpack.prefix ${prefix}"
+.endif
+
 all: bin/jetpack bin/mds bin/actool bin/stage2
 
 bin/jetpack bin/mds bin/actool: .gb.build.
 .PHONY: .gb.build.
 .gb.build.:
-	gb build -ldflags "-X lib/jetpack.prefix ${prefix}" bin/jetpack libexec/mds github.com/appc/spec/actool
+	gb build -ldflags ${go_ldflags} bin/jetpack libexec/mds github.com/appc/spec/actool
 
 bin/stage2: stage2.c
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ stage2.c
