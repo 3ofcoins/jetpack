@@ -136,7 +136,7 @@ func cmdWrapPod0(cmd func(*jetpack.Pod) error) func([]string) error {
 	})
 }
 
-func cmdWrapPodMaybeApp(cmd func(*jetpack.Pod, types.ACName, []string) error) func([]string) error {
+func cmdWrapPodMaybeApp(cmd func(*jetpack.Pod, *jetpack.App, []string) error) func([]string) error {
 	return func(args []string) error {
 		if len(args) == 0 {
 			return ErrUsage
@@ -146,36 +146,38 @@ func cmdWrapPodMaybeApp(cmd func(*jetpack.Pod, types.ACName, []string) error) fu
 			return errors.Trace(err)
 		} else {
 			if len(pieces) == 1 {
-				return cmd(pod, acutil.ACNoName, args[1:])
+				return cmd(pod, nil, args[1:])
 			} else if appName, err := types.NewACName(pieces[1]); err != nil {
 				return errors.Trace(err)
+			} else if app := pod.App(*appName); app == nil {
+				return jetpack.ErrNotFound
 			} else {
-				return cmd(pod, *appName, args)
+				return cmd(pod, app, args)
 			}
 		}
 	}
 }
 
-func cmdWrapPodApp(cmd func(*jetpack.Pod, types.ACName, []string) error) func([]string) error {
-	return cmdWrapPodMaybeApp(func(pod *jetpack.Pod, appName types.ACName, args []string) error {
-		if appName.Empty() {
+func cmdWrapApp(cmd func(*jetpack.App, []string) error) func([]string) error {
+	return cmdWrapPodMaybeApp(func(pod *jetpack.Pod, app *jetpack.App, args []string) error {
+		if app == nil {
 			if len(pod.Manifest.Apps) == 1 {
-				appName = pod.Manifest.Apps[0].Name
+				app = pod.Apps()[0]
 			} else {
 				return errors.New("You need to specify app name for a multi-app pod")
 			}
 		}
-		return cmd(pod, appName, args)
+		return cmd(app, args)
 	})
 }
 
-func cmdWrapPodApp0(cmd func(*jetpack.Pod, types.ACName) error) func([]string) error {
-	return cmdWrapPodApp(
-		func(pod *jetpack.Pod, app types.ACName, args []string) error {
+func cmdWrapApp0(cmd func(*jetpack.App) error) func([]string) error {
+	return cmdWrapApp(
+		func(app *jetpack.App, args []string) error {
 			if len(args) > 0 {
 				return ErrUsage
 			}
-			return cmd(pod, app)
+			return cmd(app)
 		})
 }
 

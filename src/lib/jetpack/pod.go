@@ -17,7 +17,6 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/passwd"
 	"lib/run"
 	"lib/ui"
 	"lib/zfs"
@@ -475,7 +474,12 @@ func (c *Pod) Jid() int {
 	}
 }
 
-func (c *Pod) GetApp(name types.ACName) *types.App {
+func (pod *Pod) MetadataURL() (string, error) {
+	mds, err := pod.Host.MetadataURL(pod.UUID)
+	return mds, errors.Trace(err)
+}
+
+func (c *Pod) App(name types.ACName) *App {
 	rtapp := c.Manifest.Apps.Get(name)
 	if rtapp == nil {
 		return nil
@@ -492,138 +496,13 @@ func (c *Pod) GetApp(name types.ACName) *types.App {
 			app = ConsoleApp("root")
 		}
 	}
-	return app
+	return &App{Name: name, Pod: c, app: app}
 }
 
-func (c *Pod) Console(name types.ACName, user string) error {
-	return c.RunApp(name, ConsoleApp(user))
-}
-
-func (c *Pod) RunApp(name types.ACName, app *types.App) (re error) {
-	if rtapp := c.Manifest.Apps.Get(name); rtapp == nil {
-		return ErrNotFound
+func (c *Pod) Apps() []*App {
+	apps := make([]*App, len(c.Manifest.Apps))
+	for i, rtapp := range c.Manifest.Apps {
+		apps[i] = c.App(rtapp.Name)
 	}
-
-	if app == nil {
-		app = c.GetApp(name)
-	}
-
-	if _, err := c.Host.CheckMDS(); err != nil {
-		return errors.Trace(err)
-	}
-
-	env := []string{}
-
-	for _, env_var := range app.Environment {
-		env = append(env, env_var.Name+"="+env_var.Value)
-	}
-
-	for _, eh := range app.EventHandlers {
-		switch eh.Name {
-		case "pre-start":
-			// TODO: log
-			if err := c.stage2(name, "", "", app.WorkingDirectory, env, eh.Exec...); err != nil {
-				return errors.Trace(err)
-			}
-		case "post-stop":
-			defer func(exec []string) {
-				// TODO: log
-				if err := c.stage2(name, "", "", app.WorkingDirectory, env, exec...); err != nil {
-					if re != nil {
-						re = errors.Trace(err)
-					} // else? log?
-				}
-			}(eh.Exec)
-		default:
-			return errors.Errorf("Unrecognized eventHandler: %v", eh.Name)
-		}
-	}
-
-	return errors.Trace(c.stage2(name, app.User, app.Group, app.WorkingDirectory, env, app.Exec...))
-}
-
-func (c *Pod) stage2(app types.ACName, user, group string, cwd string, env []string, exec ...string) error {
-	if strings.HasPrefix(user, "/") || strings.HasPrefix(group, "/") {
-		return errors.New("Path-based user/group not supported yet, sorry")
-	}
-
-	hasPath := false
-	hasTerm := false
-
-	for _, envVar := range env {
-		if strings.HasPrefix(envVar, "PATH=") {
-			hasPath = true
-		}
-		if strings.HasPrefix(envVar, "TERM=") {
-			hasTerm = true
-		}
-	}
-
-	if !hasPath {
-		env = append(env, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-	}
-
-	if !hasTerm {
-		// TODO: TERM= only if we're attached to a terminal
-		term := os.Getenv("TERM")
-		if term == "" {
-			term = "vt100"
-		}
-		env = append(env, "TERM="+term)
-	}
-
-	// Ensure jail is created
-	jid := c.Jid()
-	if jid == 0 {
-		if err := errors.Trace(c.runJail("-c")); err != nil {
-			return errors.Trace(err)
-		}
-		jid = c.Jid()
-		if jid == 0 {
-			panic("Could not start jail")
-		}
-	}
-
-	mds, err := c.Host.MetadataURL(c.UUID)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	pwf, err := passwd.ReadPasswd(c.Path("rootfs", "app", app.String(), "rootfs", "etc", "passwd"))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	pwent := pwf.Find(user)
-	if pwent == nil {
-		return errors.Errorf("Cannot find user: %#v", user)
-	}
-
-	if group != "" {
-		grf, err := passwd.ReadGroup(c.Path("rootfs", "app", app.String(), "rootfs", "etc", "group"))
-		if err != nil {
-			return errors.Trace(err)
-		}
-		pwent.Gid = grf.FindGid(group)
-		if pwent.Gid < 0 {
-			return errors.Errorf("Cannot find group: %#v", group)
-		}
-	}
-
-	if cwd == "" {
-		cwd = "/"
-	}
-
-	stage2 := filepath.Join(Config().MustGetString("path.libexec"), "stage2")
-	args := []string{
-		fmt.Sprintf("%d:%d:%d:%s:%s", jid, pwent.Uid, pwent.Gid, app, cwd),
-		"AC_METADATA_URL=" + mds,
-		"USER=" + pwent.Username,
-		"LOGNAME=" + pwent.Username,
-		"HOME=" + pwent.Home,
-		"SHELL=" + pwent.Shell,
-	}
-	args = append(args, env...)
-	args = append(args, exec...)
-	return run.Command(stage2, args...).Run()
+	return apps
 }

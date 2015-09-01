@@ -213,7 +213,7 @@ func (img *Image) Build(buildDir string, addFiles []string, buildExec []string) 
 	}
 
 	ui.Println("Running the build")
-	if err := buildPod.RunApp(buildPod.Manifest.Apps[0].Name, nil); err != nil {
+	if err := buildPod.Apps()[0].Run(os.Stdin, os.Stdout, os.Stderr); err != nil {
 		return nil, errors.Trace(err)
 	}
 

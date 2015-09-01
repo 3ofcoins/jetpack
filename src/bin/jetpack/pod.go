@@ -24,8 +24,8 @@ func init() {
 	AddCommand("ps POD [ARGS...]", "Show pod's process list (ps)", cmdWrapPod(cmdPodCmd("/bin/ps", "-J")), nil)
 	AddCommand("top POD [ARGS...]", "Show pod's process list (top)", cmdWrapPod(cmdPodCmd("/usr/bin/top", "-J")), nil)
 	AddCommand("killall POD [ARGS...]", "Kill pod's processes", cmdWrapPod(cmdPodCmd("/usr/bin/killall", "-j")), nil)
-	AddCommand("console POD[:APP]", "Open a console in app", cmdWrapPodApp0(cmdConsole), flConsole)
-	AddCommand("exec POD[:APP] COMMAND...", "Run a command in app", cmdWrapPodApp(cmdExec), nil)
+	AddCommand("console POD[:APP]", "Open a console in app", cmdWrapApp0(cmdConsole), flConsole)
+	AddCommand("exec POD[:APP] COMMAND...", "Run a command in app", cmdWrapApp(cmdExec), nil)
 }
 
 var flDryRun bool
@@ -93,7 +93,11 @@ func cmdRun(pod *jetpack.Pod) (erv error) {
 			}
 		}()
 	}
-	return errors.Trace(pod.RunApp(flAppName, nil))
+	if app := pod.App(flAppName); app == nil {
+		return jetpack.ErrNotFound
+	} else {
+		return errors.Trace(app.Run(os.Stdin, os.Stdout, os.Stderr))
+	}
 }
 
 func cmdPodManifest(pod *jetpack.Pod) error {
@@ -130,15 +134,10 @@ func flConsole(fl *flag.FlagSet) {
 	fl.StringVar(&flConsoleUsername, "u", "root", "Username to run console as")
 }
 
-func cmdConsole(pod *jetpack.Pod, appName types.ACName) error {
-	return errors.Trace(pod.Console(appName, flConsoleUsername))
+func cmdConsole(app *jetpack.App) error {
+	return errors.Trace(app.Console(flConsoleUsername))
 }
 
-func cmdExec(pod *jetpack.Pod, rtapp types.ACName, args []string) error {
-	app := pod.GetApp(rtapp)
-	if app == nil {
-		return errors.New("CAN'T HAPPEN")
-	}
-	app.Exec = args
-	return errors.Trace(pod.RunApp(rtapp, app))
+func cmdExec(app *jetpack.App, args []string) error {
+	return errors.Trace(app.Stage2(os.Stdin, os.Stdout, os.Stderr, "", "", "", args...))
 }
