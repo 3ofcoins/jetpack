@@ -253,19 +253,19 @@ func LoadPod(h *Host, id uuid.UUID) (*Pod, error) {
 	return pod, nil
 }
 
-func (p *Pod) ID() string {
-	return p.UUID.String()
+func (pod *Pod) ID() string {
+	return pod.UUID.String()
 }
 
-func (c *Pod) Path(elem ...string) string {
-	return c.Host.Path(append(
-		[]string{"pods", c.UUID.String()},
+func (pod *Pod) Path(elem ...string) string {
+	return pod.Host.Path(append(
+		[]string{"pods", pod.UUID.String()},
 		elem...,
 	)...)
 }
 
-func (c *Pod) Exists() bool {
-	if _, err := os.Stat(c.Path("manifest")); err != nil {
+func (pod *Pod) Exists() bool {
+	if _, err := os.Stat(pod.Path("manifest")); err != nil {
 		if os.IsNotExist(err) {
 			return false
 		}
@@ -274,72 +274,72 @@ func (c *Pod) Exists() bool {
 	return true
 }
 
-func (c *Pod) loadManifest() error {
-	c.ui.Debug("Loading manifest")
-	manifestJSON, err := ioutil.ReadFile(c.Path("manifest"))
+func (pod *Pod) loadManifest() error {
+	pod.ui.Debug("Loading manifest")
+	manifestJSON, err := ioutil.ReadFile(pod.Path("manifest"))
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	if err = json.Unmarshal(manifestJSON, &c.Manifest); err != nil {
+	if err = json.Unmarshal(manifestJSON, &pod.Manifest); err != nil {
 		return errors.Trace(err)
 	}
 
 	return nil
 }
 
-func (c *Pod) Load() error {
-	if c.sealed {
+func (pod *Pod) Load() error {
+	if pod.sealed {
 		panic("tried to load an already sealed pod")
 	}
 
-	if !c.Exists() {
+	if !pod.Exists() {
 		return ErrNotFound
 	}
 
-	if err := c.loadManifest(); err != nil {
+	if err := pod.loadManifest(); err != nil {
 		return errors.Trace(err)
 	}
 
-	if len(c.Manifest.Apps) == 0 {
+	if len(pod.Manifest.Apps) == 0 {
 		return errors.Errorf("No application set?")
 	}
 
-	if len(c.Manifest.Isolators) != 0 {
+	if len(pod.Manifest.Isolators) != 0 {
 		return errors.Errorf("TODO: isolators are not supported")
 	}
 
-	c.sealed = true
+	pod.sealed = true
 	return nil
 }
 
-func (c *Pod) jailConf() string {
+func (pod *Pod) jailConf() string {
 	parameters := map[string]string{
 		"exec.clean":    "true",
-		"host.hostuuid": c.UUID.String(),
+		"host.hostuuid": pod.UUID.String(),
 		"interface":     Config().MustGetString("jail.interface"),
-		"path":          c.Path("rootfs"),
+		"path":          pod.Path("rootfs"),
 		"persist":       "true",
-		"mount.fstab":   c.Path("fstab"),
+		"mount.fstab":   pod.Path("fstab"),
 	}
 
 	for pk, pv := range ConfigPrefix("ace.jailConf.") {
 		parameters[pk] = pv
 	}
 
-	if hostname, ok := c.Manifest.Annotations.Get("hostname"); ok {
+	if hostname, ok := pod.Manifest.Annotations.Get("hostname"); ok {
 		parameters["host.hostname"] = hostname
 	} else {
 		parameters["host.hostname"] = parameters["host.hostuuid"]
 	}
 
-	if ip, ok := c.Manifest.Annotations.Get("ip-address"); ok {
+	if ip, ok := pod.Manifest.Annotations.Get("ip-address"); ok {
 		parameters["ip4.addr"] = ip
 	} else {
-		panic(fmt.Sprintf("No IP address for pod %v", c.UUID))
+		panic(fmt.Sprintf("No IP address for pod %v", pod.UUID))
 	}
 
-	for _, antn := range c.Manifest.Annotations {
+	for _, antn := range pod.Manifest.Annotations {
 		if strings.HasPrefix(string(antn.Name), "jetpack/jail.conf/") {
 			parameters[strings.Replace(string(antn.Name)[len("jetpack/jail.conf/"):], "-", "_", -1)] = antn.Value
 		}
@@ -351,12 +351,12 @@ func (c *Pod) jailConf() string {
 	}
 	sort.Strings(lines)
 
-	return fmt.Sprintf("%#v {\n%v\n}\n", c.jailName(), strings.Join(lines, "\n"))
+	return fmt.Sprintf("%#v {\n%v\n}\n", pod.jailName(), strings.Join(lines, "\n"))
 }
 
-func (c *Pod) prepJail() error {
-	for _, app := range c.Manifest.Apps {
-		etcPath := c.Path("rootfs", "app", app.Name.String(), "rootfs", "etc")
+func (pod *Pod) prepJail() error {
+	for _, app := range pod.Manifest.Apps {
+		etcPath := pod.Path("rootfs", "app", app.Name.String(), "rootfs", "etc")
 		if fi, err := os.Stat(etcPath); err == nil && fi.IsDir() {
 			// TODO: option (isolator?) to prevent creation of resolv.conf
 			if dnsServers, ok := Config().Get("ace.dns-servers"); !ok {
@@ -381,8 +381,8 @@ func (c *Pod) prepJail() error {
 	return nil
 }
 
-func (c *Pod) Status() PodStatus {
-	if status, err := c.jailStatus(false); err != nil {
+func (pod *Pod) Status() PodStatus {
+	if status, err := pod.jailStatus(false); err != nil {
 		panic(err)
 	} else {
 		if status == NoJailStatus {
@@ -395,29 +395,29 @@ func (c *Pod) Status() PodStatus {
 	}
 }
 
-func (c *Pod) runJail(op string) error {
-	if err := c.prepJail(); err != nil {
+func (pod *Pod) runJail(op string) error {
+	if err := pod.prepJail(); err != nil {
 		return err
 	}
 	verbosity := "-q"
 	if Config().GetBool("debug", false) {
 		verbosity = "-v"
 	}
-	c.ui.Debug("Running: jail", op)
-	return run.Command("jail", "-f", c.Path("jail.conf"), verbosity, op, c.jailName()).Run()
+	pod.ui.Debug("Running: jail", op)
+	return run.Command("jail", "-f", pod.Path("jail.conf"), verbosity, op, pod.jailName()).Run()
 }
 
-func (c *Pod) Kill() error {
-	c.ui.Println("Shutting down")
+func (pod *Pod) Kill() error {
+	pod.ui.Println("Shutting down")
 	spin := ui.NewSpinner("Waiting for jail to die", ui.SuffixElapsed(), nil)
 	defer spin.Finish()
 retry:
-	switch status := c.Status(); status {
+	switch status := pod.Status(); status {
 	case PodStatusStopped:
 		// All's fine
 		return nil
 	case PodStatusRunning:
-		if err := c.runJail("-r"); err != nil {
+		if err := pod.runJail("-r"); err != nil {
 			return errors.Trace(err)
 		}
 		goto retry
@@ -432,8 +432,8 @@ retry:
 }
 
 // FIXME: multi-app pods
-func (c *Pod) getDataset() *zfs.Dataset {
-	if ds, err := c.Host.Dataset.GetDataset(path.Join("pods", c.UUID.String())); err == zfs.ErrNotFound {
+func (pod *Pod) getDataset() *zfs.Dataset {
+	if ds, err := pod.Host.Dataset.GetDataset(path.Join("pods", pod.UUID.String())); err == zfs.ErrNotFound {
 		return nil
 	} else if err != nil {
 		panic(err)
@@ -442,32 +442,32 @@ func (c *Pod) getDataset() *zfs.Dataset {
 	}
 }
 
-func (c *Pod) Destroy() error {
-	c.ui.Println("Destroying")
-	if jid := c.Jid(); jid != 0 {
-		if err := c.Kill(); err != nil {
+func (pod *Pod) Destroy() error {
+	pod.ui.Println("Destroying")
+	if jid := pod.Jid(); jid != 0 {
+		if err := pod.Kill(); err != nil {
 			// FIXME: plow through, ensure it's destroyed
 			return errors.Trace(err)
 		}
 	}
-	if ds := c.getDataset(); ds != nil {
+	if ds := pod.getDataset(); ds != nil {
 		if err := ds.Destroy("-r"); err != nil {
 			return errors.Trace(err)
 		}
 	}
-	return errors.Trace(os.RemoveAll(c.Path()))
+	return errors.Trace(os.RemoveAll(pod.Path()))
 }
 
-func (c *Pod) jailName() string {
-	return Config().MustGetString("jail.namePrefix") + c.UUID.String()
+func (pod *Pod) jailName() string {
+	return Config().MustGetString("jail.namePrefix") + pod.UUID.String()
 }
 
-func (c *Pod) jailStatus(refresh bool) (JailStatus, error) {
-	return c.Host.getJailStatus(c.jailName(), refresh)
+func (pod *Pod) jailStatus(refresh bool) (JailStatus, error) {
+	return pod.Host.getJailStatus(pod.jailName(), refresh)
 }
 
-func (c *Pod) Jid() int {
-	if status, err := c.jailStatus(false); err != nil {
+func (pod *Pod) Jid() int {
+	if status, err := pod.jailStatus(false); err != nil {
 		panic(err) // FIXME: better error flow
 	} else {
 		return status.Jid
@@ -479,14 +479,14 @@ func (pod *Pod) MetadataURL() (string, error) {
 	return mds, errors.Trace(err)
 }
 
-func (c *Pod) App(name types.ACName) *App {
-	rtapp := c.Manifest.Apps.Get(name)
+func (pod *Pod) App(name types.ACName) *App {
+	rtapp := pod.Manifest.Apps.Get(name)
 	if rtapp == nil {
 		return nil
 	}
 	app := rtapp.App
 	if app == nil {
-		img, err := c.Host.getRuntimeImage(rtapp.Image)
+		img, err := pod.Host.getRuntimeImage(rtapp.Image)
 		if err != nil {
 			// FIXME: Report error to UI? Panic?
 			return nil
@@ -496,13 +496,13 @@ func (c *Pod) App(name types.ACName) *App {
 			app = ConsoleApp("root")
 		}
 	}
-	return &App{Name: name, Pod: c, app: app}
+	return &App{Name: name, Pod: pod, app: app}
 }
 
-func (c *Pod) Apps() []*App {
-	apps := make([]*App, len(c.Manifest.Apps))
-	for i, rtapp := range c.Manifest.Apps {
-		apps[i] = c.App(rtapp.Name)
+func (pod *Pod) Apps() []*App {
+	apps := make([]*App, len(pod.Manifest.Apps))
+	for i, rtapp := range pod.Manifest.Apps {
+		apps[i] = pod.App(rtapp.Name)
 	}
 	return apps
 }
