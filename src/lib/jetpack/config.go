@@ -18,7 +18,7 @@ var prefix = "/usr/local"
 
 // Default config
 var defaultConfig = []byte(fmt.Sprintf(`
-ace.jailConf.osrelease=10.1-RELEASE-p9
+ace.jailConf.osrelease=10.2-RELEASE
 ace.jailConf.securelevel=2
 allow.autodiscovery = on
 allow.http = off
