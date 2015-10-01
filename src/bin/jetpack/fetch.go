@@ -65,6 +65,16 @@ func cmdImport(args []string) error {
 		return ErrUsage
 	}
 
+	var idf *os.File
+	if SaveID != "" {
+		if f, err := os.Create(SaveID); err != nil {
+			return err
+		} else {
+			idf = f
+			defer idf.Close()
+		}
+	}
+
 	aci, err := fetch.OpenLocation(args[0])
 	if err != nil {
 		return errors.Trace(err)
@@ -82,6 +92,9 @@ func cmdImport(args []string) error {
 	if img, err := Host.ImportImage(flImportName, aci, asc); err != nil {
 		return errors.Trace(err)
 	} else {
+		if idf != nil {
+			fmt.Fprintln(idf, img.Hash)
+		}
 		return cmdShowImage(img)
 	}
 }
