@@ -7,9 +7,9 @@ BUILD_VARS   = http_proxy
 
 # Download base.txz and roll a base ACI off it. Needs security/fakeroot, is nicer with deskutils/pv
 
-BASE_VERSION = 10.1
-BASE_URL = ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/10.1-RELEASE/base.txz
-BASE_SHA256 = 2b028a894d25711ad496762622a52d74b1e32ee04693ad1cf056e3ddcdc23975
+BASE_VERSION = 10.2
+BASE_URL = ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/${BASE_VERSION}-RELEASE/base.txz
+BASE_SHA256 = 75b0d1872b39c35b0d423c352c96d41cc2d7e7d536b78ecdb506c2fbf8072a0b
 
 base.txz:
 	fetch -o $@ ${BASE_URL}
@@ -20,7 +20,7 @@ base.aci: base.txz
 	${MAKEACI} ./base.txz ./base.manifest.json $@
 
 base.aci.id: base.aci
-	jetpack fetch -saveid=$@ -insecure-allow-no-signature ./base.aci
+	jetpack import -saveid=$@ ./base.aci
 
 prepare.base: base.aci.id
 
@@ -41,7 +41,6 @@ build:
 	install -v -d -m 0755 /usr/local/bin
 	install -v -m 0755 appc-metadata-client/ac-mdc /usr/local/bin/ac-mdc
 	install -v -m 0644 rc.conf /etc/rc.conf
-	patch /usr/sbin/freebsd-update < freebsd-update.patch
 	env PAGER=cat freebsd-update -s update6.freebsd.org fetch install
 	rm -rf /var/db/freebsd-update/*
 
