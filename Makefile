@@ -2,7 +2,7 @@ prefix	?= /usr/local
 
 # The old syntax for the `-X` argumant to go compiler's ldflags has
 # been deprecated at Go 1.5.
-go_version := ${go version:L:sh:Mgo*.*:S/^go//}
+go_version := ${go version | grep -o '[1-9][0-9]*\.[0-9]*':L:sh}
 .if ${go_version} >= 1.5
 go_ldflags="-X lib/jetpack.prefix=${prefix}"
 .else
