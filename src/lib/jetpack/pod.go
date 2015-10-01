@@ -5,18 +5,23 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
+	"github.com/hashicorp/go-multierror"
 	"github.com/juju/errors"
 
+	"lib/drain"
 	"lib/run"
 	"lib/ui"
 	"lib/zfs"
@@ -52,6 +57,7 @@ type Pod struct {
 
 	sealed bool
 	ui     *ui.UI
+	jailMx sync.Mutex
 }
 
 func newPod(h *Host, id uuid.UUID) *Pod {
@@ -474,6 +480,23 @@ func (pod *Pod) Jid() int {
 	}
 }
 
+// Return jail ID, start jail if necessary.
+func (pod *Pod) ensureJid() int {
+	pod.jailMx.Lock()
+	defer pod.jailMx.Unlock()
+	jid := pod.Jid()
+	if jid == 0 {
+		if err := errors.Trace(pod.runJail("-c")); err != nil {
+			panic(err)
+		}
+		jid = pod.Jid()
+		if jid == 0 {
+			panic("Could not start jail")
+		}
+	}
+	return jid
+}
+
 func (pod *Pod) MetadataURL() (string, error) {
 	mds, err := pod.Host.MetadataURL(pod.UUID)
 	return mds, errors.Trace(err)
@@ -505,4 +528,82 @@ func (pod *Pod) Apps() []*App {
 		apps[i] = pod.App(rtapp.Name)
 	}
 	return apps
+}
+
+// Runs all the apps in parallel, with closed stdin & piped/logged
+// stdout and stderr
+func (pod *Pod) Run() error {
+	// This is repeated in App.Run(); should we sync.Once it?
+	if _, err := pod.Host.CheckMDS(); err != nil {
+		return errors.Trace(err)
+	}
+
+	// Context
+	apps := pod.Apps()
+	prefixes := make(map[*drain.Writer]string)
+	writers := make(map[*App][2]*drain.Writer)
+	dr := make(drain.Drain)
+	wg := new(sync.WaitGroup)
+	done := make(chan struct{})
+	errs := make(map[*App]error)
+
+	// Prepare writers, fill in context
+	for _, app := range apps {
+		stdout := dr.NewWriter()
+		stderr := dr.NewWriter()
+		prefixes[stdout] = fmt.Sprintf("%v:out", app.Name)
+		prefixes[stderr] = fmt.Sprintf("%v:err", app.Name)
+		writers[app] = [2]*drain.Writer{stdout, stderr}
+	}
+
+	// Output goroutine
+	go func() {
+		for line := range dr {
+			fmt.Printf("%v %v %v\n", line.Timestamp, prefixes[line.Writer], line.Text)
+		}
+		done <- struct{}{}
+	}()
+
+	// Signal handler
+	sigch := make(chan os.Signal, 1)
+	go func() {
+		if sig := <-sigch; sig != nil {
+			for _, app := range apps {
+				app.Kill()
+			}
+		}
+	}()
+	signal.Notify(sigch, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGQUIT)
+	defer func() {
+		signal.Stop(sigch)
+		sigch <- nil
+	}()
+
+	// Start the app goroutines
+	wg.Add(len(apps))
+	for _, app := range apps {
+		go func(app *App) {
+			defer wg.Done()
+			defer writers[app][0].Close()
+			defer writers[app][1].Close()
+			if err := app.Run(nil, writers[app][0], writers[app][1]); err != nil {
+				pod.ui.Printf("%v: error: %v", app.Name, err)
+				errs[app] = err
+			}
+		}(app)
+	}
+
+	// Wait for the apps to finish
+	// TODO: kill the apps when killed?
+	wg.Wait()
+	close(dr)
+	<-done
+
+	// Collect errors
+	var erv error
+	for app, err := range errs {
+		pod.ui.Printf("AGAIN: %v: error: %v", app.Name, err)
+		erv = multierror.Append(err)
+	}
+	return erv
 }

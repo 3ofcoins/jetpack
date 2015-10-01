@@ -64,17 +64,18 @@ func cmdPrepare(args []string) error {
 }
 
 var flAppName types.ACName
-var flDestroy bool
+var flDestroy, flTerminal bool
 
 func flRun(fl *flag.FlagSet) {
 	flPodManifest(fl)
 	SaveIDFlag(fl)
 	fl.Var(&flAppName, "app", "Specify app to run for a multi-app pod")
 	fl.BoolVar(&flDestroy, "destroy", false, "Destroy pod when done")
+	fl.BoolVar(&flTerminal, "t", false, "Attach app to the terminal (single-app containers only)")
 }
 
 func cmdRun(pod *jetpack.Pod) (erv error) {
-	if flAppName.Empty() {
+	if flAppName.Empty() && flTerminal {
 		if len(pod.Manifest.Apps) != 1 {
 			return errors.New("Multi-app pod! Please use -app=NAME to choose")
 		} else {
@@ -93,10 +94,15 @@ func cmdRun(pod *jetpack.Pod) (erv error) {
 			}
 		}()
 	}
-	if app := pod.App(flAppName); app == nil {
-		return jetpack.ErrNotFound
+	if !flAppName.Empty() {
+		// Run one app on terminal
+		if app := pod.App(flAppName); app == nil {
+			return jetpack.ErrNotFound
+		} else {
+			return errors.Trace(app.Run(os.Stdin, os.Stdout, os.Stderr))
+		}
 	} else {
-		return errors.Trace(app.Run(os.Stdin, os.Stdout, os.Stderr))
+		return errors.Trace(pod.Run())
 	}
 }
 

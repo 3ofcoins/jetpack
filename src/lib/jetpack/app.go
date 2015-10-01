@@ -15,9 +15,11 @@ import (
 )
 
 type App struct {
-	Name types.ACName
-	Pod  *Pod
-	app  *types.App
+	Name   types.ACName
+	Pod    *Pod
+	app    *types.App
+	cmd    *run.Cmd
+	killed bool
 
 	// cache
 	_env []string
@@ -73,13 +75,18 @@ func (app *App) Run(stdin io.Reader, stdout, stderr io.Writer) (re error) {
 			if err := app.Stage2(stdin, stdout, stderr, "0", "0", "", eh.Exec...); err != nil {
 				return errors.Trace(err)
 			}
+			if app.killed {
+				return errors.New("CAN'T HAPPEN: app killed, and Stage2 succeeded")
+			}
 		case "post-stop":
 			defer func(exec []string) {
 				// TODO: log
-				if err := app.Stage2(stdin, stdout, stderr, "0", "0", "", exec...); err != nil {
-					if re != nil {
-						re = errors.Trace(err)
-					} // else? log?
+				if !app.killed {
+					if err := app.Stage2(stdin, stdout, stderr, "0", "0", "", exec...); err != nil {
+						if re != nil {
+							re = errors.Trace(err)
+						} // else? log?
+					}
 				}
 			}(eh.Exec)
 		default:
@@ -97,7 +104,30 @@ func (app *App) Console(username string) error {
 	return errors.Trace(app.Stage2(os.Stdin, os.Stdout, os.Stderr, "0", "0", "", "/usr/bin/login", "-fp", username))
 }
 
+// IsRunning returns true if the app currently executes a stage2 command.
+func (app *App) IsRunning() bool {
+	return app.cmd != nil
+}
+
+func (app *App) Kill() error {
+	if app.cmd != nil && app.cmd.Cmd.Process != nil {
+		return app.cmd.Cmd.Process.Kill()
+	}
+	// Killing an app that's not alive is a nop
+	return nil
+}
+
 func (app *App) Stage2(stdin io.Reader, stdout, stderr io.Writer, user, group, cwd string, exec ...string) error {
+	if app.IsRunning() {
+		// One Jetpack process won't need to run multiple commands in the
+		// same app at the same time. It's either sequential
+		// hook-exec-hook, or an individual command, but not both in the
+		// same binary. This assumption may change in the future.
+		// FIXME: race condition between this place and setting app.cmd
+		return errors.New("A stage2 command is already running for this app")
+	}
+	app.killed = false
+
 	if strings.HasPrefix(user, "/") || strings.HasPrefix(group, "/") {
 		return errors.New("Path-based user/group not supported yet, sorry")
 	}
@@ -115,16 +145,7 @@ func (app *App) Stage2(stdin io.Reader, stdout, stderr io.Writer, user, group, c
 	}
 
 	// Ensure jail is created
-	jid := app.Pod.Jid()
-	if jid == 0 {
-		if err := errors.Trace(app.Pod.runJail("-c")); err != nil {
-			return errors.Trace(err)
-		}
-		jid = app.Pod.Jid()
-		if jid == 0 {
-			panic("Could not start jail")
-		}
-	}
+	jid := app.Pod.ensureJid()
 
 	mds, err := app.Pod.MetadataURL()
 	if err != nil {
@@ -168,9 +189,11 @@ func (app *App) Stage2(stdin io.Reader, stdout, stderr io.Writer, user, group, c
 	// TODO: move TERM= here if stdin (or stdout?) is a terminal
 	args = append(args, app.env()...)
 	args = append(args, exec...)
-	cmd := run.Command(stage2, args...)
-	cmd.Cmd.Stdin = stdin
-	cmd.Cmd.Stdout = stdout
-	cmd.Cmd.Stderr = stderr
-	return cmd.Run()
+	app.cmd = run.Command(stage2, args...)
+	app.cmd.Cmd.Stdin = stdin
+	app.cmd.Cmd.Stdout = stdout
+	app.cmd.Cmd.Stderr = stderr
+	defer func() { app.cmd = nil }()
+
+	return app.cmd.Run()
 }
