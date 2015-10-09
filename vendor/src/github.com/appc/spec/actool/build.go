@@ -29,6 +29,7 @@ import (
 var (
 	buildNocompress bool
 	buildOverwrite  bool
+	buildOwnerRoot  bool
 	cmdBuild        = &Command{
 		Name: "build",
 		Description: `Build an ACI from a given directory. The directory should
@@ -36,13 +37,14 @@ contain an Image Layout. The Image Layout will be validated
 before the ACI is created. The produced ACI will be
 gzip-compressed by default.`,
 		Summary: "Build an ACI from an Image Layout (experimental)",
-		Usage:   `[--overwrite] [--no-compression] DIRECTORY OUTPUT_FILE`,
+		Usage:   `[--overwrite] [--no-compression] [--owner-root] DIRECTORY OUTPUT_FILE`,
 		Run:     runBuild,
 	}
 )
 
 func init() {
 	cmdBuild.Flags.BoolVar(&buildOverwrite, "overwrite", false, "Overwrite target file if it already exists")
+	cmdBuild.Flags.BoolVar(&buildOwnerRoot, "owner-root", false, "Force ownership to root:root on all files")
 	cmdBuild.Flags.BoolVar(&buildNocompress, "no-compression", false, "Do not gzip-compress the produced ACI")
 }
 
@@ -58,6 +60,16 @@ func runBuild(args []string) (exit int) {
 	if ext != schema.ACIExtension {
 		stderr("build: Extension must be %s (given %s)", schema.ACIExtension, ext)
 		return 1
+	}
+
+	// TODO(jonboulle): stream the validation so we don't have to walk the rootfs twice
+	if err := aci.ValidateLayout(root); err != nil {
+		if e, ok := err.(aci.ErrOldVersion); ok {
+			stderr("build: Warning: %v. Please update your manifest.", e)
+		} else {
+			stderr("build: Layout failed validation: %v", err)
+			return 1
+		}
 	}
 
 	mode := os.O_CREATE | os.O_WRONLY
@@ -95,11 +107,6 @@ func runBuild(args []string) (exit int) {
 		}
 	}()
 
-	// TODO(jonboulle): stream the validation so we don't have to walk the rootfs twice
-	if err := aci.ValidateLayout(root); err != nil {
-		stderr("build: Layout failed validation: %v", err)
-		return 1
-	}
 	mpath := filepath.Join(root, aci.ManifestFile)
 	b, err := ioutil.ReadFile(mpath)
 	if err != nil {
@@ -113,7 +120,16 @@ func runBuild(args []string) (exit int) {
 	}
 	iw := aci.NewImageWriter(im, tr)
 
-	err = filepath.Walk(root, aci.BuildWalker(root, iw))
+	var walkerCb aci.TarHeaderWalkFunc
+	if buildOwnerRoot {
+		walkerCb = func(hdr *tar.Header) bool {
+			hdr.Uid, hdr.Gid = 0, 0
+			hdr.Uname, hdr.Gname = "root", "root"
+			return true
+		}
+	}
+
+	err = filepath.Walk(root, aci.BuildWalker(root, iw, walkerCb))
 	if err != nil {
 		stderr("build: Error walking rootfs: %v", err)
 		return 1

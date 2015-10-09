@@ -1,12 +1,24 @@
+// Copyright 2015 The appc Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // +build linux
 
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"strings"
 )
 
 func checkMountImpl(d string, readonly bool) error {
@@ -17,47 +29,17 @@ func checkMountImpl(d string, readonly bool) error {
 	}
 	defer mi.Close()
 
-	sc := bufio.NewScanner(mi)
-	for sc.Scan() {
-		var (
-			mountID        int
-			parentID       int
-			majorMinor     string
-			root           string
-			mountPoint     string
-			mountOptions   string
-			optionalFields string
-			separator      string
-			fsType         string
-			mountSrc       string
-			superOptions   string
-		)
-
-		_, err := fmt.Sscanf(sc.Text(), "%d %d %s %s %s %s %s %s %s %s %s",
-			&mountID, &parentID, &majorMinor, &root, &mountPoint, &mountOptions,
-			&optionalFields, &separator, &fsType, &mountSrc, &superOptions)
-		if err != nil {
-			return err
-		}
-
-		if mountPoint == d {
-			var ro bool
-			optionsParts := strings.Split(mountOptions, ",")
-			for _, o := range optionsParts {
-				switch o {
-				case "ro":
-					ro = true
-				case "rw":
-					ro = false
-				}
-			}
-			if ro == readonly {
-				return nil
-			} else {
-				return fmt.Errorf("%q mounted ro=%t, want %t", d, ro, readonly)
-			}
-		}
+	isMounted, ro, err := parseMountinfo(mi, d)
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		return fmt.Errorf("%q is not a mount point", d)
 	}
 
-	return fmt.Errorf("%q is not a mount point", d)
+	if ro == readonly {
+		return nil
+	} else {
+		return fmt.Errorf("%q mounted ro=%t, want %t", d, ro, readonly)
+	}
 }

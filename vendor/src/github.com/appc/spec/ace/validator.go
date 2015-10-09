@@ -42,9 +42,11 @@ TODO(jonboulle):
 */
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -427,7 +429,7 @@ func validateSigning(metadataURL string, pm *schema.PodManifest) results {
 	// Verify
 	_, err = metadataPostForm(metadataURL, "/pod/hmac/verify", url.Values{
 		"content":   []string{plaintext},
-		"uid":       []string{string(uuid)},
+		"uuid":      []string{string(uuid)},
 		"signature": []string{string(sig)},
 	})
 
@@ -470,6 +472,43 @@ func ValidateMetadataSvc() results {
 // mounted appropriately read-only or not according to the given bool
 func checkMount(d string, readonly bool) error {
 	return checkMountImpl(d, readonly)
+}
+
+// parseMountinfo parses a Reader representing a /proc/PID/mountinfo file and
+// returns whether dir is mounted and if so, whether it is read-only or not
+func parseMountinfo(mountinfo io.Reader, dir string) (isMounted bool, readOnly bool, err error) {
+	sc := bufio.NewScanner(mountinfo)
+	for sc.Scan() {
+		var (
+			mountID      int
+			parentID     int
+			majorMinor   string
+			root         string
+			mountPoint   string
+			mountOptions string
+		)
+
+		_, err := fmt.Sscanf(sc.Text(), "%d %d %s %s %s %s",
+			&mountID, &parentID, &majorMinor, &root, &mountPoint, &mountOptions)
+		if err != nil {
+			return false, false, err
+		}
+
+		if mountPoint == dir {
+			isMounted = true
+			optionsParts := strings.Split(mountOptions, ",")
+			for _, o := range optionsParts {
+				switch o {
+				case "ro":
+					readOnly = true
+				case "rw":
+					readOnly = false
+				}
+			}
+		}
+	}
+
+	return
 }
 
 // assertNotExistsAndCreate asserts that a file at the given path does not

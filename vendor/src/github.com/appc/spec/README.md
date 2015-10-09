@@ -2,6 +2,8 @@
 
 [![Build Status](https://travis-ci.org/appc/spec.png?branch=master)](https://travis-ci.org/appc/spec)
 
+![appc logo](logos/appc-horizontal-color.png)
+
 This repository contains schema definitions and tools for the App Container (appc) specification.
 These include technical details on how an appc image is downloaded over a network, cryptographically verified, and executed on a host.
 See [SPEC.md](SPEC.md) for details of the specification itself.
@@ -38,8 +40,12 @@ Some examples of build systems and tools that have been built so far include:
 
 - [goaci](https://github.com/appc/goaci) - ACI builder for Go projects
 - [docker2aci](https://github.com/appc/docker2aci) - ACI builder from Docker images
-- [actool](https://github.com/appc/spec/tree/master/actool) - ACI builder from root filesystems
+- [deb2aci](https://github.com/klizhentas/deb2aci) - ACI builder from Debian packages
+- [actool](https://github.com/appc/spec/tree/master/actool) - Simple tool to assemble ACIs from root filesystems
+- [acbuild](https://github.com/appc/acbuild) - A versatile tool for building and manipulating ACIs
 - [baci](https://github.com/sgotti/baci) - A generic ACI build project
+- [openwrt-aci](https://github.com/1player/openwrt-aci) - A tool to build ACIs based on OpenWRT snapshots
+- [oci2aci](https://github.com/huawei-openlab/oci2aci) - ACI builder from OCI bundle
 
 ## What are some implementations of the spec?
 
@@ -60,7 +66,9 @@ App Container is an open-source, community-driven project, developed under the [
 
 ### Building ACIs
 
-`actool` can be used to build an Application Container Image from an [Image Layout](spec/aci.md#image-layout) - that is, from an Image Manifest and an application root filesystem (rootfs).
+Various tools [listed above](#what-is-the-promise-of-the-app-container-spec) can be used to build ACIs from existing images or based on other sources.
+
+As an example of building an ACI from scratch, `actool` can be used to build an Application Container Image from an [Image Layout](spec/aci.md#image-layout) - that is, from an Image Manifest and an application root filesystem (rootfs).
 
 For example, to build a simple ACI (in this case consisting of a single binary), one could do the following:
 ```
@@ -73,7 +81,7 @@ $ find /tmp/my-app/
 $ cat /tmp/my-app/manifest
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.6.1",
+    "acVersion": "0.7.1",
     "name": "my-app",
     "labels": [
         {"name": "os", "value": "linux"},
@@ -105,7 +113,7 @@ and verify that the manifest was embedded appropriately
 $ tar xf /tmp/my-app.aci manifest -O | python -m json.tool
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.6.1",
+    "acVersion": "0.7.1",
     "annotations": null,
     "app": {
         "environment": [],

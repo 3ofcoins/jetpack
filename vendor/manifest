@@ -8,17 +8,45 @@
 			"branch": "default"
 		},
 		{
-			"importpath": "golang.org/x/sys/unix",
-			"repository": "https://go.googlesource.com/sys",
-			"revision": "b4e289961544fc90f340c908c3460ceae6a2202a",
-			"branch": "master",
-			"path": "/unix"
+			"importpath": "github.com/appc/spec",
+			"repository": "https://github.com/appc/spec",
+			"revision": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24",
+			"branch": "HEAD"
 		},
 		{
-			"importpath": "golang.org/x/crypto",
-			"repository": "https://go.googlesource.com/crypto",
-			"revision": "2f677ffe0a128ed6d4e3ecb565e4d29a6c6365da",
-			"branch": "master"
+			"importpath": "github.com/appc/spec/Godeps/_workspace/src/github.com/coreos/go-semver/semver",
+			"repository": "https://github.com/appc/spec",
+			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
+			"branch": "master",
+			"path": "/Godeps/_workspace/src/github.com/coreos/go-semver/semver"
+		},
+		{
+			"importpath": "github.com/appc/spec/Godeps/_workspace/src/github.com/spf13/pflag",
+			"repository": "https://github.com/appc/spec",
+			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
+			"branch": "master",
+			"path": "/Godeps/_workspace/src/github.com/spf13/pflag"
+		},
+		{
+			"importpath": "github.com/appc/spec/Godeps/_workspace/src/golang.org/x/net/html",
+			"repository": "https://github.com/appc/spec",
+			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
+			"branch": "master",
+			"path": "/Godeps/_workspace/src/golang.org/x/net/html"
+		},
+		{
+			"importpath": "github.com/appc/spec/Godeps/_workspace/src/k8s.io/kubernetes/pkg/api/resource",
+			"repository": "https://github.com/appc/spec",
+			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
+			"branch": "master",
+			"path": "/Godeps/_workspace/src/k8s.io/kubernetes/pkg/api/resource"
+		},
+		{
+			"importpath": "github.com/appc/spec/Godeps/_workspace/src/speter.net/go/exp/math/dec/inf",
+			"repository": "https://github.com/appc/spec",
+			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
+			"branch": "master",
+			"path": "/Godeps/_workspace/src/speter.net/go/exp/math/dec/inf"
 		},
 		{
 			"importpath": "github.com/coreos/ioprogress",
@@ -57,10 +85,17 @@
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/appc/spec",
-			"repository": "https://github.com/appc/spec",
-			"revision": "18969bafabb4637b7647bd7666ca83398d624637",
+			"importpath": "golang.org/x/crypto",
+			"repository": "https://go.googlesource.com/crypto",
+			"revision": "2f677ffe0a128ed6d4e3ecb565e4d29a6c6365da",
 			"branch": "master"
+		},
+		{
+			"importpath": "golang.org/x/sys/unix",
+			"repository": "https://go.googlesource.com/sys",
+			"revision": "b4e289961544fc90f340c908c3460ceae6a2202a",
+			"branch": "master",
+			"path": "/unix"
 		}
 	]
 }

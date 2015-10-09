@@ -26,9 +26,12 @@ This UUID is exposed to the pod through the [Metadata Service](#app-container-me
 Each app in a pod will start chrooted into its own unique read-write filesystem before execution.
 
 An app's filesystem must be *rendered* in an empty directory by the following process (or equivalent):
-- The `rootfs` contained in the ACI is extracted
-- If the ACI contains a non-empty `dependencies` field in its `ImageManifest`, the `rootfs` of each dependent image is extracted, in the order in which they are listed
-- If the ACI contains a non-empty `pathWhitelist` field in its `ImageManifest`, *all* paths not in the whitelist must be removed
+
+1. If the ACI contains a non-empty `dependencies` field in its `ImageManifest`, the `rootfs` of each dependent image is extracted into the target directory, in the order in which they are listed.
+2. The `rootfs` contained in the ACI is extracted into the target directory
+3. If the ACI contains a non-empty `pathWhitelist` field in its `ImageManifest`, *all* paths not in the whitelist must be removed from the target directory
+
+If during rootfs extraction a path is already present in the target directory from an earlier dependency, the previously extracted path MUST be overwritten. If the existing path is a symbolic link to a directory, the link MUST NOT be followed and it MUST be removed and replaced with the new path.
 
 Every execution of an app MUST start from a clean copy of this rendered filesystem.
 
@@ -48,6 +51,25 @@ These details are orthogonal to the runtime environment.
 Volumes that are specified in the Pod Manifest are mounted into each of the apps via a bind mount (or equivalent).
 For example, say that the worker-backup and reduce-worker both have a `mountPoint` named "work".
 In this case, the executor will bind mount the host's `/opt/tenant1/work` directory into the `path` of each of the matching "work" `mountPoint`s of the two app filesystems.
+
+If the target `path` does not exist in the rendered filesystem, it SHOULD be created, including any missing parent directories.
+
+If the target `path` is a non-empty directory, its contents SHOULD be discarded (e.g. obscured by the bind mount).
+If the target `path` refers to a file, the ACE SHOULD remove that file and create a directory in its place.
+In either of these cases, the ACE SHOULD warn the user that existing files are being masked by a volume.
+
+If multiple targets have overlapping target `path`s (for example, if one is nested within another), the ACE SHOULD consider this an error.
+
+The target `path` directories that the ACE creates SHOULD be owned by UID 0 and GID 0, and have access mode `0755` (`rwxr-xr-xr-x`).
+The ACE implementation MAY provide a method for administrator to specify different permissions on a per-pod basis.
+
+The ACE SHOULD NOT create any paths in the host file system, and MUST consider missing volume source paths an error.
+If the ACE does modify the host file system, it SHOULD be possible to disable this behaviour.
+The ACE MAY implement single-file volumes if the underlying operating system supports it.
+
+If the host volume's `source` path is a symbolic link, the ACE SHOULD consider it an error, and SHOULD NOT attempt to use this link's target as volume.
+The ACE SHOULD also consider it an error if any intermediate directory in volume's `source` path is a symbolic link.
+If the ACE chooses to support symbolic links as volume sources, it SHOULD provide a way to enable or disable this behaviour on a per-pod basis (e.g. as a boolean isolator or a command line switch).
 
 #### Network Setup
 
@@ -144,7 +166,7 @@ If the app/pod consumes a resource in excess of its limit, it must be terminated
 Limit and request quantities must always be represented internally (i.e. for encoding and any processing) as an integer value (i.e. NOT floating point) in a resource type's natural base units (e.g., bytes, not megabytes or gigabytes).
 For convenience, when specified by users quantities may either be unsuffixed, have metric suffices (E, P, T, G, M, K) or binary (power-of-two) suffices (Ei, Pi, Ti, Gi, Mi, Ki).
 For example, the following strings represent the same value: "128974848", "125952Ki", "123Mi".
-Sub-units (e.g. decimals, "0.3", or milli-units, "300m") are NOT permissible.
+Small quantities can be represented directly as decimals (e.g., 0.3), or using milli-units (e.g., "300m").
 
 #### resource/block-bandwidth
 
@@ -186,18 +208,18 @@ Sub-units (e.g. decimals, "0.3", or milli-units, "300m") are NOT permissible.
 
 **Parameters:**
 
-* **request** milli-cores that are requested
-* **limit** milli-cores that can be consumed before the kernel temporarily throttles the process
+* **request** cores that are requested
+* **limit** cores that can be consumed before the kernel temporarily throttles the process
 
 ```json
 "name": "resource/cpu",
 "value": {
-  "request": "250",
-  "limit": "500"
+  "request": "250m",
+  "limit": "500m"
 }
 ```
 
-**Note**: a milli-core is the milli-seconds/second that the app/pod will be able to run. e.g. 1000 would represent full use of a single CPU core every second.
+**Note**: a core is the seconds/second that the app/pod will be able to run. e.g. 1 (or 1000m for 1000 milli-seconds) would represent full use of a single CPU core every second.
 
 #### resource/memory
 

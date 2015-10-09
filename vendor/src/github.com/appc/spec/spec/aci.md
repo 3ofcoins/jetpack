@@ -78,7 +78,7 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
 ```json
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.6.1",
+    "acVersion": "0.7.1",
     "name": "example.com/reduce-worker",
     "labels": [
         {
@@ -101,6 +101,10 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
         ],
         "user": "100",
         "group": "300",
+        "supplementaryGids": [
+                400,
+                500
+        ],
         "eventHandlers": [
             {
                 "exec": [
@@ -127,8 +131,8 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
             {
                 "name": "resource/cpu",
                 "value": {
-                    "request": "250",
-                    "limit": "500"
+                    "request": "250m",
+                    "limit": "500m"
                 }
             },
             {
@@ -221,13 +225,14 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
 * **app** (object, optional) if present, defines the default parameters that can be used to execute this image as an application.
     * **exec** (list of strings, required) executable to launch and any flags (must be non-empty; the executable must be an absolute path within the app rootfs; ACE can append or override).  These strings are not evaluated in any way and environment variables are not substituted.
     * **user**, **group** (string, required) indicates either the username/group name or the UID/GID the app is to be run as (freeform string). The user and group values may be all numbers to indicate a UID/GID, however it is possible on some systems (POSIX) to have usernames that are all numerical. The user and group values will first be resolved using the image's own `/etc/passwd` or `/etc/group`. If no valid matches are found, then if the string is all numerical, it shall be converted to an integer and used as the UID/GID. If the user or group field begins with a "/", the owner and group of the file found at that absolute path inside the rootfs is used as the UID/GID of the process. Example values for the fields include `root`, `1000`, or `/usr/bin/ping`.
+    * **supplementaryGIDs** (list of unsigned integers, optional) indicates additional (supplementary) group IDs (GIDs) as which the app's processes should run.
     * **eventHandlers** (list of objects, optional) allows the app to have several hooks based on lifecycle events. For example, you may want to execute a script before the main process starts up to download a dataset or backup onto the filesystem. An eventHandler is a simple object with two fields - an **exec** (array of strings, ACE can append or override), and a **name** (there may be only one eventHandler of a given name), which must be one of:
         * **pre-start** - executed and must exit before the long running main **exec** binary is launched
         * **post-stop** - executed if the main **exec** process is killed. This can be used to cleanup resources in the case of clean application shutdown, but cannot be relied upon in the face of machine failure.
     * **workingDirectory** (string, optional) working directory of the launched application, relative to the application image's root (must be an absolute path, defaults to "/", ACE can override). If the directory does not exist in the application's assembled rootfs (including any dependent images and mounted volumes), the ACE must fail execution.
     * **environment** (list of objects, optional) represents the app's environment variables (ACE can append). The listed objects must have two key-value pairs: **name** and **value**. The **name** must consist solely of letters, digits, and underscores '_' as outlined in [IEEE Std 1003.1-2001](http://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap08.html). The **value** is an arbitrary string. These values are not evaluated in any way, and no substitutions are made.
     * **isolators** (list of objects of type [Isolator](types.md#isolator-type), optional) list of isolation steps that SHOULD be applied to the app.
-    * **mountPoints** (list of objects, optional) locations where an app is expecting external data to be mounted. The listed objects contain the following key-value pairs: the **name** indicates an executor-defined label to look up a mount point, and the **path** stipulates where it is to be mounted inside the rootfs. The name is restricted to the [AC Name](types.md#ac-name-type) Type formatting. **readOnly** is a boolean indicating whether or not the mount point will be read-only (defaults to "false" if unsupplied).
+    * **mountPoints** (list of objects, optional) locations where an app is expecting external data to be mounted. The listed objects contain the following key-value pairs: the **name** indicates a label to refer to a mount point (which may be used by the executor when resolving a mount to a volume in the PodManifest), and the **path** stipulates where it is to be mounted inside the rootfs. The name is restricted to the [AC Name](types.md#ac-name-type) Type formatting. **readOnly** is a boolean indicating whether or not the mount point will be read-only (defaults to "false" if unsupplied).
     * **ports** (list of objects, optional) ports that this app will be listening on once started. This field is informational: example uses include helping users to discover the listening ports of the application, or indicating to executors ports that should be exposed on the host. This information could also optionally be used to limit the inbound connections to the container via firewall rules to only ports that are explicitly exposed. Each object can represent either a single port or a port range (contiguous set of ports).
         * **name** (string, required, restricted to the [AC Name](#ac-name-type) formatting) descriptive name for this port; for example, "http" or "database". This field is used as a key in the [Pod Manifest](#pod-manifest-schema) when specifying ports to be forwarded from the host.
         * **protocol** (string, required) protocol that will be used on this port. MAY be any value, but typically SHOULD be a transport layer (Layer 4) protocol - for example, "tcp" or "udp". The executor MAY refuse to execute if this field contains an unrecognized value.
@@ -238,8 +243,8 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
     * **imageName** (string of type [AC Identifier](types.md#ac-identifier-type), required) name of the dependent App Container Image.
     * **imageID** (string of type [Image ID](types.md#image-id-type), optional) content hash of the dependency. If provided, the retrieved dependency must match the hash. This can be used to produce deterministic, repeatable builds of an App Container Image that has dependencies.
     * **labels** (list of objects, optional) a list of the very same form as the aforementioned label objects in the top level ImageManifest. See [Dependency Matching](#dependency-matching) for how these are used.
-* **pathWhitelist** (list of strings, optional) whitelist of absolute paths that will exist in the app's rootfs after rendering. This must be a complete and absolute set. An empty list is equivalent to an absent value and means that all files in this image and any dependencies will be available in the rootfs.
     * **size** (integer, optional) the size of the image referenced dependency, in bytes. This field is optional; if it is present, the ACE SHOULD ensure it matches when retrieving a dependency, to mitigate "endless data" attacks.
+* **pathWhitelist** (list of strings, optional) whitelist of absolute paths that will exist in the app's rootfs after rendering. This must be a complete and absolute set. An empty list is equivalent to an absent value and means that all files in this image and any dependencies will be available in the rootfs.
 * **annotations** (list of objects, optional) any extra metadata you wish to add to the image. Each object has two key-value pairs: the *name* is restricted to the [AC Identifier](types.md#ac-identifier-type) formatting and *value* is an arbitrary string. Annotation names must be unique within the list. Annotations can be used by systems outside of the ACE (ACE can override). If you are defining new annotations, please consider submitting them to the specification. If you intend for your field to remain special to your application please be a good citizen and prefix an appropriate namespace to your key names. Recognized annotations include:
     * **created** date on which the image was built (string, [timestamps type](types.md#timestamps-type))
     * **authors** contact details of the people or organization responsible for the image (freeform string)
@@ -249,15 +254,10 @@ JSON Schema for the Image Manifest (app image manifest, ACI manifest), conformin
 #### Dependency Matching
 
 Dependency matching is based on a combination of the three different fields of the dependency - **imageName**, **imageID**, and **labels**.
-First, the image discovery mechanism is used to locate a dependency based on the **imageName**.
-If any labels are specified in the dependency, they are passed to the image discovery mechanism, and will be used when locating the image.
+First, the image discovery mechanism is used to locate a dependency based on the **imageName** and **labels** (see [App Container Image Discovery](discovery.md)).
 
-If the image discovery process successfully returns an image, it will be compared as follows.
-If the dependency specification has an image ID, it will be compared against the hash of image returned, and must match.
-Otherwise, the labels in the dependency specification are compared against the labels in the retrieved ACI (i.e. in its ImageManifest), and must match.
-A label is considered to match if it meets one of two criteria:
-- It is present in the dependency specification and present in the dependency's ImageManifest with the same value.
-- It is absent from the dependency specification and present in the dependency's ImageManifest, with any value.
+If the image discovery process successfully returns an image and the dependency specification has an image ID, it will be compared against the hash of image returned, and MUST match.
+
 This facilitates "wildcard" matching and a variety of common usage patterns, like "noarch" or "latest" dependencies.
 For example, an ACI containing a set of bash scripts might omit both "os" and "arch", and hence could be used as a dependency by a variety of different ACIs.
 Alternatively, an ACI might specify a dependency with no image ID and no "version" label, and the image discovery mechanism could always retrieve the latest version of an ACI.
