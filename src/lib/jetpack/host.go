@@ -225,13 +225,17 @@ func (h *Host) ReifyPodManifest(pm *schema.PodManifest) (*schema.PodManifest, er
 		for _, mntpnt := range app.MountPoints {
 			var mnt *schema.Mount
 			for _, mntc := range rtapp.Mounts {
-				if mntc.MountPoint == mntpnt.Name {
-					mnt = &mntc
+				if mntc.Path == mntpnt.Path || mntc.Path == mntpnt.Name.String() {
+					if mnt != nil {
+						fmt.Printf("WARNING: multiple mounts for %v:%v, using first one")
+					} else {
+						mnt = &mntc
+					}
 				}
 			}
 			if mnt == nil {
 				fmt.Printf("INFO: mount for %v:%v not found, inserting mount for volume %v\n", rtapp.Name, mntpnt.Name, mntpnt.Name)
-				mnt = &schema.Mount{MountPoint: mntpnt.Name, Volume: mntpnt.Name}
+				mnt = &schema.Mount{Path: mntpnt.Name.String(), Volume: mntpnt.Name}
 				pm.Apps[i].Mounts = append(pm.Apps[i].Mounts, *mnt)
 			}
 			for _, vol := range pm.Volumes {

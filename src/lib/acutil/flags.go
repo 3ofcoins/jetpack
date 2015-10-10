@@ -131,11 +131,9 @@ func (mf *MountsFlag) Set(val string) error {
 		mnt.Volume = *name
 	}
 	if len(pieces) == 1 {
-		mnt.MountPoint = mnt.Volume
-	} else if name, err := types.NewACName(pieces[1]); err != nil {
-		return err
+		mnt.Path = mnt.Volume.String()
 	} else {
-		mnt.MountPoint = *name
+		mnt.Path = pieces[1]
 	}
 	*mf = append(*mf, mnt)
 	return nil

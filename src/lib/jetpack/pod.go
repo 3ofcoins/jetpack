@@ -200,7 +200,7 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 				}
 				var mnt *schema.Mount
 				for _, cmnt := range rtApp.Mounts {
-					if cmnt.MountPoint == mntpnt.Name {
+					if cmnt.Path == mntpnt.Name.String() || cmnt.Path == mntpnt.Path {
 						mnt = &cmnt
 						break
 					}

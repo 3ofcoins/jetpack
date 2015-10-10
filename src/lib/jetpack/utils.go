@@ -53,7 +53,10 @@ func DecompressingReader(rd io.Reader) (io.Reader, error) {
 	case aci.TypeBzip2:
 		r = bzip2.NewReader(brd)
 	case aci.TypeXz:
-		r = aci.XzReader(brd)
+		r, err = aci.NewXzReader(brd)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
 	case aci.TypeTar:
 		r = brd
 	case aci.TypeUnknown:
