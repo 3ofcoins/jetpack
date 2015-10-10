@@ -193,31 +193,48 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 			fstab = append(fstab, fmt.Sprintf("linsys %v linsysfs  rw 0 0\n", filepath.Join(appRootfs, "sys")))
 		}
 
-		if app != nil {
-			for _, mntpnt := range app.MountPoints {
-				if err := os.MkdirAll(filepath.Join(appRootfs, mntpnt.Path), 0755); err != nil && !os.IsExist(err) {
-					return nil, errors.Trace(err)
+		for _, mnt := range rtApp.Mounts {
+			path := mnt.Path
+			readOnly := false
+
+			if path[0] != '/' {
+				// Target path is a mount point name
+				if app == nil {
+					return nil, errors.Errorf("Invalid mount path %v:%#v: no app, no mount points", mnt.Volume, mnt.Path)
 				}
-				var mnt *schema.Mount
-				for _, cmnt := range rtApp.Mounts {
-					if cmnt.Path == mntpnt.Name.String() || cmnt.Path == mntpnt.Path {
-						mnt = &cmnt
-						break
+				if name, err := types.NewACName(path); err != nil {
+					return nil, errors.Errorf("Invalid mount path %v:%#v: invalid ACName: %v", mnt.Volume, mnt.Path, err)
+				} else {
+					found := false
+					for _, mntpnt := range app.MountPoints {
+						if *name == mntpnt.Name {
+							path = mntpnt.Path
+							readOnly = mntpnt.ReadOnly
+							found = true
+							break
+						}
+					}
+					if !found {
+						return nil, errors.Errorf("Mount point %#v not found", mnt.Path)
 					}
 				}
-				if mnt == nil {
-					return nil, errors.Errorf("Unfulfilled mount point %v:%v", rtApp.Name, mntpnt.Name)
-				}
-				opts := "rw"
-				if mntpnt.ReadOnly {
-					opts = "ro"
-				}
-				fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 1 0\n",
-					ds.Path("rootfs", "vol", mnt.Volume.String()),
-					filepath.Join(appRootfs, mntpnt.Path),
-					opts))
+			} // TODO: (else?) { verify that target path exists }
+
+			path = filepath.Join(appRootfs, path)
+			if err := os.MkdirAll(path, 0755); err != nil && !os.IsExist(err) {
+				return nil, errors.Trace(err)
 			}
+
+			opts := "rw"
+			if readOnly {
+				opts = "ro"
+			}
+			fstab = append(fstab, fmt.Sprintf("%v %v nullfs %v 1 0\n",
+				ds.Path("rootfs", "vol", mnt.Volume.String()), path, opts))
 		}
+
+		// TODO: verify app's unfulfilled mount points
+		// TODO: auto-mount mount points if volume of the same name exists?
 	}
 
 	if err := ioutil.WriteFile(pod.Path("fstab"), []byte(strings.Join(fstab, "")), 0400); err != nil {

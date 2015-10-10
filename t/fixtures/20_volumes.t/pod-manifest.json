@@ -1,0 +1,18 @@
+{ "acKind": "PodManifest", "acVersion": "0.7.1",
+  "apps": [
+    { "name": "main",
+      "image": { "name": "3ofcoins.net/freebsd-base" },
+      "app": {
+        "exec": [
+          "/bin/sh", "-e", "-x", "-c",
+          "echo wat > /var/games/foo ; cat /var/cache/foo ; test \"$(cat /var/cache/foo)\" == wat ; echo OK"],
+        "user": "0", "group": "0",
+        "mountPoints": [{ "name": "games",
+                          "path": "/var/games" }]
+      },
+      "mounts": [
+        { "volume": "vol", "path": "games" },
+        { "volume": "vol", "path": "/var/cache" }
+      ]
+    }
+  ]}
