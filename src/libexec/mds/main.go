@@ -129,9 +129,9 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		return resp200(hex.EncodeToString(h.Sum(nil)))
 
 	case path == "pod/hmac/verify":
-		uuid := uuid.Parse(r.FormValue("uid"))
+		uuid := uuid.Parse(r.FormValue("uuid"))
 		if uuid == nil {
-			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid UUID: %#v\n", r.FormValue("uid")))
+			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid UUID: %#v\n", r.FormValue("uuid")))
 		}
 
 		sig, err := hex.DecodeString(r.FormValue("signature"))
