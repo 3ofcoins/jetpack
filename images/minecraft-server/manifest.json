@@ -1,0 +1,22 @@
+{ "acKind": "ImageManifest", "acVersion": "0.7.1",
+  "name": "example/minecraft-server",
+  "labels": [
+    { "name": "version", "value": "1.8.8" }
+  ],
+  "app": {
+    "exec": [ "/opt/minecraft-server/minecraft-server.sh" ],
+    "user": "mcserver",
+    "group": "mcserver",
+    "workingDirectory": "/opt/minecraft-server",
+    "eventHandlers": [
+      { "name": "pre-start",
+        "exec": ["/opt/minecraft-server/pre-start.sh"] }
+    ],
+    "mountPoints": [{ "name": "data", "path": "/vol/minecraft-server" }],
+    "ports": [{"name": "minecraft", "protocol": "tcp", "port": 25565, "count": 1, "socketActivated": false}]
+  },
+  "annotations": [
+    {"name": "java-opts", "value": "-Xmx1024M -Xms1024M"},
+    {"name": "eula", "value": "false"}
+  ]
+}
