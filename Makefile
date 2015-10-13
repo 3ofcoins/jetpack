@@ -17,6 +17,7 @@ bin/jetpack bin/mds bin/actool: .gb.build.
 	gb build -ldflags ${go_ldflags} bin/jetpack libexec/mds github.com/appc/spec/actool
 
 bin/stage2: stage2.c
+	-mkdir -p bin
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ stage2.c
 
 install: .PHONY bin/jetpack
