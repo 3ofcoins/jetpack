@@ -20,6 +20,7 @@ ${SERVER_JAR}:
 build..pkg-install: build..pkg-latest
 build..pkg-latest: .PHONY
 	sed -i~ s/quarterly/latest/g /etc/pkg/FreeBSD.conf
+	rm /etc/pkg/FreeBSD.conf~
 
 build:
 	pw groupadd mcserver -g 199
@@ -31,5 +32,6 @@ build:
 	for tgt in banned-ips.json banned-players.json ops.json usercache.json whitelist.json world logs debug server.properties ; do \
 	    ln -sfv /vol/minecraft-server/$$tgt /opt/minecraft-server/$$tgt ; done
 	install -d -o mcserver -g mcserver /vol/minecraft-server
+	rm -rf /var/cache/pkg/* 
 
 .include "jetpack.image.mk"

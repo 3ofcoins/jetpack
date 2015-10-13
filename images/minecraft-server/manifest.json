@@ -1,5 +1,5 @@
 { "acKind": "ImageManifest", "acVersion": "0.7.1",
-  "name": "example/minecraft-server",
+  "name": "3ofcoins.net/minecraft-server",
   "labels": [
     { "name": "version", "value": "1.8.8" }
   ],
