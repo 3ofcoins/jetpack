@@ -2,7 +2,7 @@
 # $FreeBSD$
 
 PORTNAME=	jetpack
-PORTVERSION=	0.0.1.20150731
+PORTVERSION=	0.0.1.20151013
 CATEGORIES=	sysutils
 
 MAINTAINER=	maciej@3ofcoins.net
@@ -14,7 +14,7 @@ BUILD_DEPENDS=	gb>=0.0.0.2015080301:${PORTSDIR}/devel/gb
 
 USE_GITHUB=	yes
 GH_ACCOUNT=	3ofcoins
-GH_TAGNAME=	824e5db
+GH_TAGNAME=	5f3218c
 
 USERS=		_jetpack
 GROUPS=	_jetpack
@@ -24,6 +24,7 @@ UID_FILES+=	${MASTERDIR}/UIDs
 GID_FILES+=	${MASTERDIR}/GIDs
 
 MAKE_ARGS=	prefix=${LOCALBASE}
+USES=		compiler
 
 .include <bsd.port.pre.mk>
 
