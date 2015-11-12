@@ -147,6 +147,25 @@ func (img *Image) loadManifest() error {
 }
 
 func (img *Image) Destroy() (err error) {
+	if pods, err := img.Pods(); err != nil {
+		return errors.Trace(err)
+	} else if len(pods) > 0 {
+		ids := make([]string, len(pods))
+		for i, pod := range pods {
+			ids[i] = pod.UUID.String()
+		}
+		return errors.Errorf("Cannot destroy image %s: %d pods run it: %v", img.Hash, len(ids), ids)
+	}
+
+	if dimgs, err := img.DependantImages(); err != nil {
+		return errors.Trace(err)
+	} else if len(dimgs) > 0 {
+		hashes := make([]string, len(dimgs))
+		for i, dimg := range dimgs {
+			hashes[i] = dimg.Hash.String()
+		}
+		return errors.Errorf("Cannot destroy image %s: %d other images need it: %v", img.Hash, len(hashes), hashes)
+	}
 	img.ui.Println("Destroying")
 	err = errors.Trace(img.getRootfs().Destroy("-r"))
 	if img.Hash != nil {
@@ -261,4 +280,46 @@ func (img *Image) sealImage() error {
 	}
 
 	return nil
+}
+
+// Return list of images that depend on this image
+func (img *Image) DependantImages() ([]*Image, error) {
+	if img.Hash == nil {
+		// Can it happen?
+		return nil, nil
+	}
+	allImgs, err := img.Host.Images()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	var dependantImgs []*Image
+imgs:
+	for _, oimg := range allImgs {
+		for _, dep := range oimg.Manifest.Dependencies {
+			if dep.ImageID != nil && *dep.ImageID == *img.Hash {
+				dependantImgs = append(dependantImgs, oimg)
+				continue imgs
+			}
+		}
+	}
+	return dependantImgs, nil
+}
+
+// Return list of pods that run this image
+func (img *Image) Pods() ([]*Pod, error) {
+	if img.Hash == nil {
+		return nil, nil
+	}
+	pods := img.Host.Pods()
+	var dpods []*Pod
+pod:
+	for _, pod := range pods {
+		for _, app := range pod.Manifest.Apps {
+			if app.Image.ID == *img.Hash {
+				dpods = append(dpods, pod)
+				continue pod
+			}
+		}
+	}
+	return dpods, nil
 }
