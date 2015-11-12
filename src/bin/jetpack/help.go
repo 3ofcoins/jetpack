@@ -37,11 +37,9 @@ func cmdVersion([]string) error {
 func Help() {
 	fmt.Fprintf(os.Stderr, "Jetpack version %v\nUsage: %v [OPTION...] COMMAND [ARGS...]\nCommands:\n", jetpack.Version(), AppName)
 
-	cmds := make([][]string, len(Commands))
-	i := 0
+	cmds := make([][]string, 0, len(Commands))
 	for _, cmd := range Commands {
-		cmds[i] = []string{"", AppName + " " + cmd.Usage, cmd.Synopsis}
-		i++
+		cmds = append(cmds, []string{"", AppName + " " + cmd.Usage, cmd.Synopsis})
 	}
 	doListF(os.Stderr, "", cmds)
 
