@@ -151,7 +151,7 @@ something is not clear, it's a bug in the documentation!
 
 #### Running the Metadata Service
 
-To start the metadata service, run `$(jetpack config path.libexecdir)/mds`.
+To start the metadata service, run `$(jetpack config path.libexec)/mds`.
 
 Building Images
 ---------------
