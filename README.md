@@ -108,7 +108,7 @@ init`.
 
 To get a console, run:
 
-    jetpack run 3ofcoins.net/freebsd.base
+    jetpack run -t 3ofcoins.net/freebsd-base
 
 This will fetch our signing GPG key, then fetch the FreeBSD base ACI,
 and finally run a pod and drop you into its console. After you exit
@@ -125,7 +125,7 @@ Note the pod UUID printed by the above command (no user-friendly pod
 names yet) or get it from the pod list (run `jetpack list` to see the
 list). Then run the pod:
 
-    jetpack run $UUID
+    jetpack run -t $UUID
 
 The above command will drop you into root console of the pod. After
 you're finished, you can run the pod again. Once you're done with the
