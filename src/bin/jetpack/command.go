@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"strings"
 	"unicode"
 
 	"code.google.com/p/go-uuid/uuid"
 
-	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
@@ -191,27 +189,6 @@ func cmdWrapPodPrepare0(cmd func(*jetpack.Pod) error) func([]string) error {
 	}
 }
 
-func parseImageName(name string) (types.ACIdentifier, types.Labels, error) {
-	app, err := discovery.NewAppFromString(name)
-	if err != nil {
-		return "", nil, errors.Trace(err)
-	}
-
-	if app.Labels["os"] == "" {
-		app.Labels["os"] = runtime.GOOS
-	}
-	if app.Labels["arch"] == "" {
-		app.Labels["arch"] = runtime.GOARCH
-	}
-
-	labels, err := types.LabelsFromMap(app.Labels)
-	if err != nil {
-		return "", nil, errors.Trace(err)
-	}
-
-	return app.Name, labels, nil
-}
-
 const hashSize = sha512.Size*2 + len("sha512-")
 
 func getImage(name string, localOnly bool) (*jetpack.Image, error) {
@@ -233,7 +210,7 @@ func getImage(name string, localOnly bool) (*jetpack.Image, error) {
 		}
 		return Host.GetImage(*h, "", nil)
 	}
-	if name, labels, err := parseImageName(name); err != nil {
+	if name, labels, err := acutil.ParseImageName(name); err != nil {
 		return nil, errors.Trace(err)
 	} else if localOnly {
 		return Host.GetLocalImage(types.Hash{}, name, labels)

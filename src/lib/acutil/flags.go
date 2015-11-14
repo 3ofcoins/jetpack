@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -146,6 +147,27 @@ func PodManifestFlags(fl *flag.FlagSet, pm *schema.PodManifest) {
 	fl.Var((*VolumesFlag)(&pm.Volumes), "v", "Define volume")
 }
 
+func ParseImageName(name string) (types.ACIdentifier, types.Labels, error) {
+	app, err := discovery.NewAppFromString(name)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if app.Labels["os"] == "" {
+		app.Labels["os"] = runtime.GOOS
+	}
+	if app.Labels["arch"] == "" {
+		app.Labels["arch"] = runtime.GOARCH
+	}
+
+	labels, err := types.LabelsFromMap(app.Labels)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return app.Name, labels, nil
+}
+
 func parseApp(args []string) ([]string, *schema.RuntimeApp, error) {
 	if len(args) == 0 {
 		return nil, nil, nil
@@ -157,14 +179,10 @@ func parseApp(args []string) ([]string, *schema.RuntimeApp, error) {
 	if h, err := types.NewHash(args[0]); err == nil {
 		rtapp.Image.ID = *h
 		rtapp.Name.Set(h.String()) // won't err
-	} else if dapp, err := discovery.NewAppFromString(args[0]); err == nil {
-		rtapp.Image.Name = &dapp.Name
-		rtapp.Name.Set(path.Base(dapp.Name.String())) // won't err here
-		if ll, err := types.LabelsFromMap(dapp.Labels); err != nil {
-			return args, nil, err
-		} else {
-			rtapp.Image.Labels = ll
-		}
+	} else if name, labels, err := ParseImageName(args[0]); err == nil {
+		rtapp.Image.Name = &name
+		rtapp.Name.Set(path.Base(name.String())) // won't err here
+		rtapp.Image.Labels = labels
 	} else {
 		return args, nil, err
 	}

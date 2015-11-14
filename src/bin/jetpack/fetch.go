@@ -8,6 +8,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
+	"lib/acutil"
 	"lib/fetch"
 )
 
@@ -33,7 +34,7 @@ func cmdFetch(args []string) error {
 	}
 
 	for _, name := range args {
-		if name, labels, err := parseImageName(name); err != nil {
+		if name, labels, err := acutil.ParseImageName(name); err != nil {
 			return errors.Trace(err)
 		} else if img, err := Host.FetchImage(types.Hash{}, name, labels); err != nil {
 			return errors.Trace(err)
