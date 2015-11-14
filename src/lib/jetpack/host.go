@@ -396,8 +396,9 @@ func (h *Host) getLocalImage(hash types.Hash, name types.ACIdentifier, labels ty
 func (h *Host) fetchImage(name types.ACIdentifier, labels types.Labels) (*Image, error) {
 	if aci, asc, err := fetch.DiscoverACI(discovery.App{Name: name, Labels: labels.ToMap()}); err != nil {
 		return nil, errors.Trace(err)
+	} else if aci == nil {
+		return nil, ErrNotFound
 	} else {
-		fmt.Println(name, aci, asc)
 		return h.ImportImage(name, aci, asc)
 	}
 }
