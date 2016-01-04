@@ -6,7 +6,7 @@ import (
 
 	"github.com/appc/spec/schema"
 
-	"lib/acutil"
+	"github.com/3ofcoins/jetpack/lib/acutil"
 )
 
 // Custom flag types

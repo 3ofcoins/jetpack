@@ -21,7 +21,7 @@ import "os"
 import "strings"
 import "time"
 
-import "lib/jetpack"
+import "github.com/3ofcoins/jetpack/lib/jetpack"
 
 var Host *jetpack.Host
 

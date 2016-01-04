@@ -21,12 +21,12 @@ import (
 	"github.com/juju/errors"
 	openpgp_err "golang.org/x/crypto/openpgp/errors"
 
-	"lib/acutil"
-	"lib/fetch"
-	"lib/keystore"
-	"lib/run"
-	"lib/ui"
-	"lib/zfs"
+	"github.com/3ofcoins/jetpack/lib/acutil"
+	"github.com/3ofcoins/jetpack/lib/fetch"
+	"github.com/3ofcoins/jetpack/lib/keystore"
+	"github.com/3ofcoins/jetpack/lib/run"
+	"github.com/3ofcoins/jetpack/lib/ui"
+	"github.com/3ofcoins/jetpack/lib/zfs"
 )
 
 var ErrUsage = stderrors.New("Invalid usage")

@@ -21,10 +21,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/juju/errors"
 
-	"lib/drain"
-	"lib/run"
-	"lib/ui"
-	"lib/zfs"
+	"github.com/3ofcoins/jetpack/lib/drain"
+	"github.com/3ofcoins/jetpack/lib/run"
+	"github.com/3ofcoins/jetpack/lib/ui"
+	"github.com/3ofcoins/jetpack/lib/zfs"
 )
 
 type PodStatus uint

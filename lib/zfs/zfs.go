@@ -7,7 +7,7 @@ import "path"
 import "path/filepath"
 import "strings"
 
-import "lib/run"
+import "github.com/3ofcoins/jetpack/lib/run"
 
 func ZPools() ([]string, error) {
 	return run.Command("/sbin/zpool", "list", "-Hp", "-oname").OutputLines()

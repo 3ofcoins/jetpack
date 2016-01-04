@@ -15,8 +15,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/ui"
-	"lib/zfs"
+	"github.com/3ofcoins/jetpack/lib/ui"
+	"github.com/3ofcoins/jetpack/lib/zfs"
 )
 
 const imageSnapshotName = "seal"

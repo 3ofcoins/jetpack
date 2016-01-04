@@ -10,8 +10,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/passwd"
-	"lib/run"
+	"github.com/3ofcoins/jetpack/lib/passwd"
+	"github.com/3ofcoins/jetpack/lib/run"
 )
 
 type App struct {

@@ -8,8 +8,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/acutil"
-	"lib/fetch"
+	"github.com/3ofcoins/jetpack/lib/acutil"
+	"github.com/3ofcoins/jetpack/lib/fetch"
 )
 
 func init() {

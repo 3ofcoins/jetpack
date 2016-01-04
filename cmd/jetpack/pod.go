@@ -11,8 +11,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/jetpack"
-	"lib/run"
+	"github.com/3ofcoins/jetpack/lib/jetpack"
+	"github.com/3ofcoins/jetpack/lib/run"
 )
 
 func init() {

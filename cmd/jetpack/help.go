@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"lib/jetpack"
+	"github.com/3ofcoins/jetpack/lib/jetpack"
 )
 
 func init() {

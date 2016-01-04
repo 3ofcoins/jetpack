@@ -11,7 +11,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/fetch"
+	"github.com/3ofcoins/jetpack/lib/fetch"
 )
 
 func init() {

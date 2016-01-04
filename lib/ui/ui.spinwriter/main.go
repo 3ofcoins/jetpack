@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"lib/ui"
+	"github.com/3ofcoins/jetpack/lib/ui"
 )
 
 func main() {

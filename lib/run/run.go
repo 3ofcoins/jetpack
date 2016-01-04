@@ -6,7 +6,7 @@ import "os"
 import "os/exec"
 import "strings"
 
-import "lib/ui"
+import "github.com/3ofcoins/jetpack/lib/ui"
 
 type Cmd struct {
 	Cmd exec.Cmd

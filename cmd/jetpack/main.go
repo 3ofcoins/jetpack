@@ -7,7 +7,7 @@ import (
 
 	"github.com/juju/errors"
 
-	"lib/jetpack"
+	"github.com/3ofcoins/jetpack/lib/jetpack"
 )
 
 const AppName = "jetpack"

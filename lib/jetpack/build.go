@@ -17,8 +17,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/run"
-	"lib/ui"
+	"github.com/3ofcoins/jetpack/lib/run"
+	"github.com/3ofcoins/jetpack/lib/ui"
 )
 
 //  Write ACI to `, return its hash. If packlist file is nil, writes

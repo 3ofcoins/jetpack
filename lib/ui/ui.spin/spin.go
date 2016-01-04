@@ -1,7 +1,7 @@
 package main
 
 import (
-	"lib/ui"
+	"github.com/3ofcoins/jetpack/lib/ui"
 	"time"
 )
 

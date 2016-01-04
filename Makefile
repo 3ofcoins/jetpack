@@ -1,4 +1,4 @@
-prefix	?= /usr/local
+prefix?=	/usr/local
 
 # The old syntax for the `-X` argumant to go compiler's ldflags has
 # been deprecated at Go 1.5.
@@ -9,20 +9,28 @@ go_ldflags="-X lib/jetpack.prefix=${prefix}"
 go_ldflags="-X lib/jetpack.prefix ${prefix}"
 .endif
 
-all: bin/jetpack bin/mds bin/actool bin/stage2
+all: bin/jetpack bin/mds bin/stage2
 
-bin/jetpack bin/mds bin/actool: .gb.build.
-.PHONY: .gb.build.
-.gb.build.:
-	gb build -ldflags ${go_ldflags} bin/jetpack libexec/mds github.com/appc/spec/actool
+bin/jetpack bin/mds: .go.build.
+.PHONY: .go.build.
+.go.build.: src/github.com/3ofcoins/jetpack
+	env GOPATH=${.CURDIR:tA} GOBIN=${.CURDIR:tA}/bin GO15VENDOREXPERIMENT=1 CC=clang go install \
+		github.com/3ofcoins/jetpack/cmd/jetpack \
+		github.com/3ofcoins/jetpack/cmd/mds
+#		github.com/appc/spec/actool
+
+src/github.com/3ofcoins/jetpack:
+	mkdir -p src/github.com/3ofcoins
+	rm -f src/github.com/3ofcoins/jetpack
+	ln -sf ${.CURDIR} src/github.com/3ofcoins/jetpack
 
 bin/stage2: stage2.c
 	-mkdir -p bin
 	${CC} ${CFLAGS} ${LDFLAGS} -o $@ stage2.c
 
-install: .PHONY bin/jetpack
+install: .PHONY bin/jetpack bin/stage2
 	set -e -x ; \
-	    prefix=$$(./bin/jetpack -config=/dev/null config path.prefix) ; \
+	    prefix=$$(bin/jetpack -config=/dev/null config path.prefix) ; \
 	    install -m 0755 -d ${DESTDIR}$${prefix}/bin ${DESTDIR}$${prefix}/libexec/jetpack ${DESTDIR}$${prefix}/share/jetpack ${DESTDIR}$${prefix}/etc ; \
 	    install -m 0755 -s bin/jetpack ${DESTDIR}$${prefix}/bin/jetpack ; \
 	    install -m 0755 -s bin/stage2 bin/mds ${DESTDIR}$${prefix}/libexec/jetpack/ ; \
@@ -34,7 +42,7 @@ install: .PHONY bin/jetpack
 	    install -m 0644 jetpack.conf.sample ${DESTDIR}$${prefix}/etc/jetpack.conf.sample
 
 # appc/spec stuff
-spec = ${.CURDIR}/vendor/src/github.com/appc/spec
+spec = ${.CURDIR}/vendor/github.com/appc/spec
 
 validator-aci: ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci
 ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
@@ -42,4 +50,4 @@ ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
 	cd ${spec} && bash ./build && env NO_SIGNATURE=1 bash ./ace/build_aci
 
 clean: .PHONY
-	rm -rf bin pkg tmp vendor/bin vendor/pkg ${spec}/bin ${spec}/gopath
+	rm -rf src pkg bin tmp ${spec}/bin ${spec}/gopath

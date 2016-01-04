@@ -16,8 +16,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
 
-	"lib/acutil"
-	"lib/jetpack"
+	"github.com/3ofcoins/jetpack/lib/acutil"
+	"github.com/3ofcoins/jetpack/lib/jetpack"
 )
 
 var ErrUsage = stderrors.New("Invalid usage")
