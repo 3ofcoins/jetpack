@@ -1,18 +1,22 @@
 #!/bin/sh
 set -e
 
-distrib_codename="$1"
-eval "$(tar -xJOf "$1" ./etc/lsb-release | tr A-Z a-z || :)"
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 RELEASE CODENAME ARCH" >&2
+    exit 1
+fi
+
+test -f build-info.txt
 . ./build-info.txt
 
 cat <<EOF
 {
-  "name": "ubuntu/cloudimg",
+  "name": "ubuntu-cloudimg-base",
   "labels": [
-    { "name": "version", "value": "${distrib_release}.${SERIAL}" },
-    { "name": "codename", "value": "${distrib_codename}" },
+    { "name": "version", "value": "$1.${SERIAL}" },
+    { "name": "codename", "value": "$2" },
     { "name": "os", "value": "linux" },
-    { "name": "arch", "value": "i386" }
+    { "name": "arch", "value": "$3" }
   ],
   "app": {
     "exec": ["/bin/login", "-f", "root"],

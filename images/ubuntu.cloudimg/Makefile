@@ -2,36 +2,71 @@
 
 CODENAME ?=	trusty
 RELEASE ?=	${RELEASE_${CODENAME}}
-RELEASE_lucid =		10.04
-RELEASE_maverick =	10.10
-RELEASE_natty =		11.04
-RELEASE_oneiric =	11.10
+ARCH ?=			amd64
 RELEASE_precise =	12.04
-RELEASE_quantal =	12.10
-RELEASE_raring =	13.04
-RELEASE_saucy =		13.10
 RELEASE_trusty =	14.04
 RELEASE_utopic =	14.10
+RELEASE_vivid = 	15.04
+RELEASE_wily =		15.10
+RELEASE_xenial =	16.04
 
 BASEURL =	https://partner-images.canonical.com/core/${CODENAME}/current
 
-IMPORT_URL =	${BASEURL}/ubuntu-${CODENAME}-core-cloudimg-i386-root.tar.gz
-IMPORT_SHA256_cmd = awk '/\*${IMPORT_FILE}$$/ { print $$1 }' SHA256SUMS
-IMPORT_SHA256 = ${IMPORT_SHA256_cmd:sh}
-IMPORT_MANIFEST = manifest.json
+CLOUDIMG_ACI =		ubuntu-cloudimg-${CODENAME}-${ARCH}.base.aci
+CLOUDIMG_TARBALL =	ubuntu-${CODENAME}-core-cloudimg-${ARCH}-root.tar.gz
+CLOUDIMG_SHA256_cmd =	awk '/\*${CLOUDIMG_TARBALL}$$/ { print $$1 }' SHA256SUMS
+CLOUDIMG_SHA256 =	${CLOUDIMG_SHA256_cmd:sh}
+CLOUDIMG_MANIFEST =	${CLOUDIMG_ACI:R}.manifest.json
 
-CLEAN_FILES +=	SHA256SUMS SHA256SUMS.gpg *-root.tar.gz build-info.txt manifest.json
+# 3ofcoins.net/ubuntu-cloudimg
 
-prepare..import_file:	SHA256SUMS
+base-aci: ${CLOUDIMG_ACI}
+base-import: ${CLOUDIMG_ACI}.id
 
+all-the-acis:
+.for build_codename in precise trusty utopic vivid wily xenial
+.for build_arch in amd64 i386
+	${MAKE} CODENAME=${build_codename} ARCH=${build_arch} flat-aci
+.endfor
+.endfor
+
+${CLOUDIMG_ACI}.id: ${CLOUDIMG_ACI}
+	jetpack import -saveid=$@ ./${CLOUDIMG_ACI}
+
+${CLOUDIMG_ACI}: ${CLOUDIMG_TARBALL} ${CLOUDIMG_MANIFEST}
+	${MAKEACI} ${CLOUDIMG_TARBALL} ${CLOUDIMG_MANIFEST} $@
+
+${CLOUDIMG_MANIFEST}: ${CLOUDIMG_TARBALL} build-info.txt manifest.json.sh
+	./manifest.json.sh ${RELEASE} ${CODENAME} ${ARCH} > $@
+
+${CLOUDIMG_TARBALL}: SHA256SUMS
+	fetch -o $@.dl ${BASEURL}/$@
+	sha256 -c ${CLOUDIMG_SHA256} $@.dl
+	touch $@.dl
+	mv -v $@.dl $@
+
+# TODO: include public GPG key to verify, use local keyring
 SHA256SUMS:
-	fetch ${BASEURL}/$@ ${BASEURL}/$@.gpg
-	if ! gpg --verify $@.gpg $@; then mv -v $@ $@~CORRUPT ; false ; fi
+	fetch -o $@.dl ${BASEURL}/$@
+	fetch ${BASEURL}/$@.gpg
+	gpg --verify $@.gpg $@.dl
+	touch $@.dl
+	mv -v $@.dl $@
 
 build-info.txt:
 	fetch -o $@ ${BASEURL}/unpacked/build-info.txt
 
-manifest.json: ${IMPORT_FILE} build-info.txt manifest.json.sh
-	./manifest.json.sh ${IMPORT_FILE} > $@
+clean.base:
+	rm -rfv \
+	    SHA256SUMS SHA256SUMS.gpg \
+	    *.dl \
+	    *-root.tar.gz \
+	    *.manifest.json \
+	    build-info.txt
+
+##############################################################################
+
+PARENT_IMAGE =	`cat ${CLOUDIMG_ACI}.id`
+BUILD_COMMAND =	/bin/sh ./build.sh
 
 .include "jetpack.image.mk"
