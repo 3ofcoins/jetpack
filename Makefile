@@ -4,18 +4,17 @@ gopath =	gopath
 gopkg =		github.com/3ofcoins/jetpack
 goenv =		env -u GOBIN GOPATH=${gopath:tA} GO15VENDOREXPERIMENT=1 CC=clang
 
-gopkg_path =	${gopath}/src/${gopkg}
-
 all: bin/jetpack bin/mds bin/stage2
 
-${gopkg_path}:
-	mkdir -p ${gopkg_path:H}
-	if test -e ${gopkg_path} ; then rm -v ${gopkg_path} ; fi
-	ln -sv ${.CURDIR:tA} ${gopkg_path}
+.gopath = ${gopath}/.sentinel
+${.gopath}:
+	mkdir -p ${gopath}/src/${gopkg:H}
+	ln -svf ${.CURDIR:tA} ${gopath}/src/${gopkg}
+	touch $@
 
 bin/jetpack bin/mds: .go.build.
 .PHONY: .go.build.
-.go.build.: ${gopkg_path}
+.go.build.: ${.gopath}
 	${goenv} GOBIN=${.CURDIR:tA}/bin go install ${gopkg}/cmd/jetpack ${gopkg}/cmd/mds
 
 bin/stage2: stage2.c
@@ -46,8 +45,9 @@ ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
 
 # gvt for dependency management
 
-${gopath}/bin/gvt: ${gopkg_path}
+${gopath}/bin/gvt: ${.gopath}
 	${goenv} go get -u github.com/FiloSottile/gvt
+	touch $@
 
 gvt: ${gopath}/bin/gvt
 	${goenv} ${gopath}/bin/gvt ${CMD}
