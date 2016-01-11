@@ -11,7 +11,7 @@ import (
 	"os/user"
 	"strconv"
 
-	"code.google.com/p/go-uuid/uuid"
+	"github.com/pborman/uuid"
 
 	"github.com/juju/errors"
 )

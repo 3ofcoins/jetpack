@@ -2,12 +2,6 @@
 	"version": 0,
 	"dependencies": [
 		{
-			"importpath": "code.google.com/p/go-uuid",
-			"repository": "https://code.google.com/p/go-uuid",
-			"revision": "35bc42037350",
-			"branch": "default"
-		},
-		{
 			"importpath": "github.com/appc/spec",
 			"repository": "https://github.com/appc/spec",
 			"revision": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24",
@@ -82,6 +76,12 @@
 			"importpath": "github.com/mgutz/ansi",
 			"repository": "https://github.com/mgutz/ansi",
 			"revision": "22ddafb24adc4786c83841aa3021349818c898e4",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/pborman/uuid",
+			"repository": "https://github.com/pborman/uuid",
+			"revision": "dee7705ef7b324f27ceb85a121c61f2c2e8ce988",
 			"branch": "master"
 		},
 		{

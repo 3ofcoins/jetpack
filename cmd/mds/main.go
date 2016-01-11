@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"code.google.com/p/go-uuid/uuid"
+	"github.com/pborman/uuid"
 )
 import "flag"
 import "fmt"

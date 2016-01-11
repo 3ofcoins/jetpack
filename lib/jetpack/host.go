@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
+	"github.com/pborman/uuid"
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
