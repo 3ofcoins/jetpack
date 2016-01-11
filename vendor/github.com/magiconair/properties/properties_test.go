@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	. "gopkg.in/check.v1"
+	. "github.com/magiconair/properties/_third_party/gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -385,6 +385,25 @@ var filterTests = []struct {
 // ----------------------------------------------------------------------------
 
 var filterPrefixTests = []struct {
+	input  string
+	prefix string
+	keys   []string
+}{
+	{"", "", []string{}},
+	{"", "abc", []string{}},
+	{"key=value", "", []string{"key"}},
+	{"key=value", "key=", []string{}},
+	{"key=value\nfoo=bar", "", []string{"foo", "key"}},
+	{"key=value\nfoo=bar", "f", []string{"foo"}},
+	{"key=value\nfoo=bar", "fo", []string{"foo"}},
+	{"key=value\nfoo=bar", "foo", []string{"foo"}},
+	{"key=value\nfoo=bar", "fooo", []string{}},
+	{"key=value\nkey2=value2\nfoo=bar", "key", []string{"key", "key2"}},
+}
+
+// ----------------------------------------------------------------------------
+
+var filterStripPrefixTests = []struct {
 	input  string
 	prefix string
 	keys   []string
@@ -789,12 +808,38 @@ func (s *TestSuite) TestPanicOn32BitIntOverflow(c *C) {
 
 func (s *TestSuite) TestPanicOn32BitUintOverflow(c *C) {
 	is32Bit = true
-	var max = math.MaxUint32 + 1
+	var max uint64 = math.MaxUint32 + 1
 	input := fmt.Sprintf("max=%d", max)
 	p, err := parse(input)
 	c.Assert(err, IsNil)
-	c.Assert(p.MustGetUint64("max"), Equals, uint64(max))
+	c.Assert(p.MustGetUint64("max"), Equals, max)
 	c.Assert(func() { p.MustGetUint("max") }, PanicMatches, ".* out of range")
+}
+
+func (s *TestSuite) TestDeleteKey(c *C) {
+	input := "#comments should also be gone\nkey=to-be-deleted\nsecond=key"
+	p, err := parse(input)
+	c.Assert(err, IsNil)
+	c.Check(len(p.m), Equals, 2)
+	c.Check(len(p.c), Equals, 1)
+	c.Check(len(p.k), Equals, 2)
+	p.Delete("key")
+	c.Check(len(p.m), Equals, 1)
+	c.Check(len(p.c), Equals, 0)
+	c.Check(len(p.k), Equals, 1)
+}
+
+func (s *TestSuite) TestDeleteUnknownKey(c *C) {
+	input := "#comments should also be gone\nkey=to-be-deleted"
+	p, err := parse(input)
+	c.Assert(err, IsNil)
+	c.Check(len(p.m), Equals, 1)
+	c.Check(len(p.c), Equals, 1)
+	c.Check(len(p.k), Equals, 1)
+	p.Delete("wrong-key")
+	c.Check(len(p.m), Equals, 1)
+	c.Check(len(p.c), Equals, 1)
+	c.Check(len(p.k), Equals, 1)
 }
 
 // ----------------------------------------------------------------------------
