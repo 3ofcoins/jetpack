@@ -57,7 +57,7 @@
 		{
 			"importpath": "github.com/juju/errors",
 			"repository": "https://github.com/juju/errors",
-			"revision": "4567a5e69fd3130ca0d89f69478e7ac025b67452",
+			"revision": "1b5e39b83d1835fa480e0c2ddefb040ee82d58b3",
 			"branch": "master"
 		},
 		{
