@@ -45,7 +45,7 @@
 		{
 			"importpath": "github.com/coreos/ioprogress",
 			"repository": "https://github.com/coreos/ioprogress",
-			"revision": "326b3ee6276a33c8bdcf480ca9c99228942ab970",
+			"revision": "4637e494fd9b23c5565ee193e89f91fdc1639bc0",
 			"branch": "master"
 		},
 		{
