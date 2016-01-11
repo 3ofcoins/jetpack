@@ -15,6 +15,7 @@
 package discovery
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -23,23 +24,34 @@ import (
 	"time"
 )
 
+type InsecureOption int
+
 const (
 	defaultDialTimeout = 5 * time.Second
 )
 
-var (
-	// Client is the default http.Client used for discovery requests.
-	Client *http.Client
+const (
+	InsecureNone InsecureOption = 0
 
-	// httpGet is the internal object used by discovery to retrieve URLs; it is
-	// defined here so it can be overridden for testing
-	httpGet httpGetter
+	InsecureTls InsecureOption = 1 << iota
+	InsecureHttp
 )
 
-// httpGetter is an interface used to wrap http.Client for real requests and
+var (
+	// Client is the default http.Client used for discovery requests.
+	Client            *http.Client
+	ClientInsecureTls *http.Client
+
+	// httpDo is the internal object used by discovery to retrieve URLs; it is
+	// defined here so it can be overridden for testing
+	httpDo            httpDoer
+	httpDoInsecureTls httpDoer
+)
+
+// httpDoer is an interface used to wrap http.Client for real requests and
 // allow easy mocking in local tests.
-type httpGetter interface {
-	Get(url string) (resp *http.Response, err error)
+type httpDoer interface {
+	Do(req *http.Request) (resp *http.Response, err error)
 }
 
 func init() {
@@ -52,10 +64,18 @@ func init() {
 	Client = &http.Client{
 		Transport: t,
 	}
-	httpGet = Client
+	httpDo = Client
+
+	// copy for InsecureTls
+	tInsecureTls := *t
+	tInsecureTls.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	ClientInsecureTls = &http.Client{
+		Transport: &tInsecureTls,
+	}
+	httpDoInsecureTls = ClientInsecureTls
 }
 
-func httpsOrHTTP(name string, insecure bool) (urlStr string, body io.ReadCloser, err error) {
+func httpsOrHTTP(name string, hostHeaders map[string]http.Header, insecure InsecureOption) (urlStr string, body io.ReadCloser, err error) {
 	fetch := func(scheme string) (urlStr string, res *http.Response, err error) {
 		u, err := url.Parse(scheme + "://" + name)
 		if err != nil {
@@ -63,7 +83,18 @@ func httpsOrHTTP(name string, insecure bool) (urlStr string, body io.ReadCloser,
 		}
 		u.RawQuery = "ac-discovery=1"
 		urlStr = u.String()
-		res, err = httpGet.Get(urlStr)
+		req, err := http.NewRequest("GET", urlStr, nil)
+		if err != nil {
+			return "", nil, err
+		}
+		if hostHeader, ok := hostHeaders[u.Host]; ok {
+			req.Header = hostHeader
+		}
+		if insecure&InsecureTls != 0 {
+			res, err = httpDoInsecureTls.Do(req)
+			return
+		}
+		res, err = httpDo.Do(req)
 		return
 	}
 	closeBody := func(res *http.Response) {
@@ -73,7 +104,7 @@ func httpsOrHTTP(name string, insecure bool) (urlStr string, body io.ReadCloser,
 	}
 	urlStr, res, err := fetch("https")
 	if err != nil || res.StatusCode != http.StatusOK {
-		if insecure {
+		if insecure&InsecureHttp != 0 {
 			closeBody(res)
 			urlStr, res, err = fetch("http")
 		}

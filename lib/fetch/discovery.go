@@ -1,7 +1,6 @@
 package fetch
 
 import (
-	"flag"
 	"os"
 	"runtime"
 
@@ -9,15 +8,6 @@ import (
 	"github.com/appc/spec/schema/types"
 	multierror "github.com/hashicorp/go-multierror"
 )
-
-var AllowHTTP bool
-
-func AllowHTTPFlag(fl *flag.FlagSet) {
-	if fl == nil {
-		fl = flag.CommandLine
-	}
-	fl.BoolVar(&AllowHTTP, "insecure-allow-http", false, "Allow non-encrypted HTTP")
-}
 
 func tryAppFromString(location string) *discovery.App {
 	if app, err := discovery.NewAppFromString(location); err != nil {
@@ -37,7 +27,8 @@ func tryAppFromString(location string) *discovery.App {
 func OpenPubKey(location string) (types.ACIdentifier, *os.File, error) {
 	if app := tryAppFromString(location); app != nil {
 		// Proper ACIdentifier given, let's do the discovery
-		if eps, _, err := discovery.DiscoverPublicKeys(*app, AllowHTTP); err != nil {
+		// TODO: hostHeaders, insecure
+		if eps, _, err := discovery.DiscoverPublicKeys(*app, nil, 0); err != nil {
 			return app.Name, nil, err
 		} else {
 			// We assume multiple returned keys are alternatives, not
@@ -66,7 +57,8 @@ func DiscoverACI(app discovery.App) (*os.File, *os.File, error) {
 
 func discoverACI(app discovery.App, asc *os.File) (*os.File, *os.File, error) {
 	var aci *os.File
-	if eps, _, err := discovery.DiscoverEndpoints(app, AllowHTTP); err != nil {
+	// TODO: hostHeaders, insecure
+	if eps, _, err := discovery.DiscoverEndpoints(app, nil, 0); err != nil {
 		return nil, nil, err
 	} else {
 		var err error

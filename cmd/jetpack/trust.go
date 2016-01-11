@@ -10,8 +10,6 @@ import (
 
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
-
-	"github.com/3ofcoins/jetpack/lib/fetch"
 )
 
 func init() {
@@ -27,7 +25,6 @@ func flTrust(fl *flag.FlagSet) {
 	fl.Var(&trustPrefix, "prefix", "Force image name prefix")
 	fl.BoolVar(&trustRoot, "root", false, "Root key (matches all images)")
 	fl.StringVar(&trustFingerprint, "fingerprint", "", "Specify key fingerprint to accept")
-	fetch.AllowHTTPFlag(fl)
 }
 
 func cmdTrust(args []string) error {

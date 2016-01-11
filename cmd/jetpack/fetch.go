@@ -18,7 +18,6 @@ func init() {
 }
 
 func flFetch(fl *flag.FlagSet) {
-	fetch.AllowHTTPFlag(fl)
 	SaveIDFlag(fl)
 }
 
@@ -55,7 +54,6 @@ var flImportName types.ACIdentifier
 var flImportSignature string
 
 func flImport(fl *flag.FlagSet) {
-	fetch.AllowHTTPFlag(fl)
 	SaveIDFlag(fl)
 	fl.Var(&flImportName, "name", "Name of imported image (for signature check)")
 	fl.StringVar(&flImportSignature, "sig", "", "Location of signature")

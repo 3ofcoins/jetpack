@@ -46,6 +46,7 @@ Some examples of build systems and tools that have been built so far include:
 - [baci](https://github.com/sgotti/baci) - A generic ACI build project
 - [openwrt-aci](https://github.com/1player/openwrt-aci) - A tool to build ACIs based on OpenWRT snapshots
 - [oci2aci](https://github.com/huawei-openlab/oci2aci) - ACI builder from OCI bundle
+- [nix2aci](https://github.com/steveej/nix2aci) - ACI builder that leverages the Nix package manager and acbuild
 
 ## What are some implementations of the spec?
 
@@ -81,7 +82,7 @@ $ find /tmp/my-app/
 $ cat /tmp/my-app/manifest
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.7.1",
+    "acVersion": "0.7.4",
     "name": "my-app",
     "labels": [
         {"name": "os", "value": "linux"},
@@ -113,7 +114,7 @@ and verify that the manifest was embedded appropriately
 $ tar xf /tmp/my-app.aci manifest -O | python -m json.tool
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.7.1",
+    "acVersion": "0.7.4",
     "annotations": null,
     "app": {
         "environment": [],

@@ -4,43 +4,8 @@
 		{
 			"importpath": "github.com/appc/spec",
 			"repository": "https://github.com/appc/spec",
-			"revision": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24",
+			"revision": "0875c991a496fe2b65ed296551c667b199a6bfb8",
 			"branch": "HEAD"
-		},
-		{
-			"importpath": "github.com/appc/spec/Godeps/_workspace/src/github.com/coreos/go-semver/semver",
-			"repository": "https://github.com/appc/spec",
-			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
-			"branch": "master",
-			"path": "/Godeps/_workspace/src/github.com/coreos/go-semver/semver"
-		},
-		{
-			"importpath": "github.com/appc/spec/Godeps/_workspace/src/github.com/spf13/pflag",
-			"repository": "https://github.com/appc/spec",
-			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
-			"branch": "master",
-			"path": "/Godeps/_workspace/src/github.com/spf13/pflag"
-		},
-		{
-			"importpath": "github.com/appc/spec/Godeps/_workspace/src/golang.org/x/net/html",
-			"repository": "https://github.com/appc/spec",
-			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
-			"branch": "master",
-			"path": "/Godeps/_workspace/src/golang.org/x/net/html"
-		},
-		{
-			"importpath": "github.com/appc/spec/Godeps/_workspace/src/k8s.io/kubernetes/pkg/api/resource",
-			"repository": "https://github.com/appc/spec",
-			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
-			"branch": "master",
-			"path": "/Godeps/_workspace/src/k8s.io/kubernetes/pkg/api/resource"
-		},
-		{
-			"importpath": "github.com/appc/spec/Godeps/_workspace/src/speter.net/go/exp/math/dec/inf",
-			"repository": "https://github.com/appc/spec",
-			"revision": "5a7af198346710d6a432b109b4ddda1c11aad963",
-			"branch": "master",
-			"path": "/Godeps/_workspace/src/speter.net/go/exp/math/dec/inf"
 		},
 		{
 			"importpath": "github.com/coreos/ioprogress",
