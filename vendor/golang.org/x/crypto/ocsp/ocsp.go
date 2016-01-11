@@ -85,17 +85,18 @@ type responseData struct {
 }
 
 type singleResponse struct {
-	CertID     certID
-	Good       asn1.Flag   `asn1:"tag:0,optional"`
-	Revoked    revokedInfo `asn1:"explicit,tag:1,optional"`
-	Unknown    asn1.Flag   `asn1:"tag:2,optional"`
-	ThisUpdate time.Time   `asn1:"generalized"`
-	NextUpdate time.Time   `asn1:"generalized,explicit,tag:0,optional"`
+	CertID           certID
+	Good             asn1.Flag        `asn1:"tag:0,optional"`
+	Revoked          revokedInfo      `asn1:"tag:1,optional"`
+	Unknown          asn1.Flag        `asn1:"tag:2,optional"`
+	ThisUpdate       time.Time        `asn1:"generalized"`
+	NextUpdate       time.Time        `asn1:"generalized,explicit,tag:0,optional"`
+	SingleExtensions []pkix.Extension `asn1:"explicit,tag:1,optional"`
 }
 
 type revokedInfo struct {
-	RevocationTime time.Time `asn1:"generalized"`
-	Reason         int       `asn1:"explicit,tag:0,optional"`
+	RevocationTime time.Time       `asn1:"generalized"`
+	Reason         asn1.Enumerated `asn1:"explicit,tag:0,optional"`
 }
 
 var (
@@ -230,6 +231,7 @@ func getHashAlgorithmFromOID(target asn1.ObjectIdentifier) crypto.Hash {
 
 // This is the exposed reflection of the internal OCSP structures.
 
+// The status values that can be expressed in OCSP.  See RFC 6960.
 const (
 	// Good means that the certificate is valid.
 	Good = iota
@@ -241,7 +243,22 @@ const (
 	ServerFailed = iota
 )
 
-// Request represents an OCSP request. See RFC 2560.
+// The enumerated reasons for revoking a certificate.  See RFC 5280.
+const (
+	Unspecified          = iota
+	KeyCompromise        = iota
+	CACompromise         = iota
+	AffiliationChanged   = iota
+	Superseded           = iota
+	CessationOfOperation = iota
+	CertificateHold      = iota
+	_                    = iota
+	RemoveFromCRL        = iota
+	PrivilegeWithdrawn   = iota
+	AACompromise         = iota
+)
+
+// Request represents an OCSP request. See RFC 6960.
 type Request struct {
 	HashAlgorithm  crypto.Hash
 	IssuerNameHash []byte
@@ -249,7 +266,8 @@ type Request struct {
 	SerialNumber   *big.Int
 }
 
-// Response represents an OCSP response. See RFC 2560.
+// Response represents an OCSP response containing a single SingleResponse. See
+// RFC 6960.
 type Response struct {
 	// Status is one of {Good, Revoked, Unknown, ServerFailed}
 	Status                                        int
@@ -262,6 +280,20 @@ type Response struct {
 	TBSResponseData    []byte
 	Signature          []byte
 	SignatureAlgorithm x509.SignatureAlgorithm
+
+	// Extensions contains raw X.509 extensions from the singleExtensions field
+	// of the OCSP response. When parsing certificates, this can be used to
+	// extract non-critical extensions that are not parsed by this package. When
+	// marshaling OCSP responses, the Extensions field is ignored, see
+	// ExtraExtensions.
+	Extensions []pkix.Extension
+
+	// ExtraExtensions contains extensions to be copied, raw, into any marshaled
+	// OCSP response (in the singleExtensions field). Values override any
+	// extensions that would otherwise be produced based on the other fields. The
+	// ExtraExtensions field is not populated when parsing certificates, see
+	// Extensions.
+	ExtraExtensions []pkix.Extension
 }
 
 // These are pre-serialized error responses for the various non-success codes
@@ -389,6 +421,13 @@ func ParseResponse(bytes []byte, issuer *x509.Certificate) (*Response, error) {
 
 	r := basicResp.TBSResponseData.Responses[0]
 
+	for _, ext := range r.SingleExtensions {
+		if ext.Critical {
+			return nil, ParseError("unsupported critical extension")
+		}
+	}
+	ret.Extensions = r.SingleExtensions
+
 	ret.SerialNumber = r.CertID.SerialNumber
 
 	switch {
@@ -399,7 +438,7 @@ func ParseResponse(bytes []byte, issuer *x509.Certificate) (*Response, error) {
 	default:
 		ret.Status = Revoked
 		ret.RevokedAt = r.Revoked.RevocationTime
-		ret.RevocationReason = r.Revoked.Reason
+		ret.RevocationReason = int(r.Revoked.Reason)
 	}
 
 	ret.ProducedAt = basicResp.TBSResponseData.ProducedAt
@@ -518,8 +557,9 @@ func CreateResponse(issuer, responderCert *x509.Certificate, template Response, 
 			IssuerKeyHash: issuerKeyHash,
 			SerialNumber:  template.SerialNumber,
 		},
-		ThisUpdate: template.ThisUpdate.UTC(),
-		NextUpdate: template.NextUpdate.UTC(),
+		ThisUpdate:       template.ThisUpdate.UTC(),
+		NextUpdate:       template.NextUpdate.UTC(),
+		SingleExtensions: template.ExtraExtensions,
 	}
 
 	switch template.Status {
@@ -530,7 +570,7 @@ func CreateResponse(issuer, responderCert *x509.Certificate, template Response, 
 	case Revoked:
 		innerResponse.Revoked = revokedInfo{
 			RevocationTime: template.RevokedAt.UTC(),
-			Reason:         template.RevocationReason,
+			Reason:         asn1.Enumerated(template.RevocationReason),
 		}
 	}
 

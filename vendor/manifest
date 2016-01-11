@@ -87,7 +87,7 @@
 		{
 			"importpath": "golang.org/x/crypto",
 			"repository": "https://go.googlesource.com/crypto",
-			"revision": "2f677ffe0a128ed6d4e3ecb565e4d29a6c6365da",
+			"revision": "803f01ea27e23d998825ec085f0d153cac01c828",
 			"branch": "master"
 		},
 		{
