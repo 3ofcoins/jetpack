@@ -93,6 +93,9 @@ func Unlinkat(dirfd int, path string) error {
 //sys	utimes(path string, times *[2]Timeval) (err error)
 
 func Utimes(path string, tv []Timeval) (err error) {
+	if tv == nil {
+		return utimes(path, nil)
+	}
 	if len(tv) != 2 {
 		return EINVAL
 	}
@@ -101,11 +104,18 @@ func Utimes(path string, tv []Timeval) (err error) {
 
 //sys	utimensat(dirfd int, path string, times *[2]Timespec, flags int) (err error)
 
-func UtimesNano(path string, ts []Timespec) (err error) {
+func UtimesNano(path string, ts []Timespec) error {
+	if ts == nil {
+		err := utimensat(AT_FDCWD, path, nil, 0)
+		if err != ENOSYS {
+			return err
+		}
+		return utimes(path, nil)
+	}
 	if len(ts) != 2 {
 		return EINVAL
 	}
-	err = utimensat(AT_FDCWD, path, (*[2]Timespec)(unsafe.Pointer(&ts[0])), 0)
+	err := utimensat(AT_FDCWD, path, (*[2]Timespec)(unsafe.Pointer(&ts[0])), 0)
 	if err != ENOSYS {
 		return err
 	}
@@ -119,7 +129,10 @@ func UtimesNano(path string, ts []Timespec) (err error) {
 	return utimes(path, (*[2]Timeval)(unsafe.Pointer(&tv[0])))
 }
 
-func UtimesNanoAt(dirfd int, path string, ts []Timespec, flags int) (err error) {
+func UtimesNanoAt(dirfd int, path string, ts []Timespec, flags int) error {
+	if ts == nil {
+		return utimensat(dirfd, path, nil, flags)
+	}
 	if len(ts) != 2 {
 		return EINVAL
 	}
@@ -128,13 +141,16 @@ func UtimesNanoAt(dirfd int, path string, ts []Timespec, flags int) (err error) 
 
 //sys	futimesat(dirfd int, path *byte, times *[2]Timeval) (err error)
 
-func Futimesat(dirfd int, path string, tv []Timeval) (err error) {
-	if len(tv) != 2 {
-		return EINVAL
-	}
+func Futimesat(dirfd int, path string, tv []Timeval) error {
 	pathp, err := BytePtrFromString(path)
 	if err != nil {
 		return err
+	}
+	if tv == nil {
+		return futimesat(dirfd, pathp, nil)
+	}
+	if len(tv) != 2 {
+		return EINVAL
 	}
 	return futimesat(dirfd, pathp, (*[2]Timeval)(unsafe.Pointer(&tv[0])))
 }
@@ -870,6 +886,7 @@ func Getpgrp() (pid int) {
 //sys	Pause() (err error)
 //sys	PivotRoot(newroot string, putold string) (err error) = SYS_PIVOT_ROOT
 //sysnb prlimit(pid int, resource int, old *Rlimit, newlimit *Rlimit) (err error) = SYS_PRLIMIT64
+//sys   Prctl(option int, arg2 uintptr, arg3 uintptr, arg4 uintptr, arg5 uintptr) (err error)
 //sys	read(fd int, p []byte) (n int, err error)
 //sys	Removexattr(path string, attr string) (err error)
 //sys	Renameat(olddirfd int, oldpath string, newdirfd int, newpath string) (err error)
@@ -1006,7 +1023,6 @@ func Munmap(b []byte) (err error) {
 // Personality
 // Poll
 // Ppoll
-// Prctl
 // Pselect6
 // Ptrace
 // Putpmsg

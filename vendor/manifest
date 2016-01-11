@@ -93,7 +93,7 @@
 		{
 			"importpath": "golang.org/x/sys/unix",
 			"repository": "https://go.googlesource.com/sys",
-			"revision": "b4e289961544fc90f340c908c3460ceae6a2202a",
+			"revision": "833a04a10549a95dc34458c195cbad61bbb6cb4d",
 			"branch": "master",
 			"path": "/unix"
 		}
