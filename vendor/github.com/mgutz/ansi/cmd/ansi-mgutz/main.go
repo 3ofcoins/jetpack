@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 
+	"github.com/mattn/go-colorable"
 	"github.com/mgutz/ansi"
 )
 
@@ -54,7 +54,7 @@ func printPlain() {
 
 func printColors() {
 	ansi.DisableColors(false)
-	stdout := os.Stdout
+	stdout := colorable.NewColorableStdout()
 
 	bgColors := []string{
 		"",
@@ -88,7 +88,7 @@ func printColors() {
 
 func print256Colors() {
 	ansi.DisableColors(false)
-	stdout := os.Stdout
+	stdout := colorable.NewColorableStdout()
 
 	bgColors := []string{""}
 	for i := 0; i < 256; i++ {
@@ -114,7 +114,7 @@ func print256Colors() {
 }
 
 func printConstants() {
-	stdout := os.Stdout
+	stdout := colorable.NewColorableStdout()
 	fmt.Fprintln(stdout, ansi.DefaultFG, "ansi.DefaultFG", ansi.Reset)
 	fmt.Fprintln(stdout, ansi.Black, "ansi.Black", ansi.Reset)
 	fmt.Fprintln(stdout, ansi.Red, "ansi.Red", ansi.Reset)

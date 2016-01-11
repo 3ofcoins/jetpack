@@ -75,7 +75,7 @@
 		{
 			"importpath": "github.com/mgutz/ansi",
 			"repository": "https://github.com/mgutz/ansi",
-			"revision": "22ddafb24adc4786c83841aa3021349818c898e4",
+			"revision": "c286dcecd19ff979eeb73ea444e479b903f2cfcb",
 			"branch": "master"
 		},
 		{
