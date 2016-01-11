@@ -2,5 +2,7 @@
 /tmp
 /jetpack.conf
 /.vagrant
-/gopath
 /bin
+/gopath
+/vendor/github.com/appc/spec/bin
+/vendor/github.com/appc/spec/gopath
