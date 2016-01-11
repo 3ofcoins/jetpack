@@ -1,28 +1,22 @@
 prefix?=	/usr/local
 
-# The old syntax for the `-X` argumant to go compiler's ldflags has
-# been deprecated at Go 1.5.
-go_version := ${go version | grep -o '[1-9][0-9]*\.[0-9]*':L:sh}
-.if ${go_version} >= 1.5
-go_ldflags="-X lib/jetpack.prefix=${prefix}"
-.else
-go_ldflags="-X lib/jetpack.prefix ${prefix}"
-.endif
+gopath =	gopath
+gopkg =		github.com/3ofcoins/jetpack
+goenv =		env -u GOBIN GOPATH=${gopath:tA} GO15VENDOREXPERIMENT=1 CC=clang
+
+gopkg_path =	${gopath}/src/${gopkg}
 
 all: bin/jetpack bin/mds bin/stage2
 
+${gopkg_path}:
+	mkdir -p ${gopkg_path:H}
+	if test -e ${gopkg_path} ; then rm -v ${gopkg_path} ; fi
+	ln -sv ${.CURDIR:tA} ${gopkg_path}
+
 bin/jetpack bin/mds: .go.build.
 .PHONY: .go.build.
-.go.build.: src/github.com/3ofcoins/jetpack
-	env GOPATH=${.CURDIR:tA} GOBIN=${.CURDIR:tA}/bin GO15VENDOREXPERIMENT=1 CC=clang go install \
-		github.com/3ofcoins/jetpack/cmd/jetpack \
-		github.com/3ofcoins/jetpack/cmd/mds
-#		github.com/appc/spec/actool
-
-src/github.com/3ofcoins/jetpack:
-	mkdir -p src/github.com/3ofcoins
-	rm -f src/github.com/3ofcoins/jetpack
-	ln -sf ${.CURDIR} src/github.com/3ofcoins/jetpack
+.go.build.: ${gopkg_path}
+	${goenv} GOBIN=${.CURDIR:tA}/bin go install ${gopkg}/cmd/jetpack ${gopkg}/cmd/mds
 
 bin/stage2: stage2.c
 	-mkdir -p bin
@@ -42,12 +36,21 @@ install: .PHONY bin/jetpack bin/stage2
 	    install -m 0644 jetpack.conf.sample ${DESTDIR}$${prefix}/etc/jetpack.conf.sample
 
 # appc/spec stuff
-spec = ${.CURDIR}/vendor/github.com/appc/spec
+spec = vendor/github.com/appc/spec
 
 validator-aci: ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci
 ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
 	sed -i~ s/linux/freebsd/ ${spec}/ace/*.json
 	cd ${spec} && bash ./build && env NO_SIGNATURE=1 bash ./ace/build_aci
 
+
+# gvt for dependency management
+
+${gopath}/bin/gvt: ${gopkg_path}
+	${goenv} go get -u github.com/FiloSottile/gvt
+
+gvt: ${gopath}/bin/gvt
+	${goenv} ${gopath}/bin/gvt ${CMD}
+
 clean: .PHONY
-	rm -rf src pkg bin tmp ${spec}/bin ${spec}/gopath
+	rm -rf ${gopath} bin tmp ${spec}/bin ${spec}/gopath

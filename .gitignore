@@ -2,8 +2,5 @@
 /tmp
 /jetpack.conf
 /.vagrant
-/vendor/bin
-/vendor/pkg
+/gopath
 /bin
-/pkg
-/src
