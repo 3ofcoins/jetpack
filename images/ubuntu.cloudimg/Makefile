@@ -11,14 +11,23 @@ RELEASE_wily =		15.10
 RELEASE_xenial =	16.04
 
 BASEURL =	https://partner-images.canonical.com/core/${CODENAME}/current
+BASENAME =	ubuntu-cloudimg-${CODENAME}-${ARCH}
 
-CLOUDIMG_ACI =		ubuntu-cloudimg-${CODENAME}-${ARCH}.base.aci
+CLOUDIMG_ACI =		${BASENAME}.base.aci
 CLOUDIMG_TARBALL =	ubuntu-${CODENAME}-core-cloudimg-${ARCH}-root.tar.gz
 CLOUDIMG_SHA256_cmd =	awk '/\*${CLOUDIMG_TARBALL}$$/ { print $$1 }' SHA256SUMS
 CLOUDIMG_SHA256 =	${CLOUDIMG_SHA256_cmd:sh}
 CLOUDIMG_MANIFEST =	${CLOUDIMG_ACI:R}.manifest.json
 
-# 3ofcoins.net/ubuntu-cloudimg
+all:
+.for .codename in precise trusty utopic vivid wily xenial
+.for .arch in amd64 i386
+	${MAKE} CODENAME=${.codename} ARCH=${.arch} ${TARGET}
+.endfor
+.endfor
+
+all-flat:
+	${MAKE} all TARGET=flat-aci
 
 base-aci: ${CLOUDIMG_ACI}
 base-import: ${CLOUDIMG_ACI}.id
@@ -64,9 +73,10 @@ clean.base:
 	    *.manifest.json \
 	    build-info.txt
 
-##############################################################################
-
 PARENT_IMAGE =	`cat ${CLOUDIMG_ACI}.id`
+ACI_FILE =	${BASENAME}.aci
 BUILD_COMMAND =	/bin/sh ./build.sh
+
+prepare: ${CLOUDIMG_ACI}.id
 
 .include "jetpack.image.mk"
