@@ -140,7 +140,7 @@ func cmdWrapPodMaybeApp(cmd func(*jetpack.Pod, *jetpack.App, []string) error) fu
 			return ErrUsage
 		}
 		pieces := strings.SplitN(args[0], ":", 2)
-		if pod, err := getPod(args[0]); err != nil {
+		if pod, err := getPod(pieces[0]); err != nil {
 			return errors.Trace(err)
 		} else {
 			if len(pieces) == 1 {
@@ -150,7 +150,7 @@ func cmdWrapPodMaybeApp(cmd func(*jetpack.Pod, *jetpack.App, []string) error) fu
 			} else if app := pod.App(*appName); app == nil {
 				return jetpack.ErrNotFound
 			} else {
-				return cmd(pod, app, args)
+				return cmd(pod, app, args[1:])
 			}
 		}
 	}
