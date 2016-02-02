@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pborman/uuid"
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
+	"github.com/pborman/uuid"
 	openpgp_err "golang.org/x/crypto/openpgp/errors"
 
 	"github.com/3ofcoins/jetpack/lib/acutil"
@@ -244,7 +244,9 @@ func (h *Host) ReifyPodManifest(pm *schema.PodManifest) (*schema.PodManifest, er
 				}
 			}
 			fmt.Printf("INFO: volume %v not found, inserting empty volume\n", mnt.Volume)
-			pm.Volumes = append(pm.Volumes, types.Volume{Name: mnt.Volume, Kind: "empty"})
+			_mode := "0755"
+			_ugid := 0
+			pm.Volumes = append(pm.Volumes, types.Volume{Name: mnt.Volume, Kind: "empty", Mode: &_mode, UID: &_ugid, GID: &_ugid})
 		}
 	}
 
