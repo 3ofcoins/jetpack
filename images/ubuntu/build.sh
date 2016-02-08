@@ -40,7 +40,7 @@ esac
 
 cat >manifest.json <<EOF
 {
-  "name": "3ofcoins.net/ubuntu-cloudimg",
+  "name": "3ofcoins.net/ubuntu",
   "labels": [
     { "name": "version", "value": "$(lsb_release -sr)-${SERIAL}" },
     { "name": "codename", "value": "$(lsb_release -sc)" },
