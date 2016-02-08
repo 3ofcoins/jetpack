@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pborman/uuid"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
+	"github.com/pborman/uuid"
 
 	"github.com/3ofcoins/jetpack/lib/ui"
 	"github.com/3ofcoins/jetpack/lib/zfs"
@@ -69,6 +69,7 @@ func (img *Image) ID() string {
 func (img *Image) String() string {
 	labels := make([]string, len(img.Manifest.Labels))
 	for i, label := range img.Manifest.Labels {
+		// FIXME: URL-escape values
 		if label.Name == "version" {
 			// HACK: we want version to `sort.Strings()` before all other
 			// labels that will start with a comma. A colon we'll want to
@@ -77,7 +78,7 @@ func (img *Image) String() string {
 			// the sort.
 			labels[i] = fmt.Sprintf("+%v", label.Value)
 		} else {
-			labels[i] = fmt.Sprintf(",%v=%#v", label.Name, label.Value)
+			labels[i] = fmt.Sprintf(",%v=%v", label.Name, label.Value)
 		}
 	}
 	sort.Strings(labels)
