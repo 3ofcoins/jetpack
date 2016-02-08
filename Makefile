@@ -4,7 +4,7 @@ gopath =	gopath
 gopkg =		github.com/3ofcoins/jetpack
 goenv =		env -u GOBIN GOPATH=${gopath:tA} GO15VENDOREXPERIMENT=1 CC=clang
 
-all: bin/jetpack bin/mds bin/stage2
+all: bin/jetpack bin/mds bin/test bin/stage2
 
 .gopath = ${gopath}/.sentinel
 ${.gopath}:
@@ -12,10 +12,10 @@ ${.gopath}:
 	ln -svf ${.CURDIR:tA} ${gopath}/src/${gopkg}
 	touch $@
 
-bin/jetpack bin/mds: .go.build.
+bin/jetpack bin/mds bin/test: .go.build.
 .PHONY: .go.build.
 .go.build.: ${.gopath}
-	${goenv} GOBIN=${.CURDIR:tA}/bin go install ${gopkg}/cmd/jetpack ${gopkg}/cmd/mds
+	${goenv} GOBIN=${.CURDIR:tA}/bin go install ${gopkg}/cmd/jetpack ${gopkg}/cmd/mds ${gopkg}/cmd/test
 
 bin/stage2: stage2.c
 	-mkdir -p bin
@@ -50,7 +50,9 @@ ${gopath}/bin/gvt: ${.gopath}
 	touch $@
 
 gvt: ${gopath}/bin/gvt
+.ifdef CMD
 	${goenv} ${gopath}/bin/gvt ${CMD}
+.endif
 
 clean: .PHONY
 	rm -rf ${gopath} bin tmp ${spec}/bin ${spec}/gopath
