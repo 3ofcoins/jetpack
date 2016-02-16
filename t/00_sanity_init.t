@@ -12,8 +12,8 @@ use Test::Command;
 
 # Parameters, may need to be updated
 my $signing_key_fingerprint = '4706dc5d5c214bc3ad127c6d53ccc2d63a162664';
-my $base_image_version = '10.1.14';
-my $base_image_id = 'sha512-ac9d894e0e9720e2dd811d70eee277dfa3654a5d9f1fe13b4b6fb482d71ff1384bfde85de612c16e10746ad730d9e865a05595156ccce8e40cea94f745a94c2b';
+my $base_image_version = '10.2.8';
+my $base_image_id = 'sha512-330aaaa197708a1e8945769f7b13b91e5b7113981bdfd1838380378e7528e837abebd8de3923a5450425c9c1a8f2b71e164a8abbcbf2bd0f55b9ebc4a22cf0a7';
 
 my %datasets;
 sub reload_datasets {

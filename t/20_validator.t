@@ -8,7 +8,7 @@ use Test::JetpackHelpers;
 
 use File::Spec::Functions;
 
-use constant APPC_SPEC_BIN => catfile(JETPACK_ROOT, "vendor/src/github.com/appc/spec/bin");
+use constant APPC_SPEC_BIN => catfile(JETPACK_ROOT, "vendor/github.com/appc/spec/bin");
 
 die_on_fail;
 

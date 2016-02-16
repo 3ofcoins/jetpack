@@ -37,7 +37,7 @@ chomp(my $imgid = read_file("$builddir/image.aci.id"));
 my $cmdout = stdout_value run_command "jetpack", "show-image", $imgid;
 ok($cmdout =~ /^ID\s+$imgid$/m, "Image ID matches");
 ok($cmdout =~ /^Name\s+3ofcoins\.net\/port-builder:\d+\.\d+\.\d+,arch="amd64",os="freebsd"$/m, "Image name matches");
-ok($cmdout =~ /^Dependencies\s+sha512-[0-9a-f]+ 3ofcoins\.net\/freebsd-base:10\.1\.\d+/m, "Dependency on freebsd-base");
+ok($cmdout =~ /^Dependencies\s+sha512-[0-9a-f]+ 3ofcoins\.net\/freebsd-base:10\.\d+\.\d+/m, "Dependency on freebsd-base");
 
 # Export the image (via make)
 run_command "make", "-C", $builddir, "aci";
