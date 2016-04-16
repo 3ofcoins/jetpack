@@ -2,20 +2,23 @@
 
 PARENT_IMAGE = `cat base.aci.id`
 TIDY_FILES   = manifest.json base.aci.id 
-CLEAN_FILES  = ${TIDY_FILES} base.manifest.json base.txz base.aci appc-metadata-client
-BUILD_VARS   = http_proxy
+CLEAN_FILES  = ${TIDY_FILES} base.manifest.json base.txz base.txz.dl base.aci appc-metadata-client
+BUILD_VARS   = http_proxy NO_UPDATE
+NO_UPDATE   ?= 0
 
 # Download base.txz and roll a base ACI off it. Needs security/fakeroot, is nicer with deskutils/pv
 
-BASE_VERSION = 10.2
+BASE_VERSION = 10.3
 BASE_URL = ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/${BASE_VERSION}-RELEASE/base.txz
-BASE_SHA256 = 75b0d1872b39c35b0d423c352c96d41cc2d7e7d536b78ecdb506c2fbf8072a0b
+BASE_SHA256 = e7c4c961694e34b2b60598d9668a185b5de1c6241bedfc4891cd9ea8fbff2dc4
 
 base.txz:
-	fetch -o $@ ${BASE_URL}
+	rm -f $@.dl
+	fetch -o $@.dl ${BASE_URL}
+	sha256 -c ${BASE_SHA256} $@.dl
+	mv -v $@.dl $@
 
 base.aci: base.txz
-	sha256 -c ${BASE_SHA256} base.txz
 	./base.manifest.json.sh ${BASE_VERSION} > ./base.manifest.json
 	${MAKEACI} ./base.txz ./base.manifest.json $@
 
@@ -41,8 +44,10 @@ build:
 	install -v -d -m 0755 /usr/local/bin
 	install -v -m 0755 appc-metadata-client/ac-mdc /usr/local/bin/ac-mdc
 	install -v -m 0644 rc.conf /etc/rc.conf
+.if ${NO_UPDATE} == 0 
 	env PAGER=cat freebsd-update -s update6.freebsd.org fetch install
 	rm -rf /var/db/freebsd-update/*
+.endif
 
 manifest.json:
 	./manifest.json.sh > $@
