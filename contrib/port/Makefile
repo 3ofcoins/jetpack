@@ -2,7 +2,7 @@
 # $FreeBSD$
 
 PORTNAME=	jetpack
-PORTVERSION=	0.0.1.20151013
+PORTVERSION=	0.0.1.20160416
 CATEGORIES=	sysutils
 
 MAINTAINER=	maciej@3ofcoins.net
@@ -10,11 +10,11 @@ COMMENT=	App Container runtime
 
 LICENSE=	BSD3CLAUSE
 
-BUILD_DEPENDS=	gb>=0.0.0.2015080301:${PORTSDIR}/devel/gb
+BUILD_DEPENDS=	go>=1.6:lang/go
 
 USE_GITHUB=	yes
 GH_ACCOUNT=	3ofcoins
-GH_TAGNAME=	5f3218c
+GH_TAGNAME=	b8b413e
 
 USERS=		_jetpack
 GROUPS=	_jetpack
