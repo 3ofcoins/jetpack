@@ -1,7 +1,7 @@
 { "acKind": "ImageManifest", "acVersion": "0.7.1",
   "name": "3ofcoins.net/minecraft-server",
   "labels": [
-    { "name": "version", "value": "1.8.8" }
+    { "name": "version", "value": "1.9.2" }
   ],
   "app": {
     "exec": [ "/opt/minecraft-server/minecraft-server.sh" ],
@@ -16,7 +16,7 @@
     "ports": [{"name": "minecraft", "protocol": "tcp", "port": 25565, "count": 1, "socketActivated": false}]
   },
   "annotations": [
-    {"name": "java-opts", "value": "-Xmx1024M -Xms1024M"},
+    {"name": "java-opts", "value": "-server -Djava.awt.headless=true -Xmx1024M -Xms1024M"},
     {"name": "eula", "value": "false"}
   ]
 }
