@@ -1,6 +1,6 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
-CODENAME ?=	trusty
+CODENAME ?=	xenial
 RELEASE ?=	${RELEASE_${CODENAME}}
 ARCH ?=			amd64
 RELEASE_precise =	12.04

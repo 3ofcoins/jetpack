@@ -38,12 +38,14 @@ case $arch in
     x86_64) arch=amd64 ;;
 esac
 
+. /etc/lsb-release
+
 cat >manifest.json <<EOF
 {
   "name": "3ofcoins.net/ubuntu",
   "labels": [
-    { "name": "version", "value": "$(lsb_release -sr)-${SERIAL}" },
-    { "name": "codename", "value": "$(lsb_release -sc)" },
+    { "name": "version", "value": "${DISTRIB_RELEASE}-${SERIAL}" },
+    { "name": "codename", "value": "${DISTRIB_CODENAME}" },
     { "name": "os", "value": "linux" },
     { "name": "arch", "value": "$arch" }
   ],
