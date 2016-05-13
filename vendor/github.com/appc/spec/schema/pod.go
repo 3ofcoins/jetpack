@@ -22,7 +22,7 @@ import (
 
 	"github.com/appc/spec/schema/types"
 
-	"github.com/appc/spec/Godeps/_workspace/src/github.com/camlistore/camlistore/pkg/errorutil"
+	"go4.org/errorutil"
 )
 
 const PodManifestKind = types.ACKind("PodManifest")
@@ -152,11 +152,12 @@ func (r Mount) assertValid() error {
 
 // RuntimeApp describes an application referenced in a PodManifest
 type RuntimeApp struct {
-	Name        types.ACName      `json:"name"`
-	Image       RuntimeImage      `json:"image"`
-	App         *types.App        `json:"app,omitempty"`
-	Mounts      []Mount           `json:"mounts,omitempty"`
-	Annotations types.Annotations `json:"annotations,omitempty"`
+	Name           types.ACName      `json:"name"`
+	Image          RuntimeImage      `json:"image"`
+	App            *types.App        `json:"app,omitempty"`
+	ReadOnlyRootFS bool              `json:"readOnlyRootFS,omitempty"`
+	Mounts         []Mount           `json:"mounts,omitempty"`
+	Annotations    types.Annotations `json:"annotations,omitempty"`
 }
 
 // RuntimeImage describes an image referenced in a RuntimeApp
