@@ -28,13 +28,13 @@ func OpenPubKey(location string) (types.ACIdentifier, *os.File, error) {
 	if app := tryAppFromString(location); app != nil {
 		// Proper ACIdentifier given, let's do the discovery
 		// TODO: hostHeaders, insecure
-		if eps, _, err := discovery.DiscoverPublicKeys(*app, nil, 0); err != nil {
+		if pks, _, err := discovery.DiscoverPublicKeys(*app, nil, 0); err != nil {
 			return app.Name, nil, err
 		} else {
 			// We assume multiple returned keys are alternatives, not
 			// multiple different valid keychains.
 			var err error
-			for _, keyurl := range eps.Keys {
+			for _, keyurl := range pks {
 				if keyf, er1 := OpenLocation(keyurl); er1 != nil {
 					err = multierror.Append(err, er1)
 				} else {
@@ -58,14 +58,14 @@ func DiscoverACI(app discovery.App) (*os.File, *os.File, error) {
 func discoverACI(app discovery.App, asc *os.File) (*os.File, *os.File, error) {
 	var aci *os.File
 	// TODO: hostHeaders, insecure
-	if eps, _, err := discovery.DiscoverEndpoints(app, nil, 0); err != nil {
+	if eps, _, err := discovery.DiscoverACIEndpoints(app, nil, 0); err != nil {
 		return nil, nil, err
 	} else {
 		var err error
 
 		if asc == nil {
 			err = nil
-			for _, ep := range eps.ACIEndpoints {
+			for _, ep := range eps {
 				if af, er1 := OpenLocation(ep.ASC); er1 != nil {
 					err = multierror.Append(err, er1)
 				} else {
@@ -79,7 +79,7 @@ func discoverACI(app discovery.App, asc *os.File) (*os.File, *os.File, error) {
 		}
 
 		err = nil
-		for _, ep := range eps.ACIEndpoints {
+		for _, ep := range eps {
 			if af, er1 := OpenLocation(ep.ACI); er1 != nil {
 				err = multierror.Append(err, er1)
 			} else {
