@@ -38,20 +38,20 @@ func clientIP(r *http.Request) string {
 	return strings.SplitN(r.RemoteAddr, ":", 2)[0]
 }
 
-func resp200(v interface{}) (int, []byte) {
-	return http.StatusOK, []byte(fmt.Sprint(v))
+func resp200(v interface{}, ct string) (int, []byte, string) {
+	return http.StatusOK, []byte(fmt.Sprint(v)), ct
 }
 
-func resp404() (int, []byte) {
-	return http.StatusNotFound, nil
+func resp404() (int, []byte, string) {
+	return http.StatusNotFound, nil, "text/plain"
 }
 
-func resp403() (int, []byte) {
-	return http.StatusForbidden, nil
+func resp403() (int, []byte, string) {
+	return http.StatusForbidden, nil, "text/plain"
 }
 
-func resp500(err error) (int, []byte) {
-	return http.StatusInternalServerError, []byte(err.Error())
+func resp500(err error) (int, []byte, string) {
+	return http.StatusInternalServerError, []byte(err.Error()), "text/plain"
 }
 
 // Returns path, token. If token is not provided, empty string is
@@ -65,10 +65,10 @@ func extractToken(url string) (string, string) {
 	}
 }
 
-func doServeMetadata(r *http.Request) (int, []byte) {
+func doServeMetadata(r *http.Request) (int, []byte, string) {
 	if r.URL.Path == "/" {
 		// Root URL. We introduce ourselves, no questions asked.
-		return http.StatusOK, []byte(fmt.Sprintf("Jetpack metadata service version %v\n", jetpack.Version()))
+		return http.StatusOK, []byte(fmt.Sprintf("Jetpack metadata service version %v\n", jetpack.Version())), "text/plain; charset=us-ascii"
 	}
 
 	path, token := extractToken(r.URL.Path)
@@ -82,21 +82,21 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		if body, err := json.Marshal(&Info); err != nil {
 			return resp500(err)
 		} else {
-			return http.StatusOK, body
+			return http.StatusOK, body, "application/json"
 		}
 	}
 
 	// All other requests should be coming from a pod.
 	pod := getPod(clientIP(r))
 	if pod == nil {
-		return http.StatusTeapot, []byte("You are not a real pod. For you, I am a teapot.")
+		return http.StatusTeapot, []byte("You are not a real pod. For you, I am a teapot."), "text/plain; charset=us-ascii"
 	}
 
 	// hack hack hack
 	r.URL.User = url.User(pod.UUID.String())
 
 	if !jetpack.VerifyMetadataToken(pod.UUID, token) {
-		return http.StatusTeapot, []byte("You are not a real pod. For you, I am a teapot.")
+		return http.StatusTeapot, []byte("You are not a real pod. For you, I am a teapot."), "text/plain; charset=us-ascii"
 	}
 
 	if !strings.HasPrefix(path, "/acMetadata/v1/") {
@@ -108,40 +108,40 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 	switch {
 
 	case path == "pod/uuid":
-		return resp200(pod.UUID)
+		return resp200(pod.UUID, "text/plain; charset=us-ascii")
 
 	case path == "pod/manifest":
 		// Pod manifest
 		if manifestJSON, err := json.Marshal(pod.Manifest); err != nil {
 			panic(err)
 		} else {
-			return http.StatusOK, manifestJSON
+			return http.StatusOK, manifestJSON, "application/json"
 		}
 
 	case path == "pod/hmac/sign":
 		content := r.FormValue("content")
-		if content == "" {
-			return http.StatusBadRequest, []byte("content form value not found\n")
+		if content == "text/plain" {
+			return http.StatusBadRequest, []byte("content form value not found\n"), "text/plain"
 		}
 		h := hmac.New(sha512.New, SigningKey)
 		h.Write(pod.UUID)
 		h.Write([]byte(content))
-		return resp200(hex.EncodeToString(h.Sum(nil)))
+		return resp200(hex.EncodeToString(h.Sum(nil)), "text/plain; charset=us-ascii")
 
 	case path == "pod/hmac/verify":
 		uuid := uuid.Parse(r.FormValue("uuid"))
 		if uuid == nil {
-			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid UUID: %#v\n", r.FormValue("uuid")))
+			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid UUID: %#v\n", r.FormValue("uuid"))), "text/plain"
 		}
 
 		sig, err := hex.DecodeString(r.FormValue("signature"))
 		if err != nil {
-			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid signature: %#v\n", r.FormValue("signature")))
+			return http.StatusBadRequest, []byte(fmt.Sprintf("Invalid signature: %#v\n", r.FormValue("signature"))), "text/plain"
 		}
 
 		content := r.FormValue("content")
-		if content == "" {
-			return http.StatusBadRequest, []byte("content form value not found\n")
+		if content == "text/plain" {
+			return http.StatusBadRequest, []byte("content form value not found\n"), "text/plain"
 		}
 
 		h := hmac.New(sha512.New, SigningKey)
@@ -149,9 +149,9 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		h.Write([]byte(content))
 
 		if hmac.Equal(sig, h.Sum(nil)) {
-			return http.StatusOK, nil
+			return http.StatusOK, nil, "text/plain; charset=us-ascii"
 		} else {
-			return http.StatusForbidden, nil
+			return http.StatusForbidden, nil, "text/plain; charset=us-ascii"
 		}
 
 	case path == "pod/annotations" || path == "pod/annotations/":
@@ -159,13 +159,13 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 		for i, ann := range pod.Manifest.Annotations {
 			anns[i] = string(ann.Name)
 		}
-		return resp200(strings.Join(anns, "\n"))
+		return resp200(strings.Join(anns, "\n"), "text/plain; charset=us-ascii")
 
 	case strings.HasPrefix(path, "pod/annotations/"):
 		// Pod annotation. 404 on nonexistent one.
 		annName := path[len("pod/annotations/"):]
 		if val, ok := pod.Manifest.Annotations.Get(annName); ok {
-			return resp200(val)
+			return resp200(val, "text/plain")
 		} else {
 			return resp404()
 		}
@@ -179,7 +179,7 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 				switch appPath := subpath[len(appPrefix):]; appPath {
 
 				case "image/id":
-					return resp200(app.Image.ID)
+					return resp200(app.Image.ID, "text/plain; charset=us-ascii")
 
 				case "image/manifest":
 					if img, err := Host.GetImage(app.Image.ID, "", nil); err != nil {
@@ -187,7 +187,7 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 					} else if manifestJSON, err := json.Marshal(img.Manifest); err != nil {
 						panic(err)
 					} else {
-						return http.StatusOK, manifestJSON
+						return http.StatusOK, manifestJSON, "application/json"
 					}
 
 				case "annotations", "annotations/":
@@ -195,17 +195,17 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 					for i, ann := range app.Annotations {
 						anns[i] = string(ann.Name)
 					}
-					return resp200(strings.Join(anns, "\n"))
+					return resp200(strings.Join(anns, "\n"), "text/plain; charset=us-ascii")
 
 				default:
 					if strings.HasPrefix(appPath, "annotations/") {
 						annName := appPath[len("annotations/"):]
 						if val, ok := app.Annotations.Get(annName); ok {
-							return resp200(val)
+							return resp200(val, "text/plain")
 						} else if img, err := Host.GetImage(app.Image.ID, "", nil); err != nil {
 							panic(err)
 						} else if val, ok := img.Manifest.Annotations.Get(annName); ok {
-							return resp200(val)
+							return resp200(val, "text/plain")
 						}
 					}
 				}
@@ -219,7 +219,7 @@ func doServeMetadata(r *http.Request) (int, []byte) {
 }
 
 func ServeMetadata(w http.ResponseWriter, r *http.Request) {
-	status, body := doServeMetadata(r)
+	status, body, content_type := doServeMetadata(r)
 
 	if body == nil {
 		body = []byte(http.StatusText(status) + "\n")
@@ -240,6 +240,10 @@ func ServeMetadata(w http.ResponseWriter, r *http.Request) {
 		status,
 		len(body))
 
+	if content_type == "" {
+		content_type = "text/plain"
+	}
+	w.Header().Set("Content-Type", content_type)
 	w.WriteHeader(status)
 	if _, err := w.Write(body); err != nil {
 		panic(err)
