@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"net/url"
 	"path"
 	"runtime"
 	"strconv"
@@ -85,7 +84,7 @@ func (vfl *VolumesFlag) Set(val string) error {
 		if pieces := strings.SplitN(val, ":", 2); len(pieces) == 1 {
 			val += ",kind=empty"
 		} else {
-			val = fmt.Sprintf("%v,kind=host,source=%v", pieces[0], url.QueryEscape(pieces[1]))
+			val = fmt.Sprintf("%v,kind=host,source=%v", pieces[0], pieces[1])
 		}
 	}
 	if val[0] == '-' {
