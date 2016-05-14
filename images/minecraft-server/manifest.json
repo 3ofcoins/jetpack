@@ -1,7 +1,7 @@
-{ "acKind": "ImageManifest", "acVersion": "0.7.1",
+{ "acKind": "ImageManifest", "acVersion": "0.8.1",
   "name": "3ofcoins.net/minecraft-server",
   "labels": [
-    { "name": "version", "value": "1.9.2" }
+    { "name": "version", "value": "1.9.4" }
   ],
   "app": {
     "exec": [ "/opt/minecraft-server/minecraft-server.sh" ],

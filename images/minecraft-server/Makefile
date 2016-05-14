@@ -1,11 +1,11 @@
 .MAKEFLAGS: -I${../../share:L:tA}
 
-PARENT_IMAGE = 3ofcoins.net/freebsd-base:10.3.0
+PARENT_IMAGE = 3ofcoins.net/freebsd-base
 
-SERVER_VERSION = 1.9.2
+SERVER_VERSION = 1.9.4
 SERVER_JAR = minecraft_server.${SERVER_VERSION}.jar
 SERVER_JAR_URL = https://s3.amazonaws.com/Minecraft.Download/versions/${SERVER_VERSION}/${SERVER_JAR}
-SERVER_JAR_SHA256 = a972d127be3b9d5fafe5bd610a173563cb24331b6664a3dc5f73b3cc76d77081
+SERVER_JAR_SHA256 = 13fea7aa10d804dd14ed7ebde2493dc64c7d3c8173369309bd7f6ea4c0ea40ad
 
 PKG_INSTALL = openjdk8
 
