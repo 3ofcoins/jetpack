@@ -154,20 +154,11 @@ func doServeMetadata(r *http.Request) (int, []byte, string) {
 			return http.StatusForbidden, nil, "text/plain; charset=us-ascii"
 		}
 
-	case path == "pod/annotations" || path == "pod/annotations/":
-		anns := make([]string, len(pod.Manifest.Annotations))
-		for i, ann := range pod.Manifest.Annotations {
-			anns[i] = string(ann.Name)
-		}
-		return resp200(strings.Join(anns, "\n"), "text/plain; charset=us-ascii")
-
-	case strings.HasPrefix(path, "pod/annotations/"):
-		// Pod annotation. 404 on nonexistent one.
-		annName := path[len("pod/annotations/"):]
-		if val, ok := pod.Manifest.Annotations.Get(annName); ok {
-			return resp200(val, "text/plain")
+	case path == "pod/annotations":
+		if annJSON, err := json.Marshal(pod.Manifest.Annotations); err != nil {
+			panic(err)
 		} else {
-			return resp404()
+			return http.StatusOK, annJSON, "application/json"
 		}
 	case strings.HasPrefix(path, "apps/"):
 		// App metadata.
@@ -190,23 +181,11 @@ func doServeMetadata(r *http.Request) (int, []byte, string) {
 						return http.StatusOK, manifestJSON, "application/json"
 					}
 
-				case "annotations", "annotations/":
-					anns := make([]string, len(app.Annotations))
-					for i, ann := range app.Annotations {
-						anns[i] = string(ann.Name)
-					}
-					return resp200(strings.Join(anns, "\n"), "text/plain; charset=us-ascii")
-
-				default:
-					if strings.HasPrefix(appPath, "annotations/") {
-						annName := appPath[len("annotations/"):]
-						if val, ok := app.Annotations.Get(annName); ok {
-							return resp200(val, "text/plain")
-						} else if img, err := Host.GetImage(app.Image.ID, "", nil); err != nil {
-							panic(err)
-						} else if val, ok := img.Manifest.Annotations.Get(annName); ok {
-							return resp200(val, "text/plain")
-						}
+				case "annotations":
+					if annJSON, err := json.Marshal(app.Annotations); err != nil {
+						panic(err)
+					} else {
+						return http.StatusOK, annJSON, "application/json"
 					}
 				}
 			}
