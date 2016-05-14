@@ -39,7 +39,6 @@ spec = vendor/github.com/appc/spec
 
 validator-aci: ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci
 ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
-	sed -i~ s/linux/freebsd/ ${spec}/ace/*.json
 	cd ${spec} && bash ./build && env NO_SIGNATURE=1 bash ./ace/build_aci
 
 
