@@ -1,0 +1,28 @@
+{ "acKind": "PodManifest", "acVersion": "0.6.1",
+  "apps": [
+    { "name": "three",
+      "image": {"name": "3ofcoins.net/freebsd-base"},
+      "app": {
+        "user": "0",
+        "group": "0",
+        "exec": [ "/bin/sh", "-c", "while true ; do date ; sleep 3 ; done" ]
+      }
+    },
+    { "name": "five",
+      "image": {"name": "3ofcoins.net/freebsd-base"},
+      "app": {
+        "user": "0",
+        "group": "0",
+        "exec": [ "/bin/sh", "-c", "while true ; do date ; sleep 5 ; done" ]
+      }
+    },
+    { "name": "seven",
+      "image": {"name": "3ofcoins.net/freebsd-base"},
+      "app": {
+        "user": "0",
+        "group": "0",
+        "exec": [ "/bin/sh", "-c", "while true ; do date ; sleep 7 ; done" ]
+      }
+    }
+  ]
+}
