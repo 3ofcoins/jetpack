@@ -5,23 +5,24 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
+	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/pborman/uuid"
-)
-import "flag"
-import "fmt"
-import "log"
-import "net/http"
-import "net/url"
-import "os"
-import "strings"
-import "time"
 
-import "github.com/3ofcoins/jetpack/lib/jetpack"
+	"github.com/3ofcoins/jetpack/lib/jetpack"
+	"github.com/appc/spec/schema/types"
+)
 
 var Host *jetpack.Host
 
@@ -182,11 +183,23 @@ func doServeMetadata(r *http.Request) (int, []byte, string) {
 					}
 
 				case "annotations":
-					if annJSON, err := json.Marshal(app.Annotations); err != nil {
+					img, err := Host.GetImage(app.Image.ID, "", nil)
+					if err != nil {
 						panic(err)
-					} else {
-						return http.StatusOK, annJSON, "application/json"
 					}
+
+					anns := make(types.Annotations, len(img.Manifest.Annotations))
+					copy(anns, img.Manifest.Annotations)
+					for _, ann := range app.Annotations {
+						anns.Set(ann.Name, ann.Value)
+					}
+
+					annsJSON, err := json.Marshal(anns)
+					if err != nil {
+						panic(err)
+					}
+
+					return http.StatusOK, annsJSON, "application/json"
 				}
 			}
 		}
