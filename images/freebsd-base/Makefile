@@ -45,7 +45,9 @@ build:
 	install -v -m 0755 appc-metadata-client/ac-mdc /usr/local/bin/ac-mdc
 	install -v -m 0644 rc.conf /etc/rc.conf
 .if ${NO_UPDATE} == 0 
+	BOOTFILE=`sysctl -n kern.bootfile` ; mkdir -v $${BOOTFILE%/kernel}
 	env PAGER=cat freebsd-update -s update6.freebsd.org fetch install
+	BOOTFILE=`sysctl -n kern.bootfile` ; rmdir -v $${BOOTFILE%/kernel}
 	rm -rf /var/db/freebsd-update/*
 .endif
 
@@ -56,3 +58,5 @@ tidy:
 	rm -rf ${TIDY_FILES}
 
 .include "jetpack.image.mk"
+
+
