@@ -18,9 +18,9 @@ void usage()
 
 int main(int argc, char *argv[])
 {
-     int jid, i;
+     int jid, i, ngroups;
      uid_t uid;
-     gid_t gid;
+     gid_t groups[NGROUPS_MAX+1]; /* Is it fine to just preallocate NGROUPS_MAX? */
      char *cur, *next, *endp, *app, *cwd, *rootdir, **eargv, **eenvp;
 
      argv0 = argv[0];           /* for usage() */
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
       * Command line processing
       */
 
-     /* Split argv[1] into JID:UID:GID:APP:CWD */
+     /* Split argv[1] into JID:UID:GID[,GID,GID]:APP:CWD */
      next = argv[1];
 #define _step() if ( !((cur = strsep(&next, ":")) && *cur) ) { usage(); }
 
@@ -49,7 +49,19 @@ int main(int argc, char *argv[])
      }
 
      _step();
-     gid = strtol(cur, &endp, 10);
+     groups[0] = strtol(cur, &endp, 10);
+     ngroups = 1;
+     while ( *endp == ',' ) {
+          cur = endp+1;
+          if ( !*cur ) {
+               err(1, "groups:%d", ngroups);
+          }
+          groups[ngroups] = strtol(cur, &endp, 10);
+          ngroups++;
+          if ( ngroups > NGROUPS_MAX+1 ) {
+               err(1, "ngroups!");
+          }
+     }
      if ( *endp ) {
           usage();
      }
@@ -114,12 +126,12 @@ int main(int argc, char *argv[])
           err(1, "chdir: %s", cwd);
      }
 
-     if ( setgroups(1, &gid) < 0 ) {
-          err(1, "setgroups: %d", gid);
+     if ( setgroups(ngroups, groups) < 0 ) {
+          err(1, "setgroups");
      }
 
-     if ( setgid(gid) < 0 ) {
-          err(1, "setgid: %d", gid);
+     if ( setgid(groups[0]) < 0 ) {
+          err(1, "setgid: %d", groups[0]);
      }
 
      if ( setuid(uid) < 0 ) {

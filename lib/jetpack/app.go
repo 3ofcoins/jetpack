@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/appc/spec/schema/types"
@@ -117,7 +118,7 @@ func (app *App) Kill() error {
 	return nil
 }
 
-func (app *App) Stage2(stdin io.Reader, stdout, stderr io.Writer, user, group, cwd string, exec ...string) error {
+func (app *App) Stage2(stdin io.Reader, stdout, stderr io.Writer, user, group string, cwd string, exec ...string) error {
 	if app.IsRunning() {
 		// One Jetpack process won't need to run multiple commands in the
 		// same app at the same time. It's either sequential
@@ -136,12 +137,16 @@ func (app *App) Stage2(stdin io.Reader, stdout, stderr io.Writer, user, group, c
 		cwd = app.app.WorkingDirectory
 	}
 
+	addSupplementaryGIDs := false
+
 	if user == "" {
 		user = app.app.User
+		addSupplementaryGIDs = true
 	}
 
 	if group == "" {
 		group = app.app.Group
+		addSupplementaryGIDs = true
 	}
 
 	// Ensure jail is created
@@ -177,9 +182,19 @@ func (app *App) Stage2(stdin io.Reader, stdout, stderr io.Writer, user, group, c
 		cwd = "/"
 	}
 
+	gids := strconv.Itoa(pwent.Gid)
+	if addSupplementaryGIDs && len(app.app.SupplementaryGIDs) > 0 {
+		gidsArr := make([]string, len(app.app.SupplementaryGIDs)+1)
+		gidsArr[0] = gids
+		for i, gid := range app.app.SupplementaryGIDs {
+			gidsArr[i+1] = strconv.Itoa(gid)
+		}
+		gids = strings.Join(gidsArr, ",")
+	}
+
 	stage2 := filepath.Join(Config().MustGetString("path.libexec"), "stage2")
 	args := []string{
-		fmt.Sprintf("%d:%d:%d:%s:%s", jid, pwent.Uid, pwent.Gid, app.Name, cwd),
+		fmt.Sprintf("%d:%d:%s:%s:%s", jid, pwent.Uid, gids, app.Name, cwd),
 		"AC_METADATA_URL=" + mds,
 		"USER=" + pwent.Username,
 		"LOGNAME=" + pwent.Username,
