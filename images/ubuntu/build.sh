@@ -38,6 +38,8 @@ case $arch in
     x86_64) arch=amd64 ;;
 esac
 
+install -m 0755 appc-metadata-client/ac-mdc.${arch} /usr/local/bin/ac-mdc
+
 . /etc/lsb-release
 
 cat >manifest.json <<EOF
@@ -50,7 +52,7 @@ cat >manifest.json <<EOF
     { "name": "arch", "value": "$arch" }
   ],
   "app": {
-    "exec": ["/bin/login", "-f", "root"],
+    "exec": ["/bin/login", "-p", "-f", "root"],
     "user": "root",
     "group": "root"
   }

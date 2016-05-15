@@ -19,6 +19,21 @@ CLOUDIMG_SHA256_cmd =	awk '/\*${CLOUDIMG_TARBALL}$$/ { print $$1 }' SHA256SUMS
 CLOUDIMG_SHA256 =	${CLOUDIMG_SHA256_cmd:sh}
 CLOUDIMG_MANIFEST =	${CLOUDIMG_ACI:R}.manifest.json
 
+# Clone and compile metadata client
+
+appc-metadata-client/mdc.go:
+	git clone https://github.com/3ofcoins/appc-metadata-client
+
+appc-metadata-client/ac-mdc.amd64: appc-metadata-client/mdc.go
+	${MAKE} -C appc-metadata-client GOOS=linux GOARCH=amd64 FLAVOUR=amd64
+	brandelf -t Linux appc-metadata-client/ac-mdc.amd64
+
+appc-metadata-client/ac-mdc.i386: appc-metadata-client/mdc.go
+	${MAKE} -C appc-metadata-client GOOS=linux GOARCH=386 FLAVOUR=i386
+	brandelf -t Linux appc-metadata-client/ac-mdc.i386
+
+prepare.ac-mdc: appc-metadata-client/ac-mdc.amd64 appc-metadata-client/ac-mdc.i386
+
 all:
 .for .codename in precise trusty utopic vivid wily xenial
 .for .arch in amd64 i386

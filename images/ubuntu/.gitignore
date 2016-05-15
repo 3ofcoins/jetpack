@@ -3,4 +3,4 @@ SHA256SUMS.gpg
 *-root.tar.gz
 build-info.txt
 *.manifest.json
-
+/appc-metadata-client
