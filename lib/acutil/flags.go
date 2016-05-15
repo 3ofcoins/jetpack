@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 	"runtime"
 	"strconv"
@@ -106,8 +107,15 @@ func (pmjf *PodManifestJSONFlag) String() string {
 	return "[PATH]"
 }
 
+func readFileOrStdin(path string) ([]byte, error) {
+	if path == "-" {
+		return ioutil.ReadAll(os.Stdin)
+	}
+	return ioutil.ReadFile(path)
+}
+
 func (pmjf *PodManifestJSONFlag) Set(val string) error {
-	if bb, err := ioutil.ReadFile(val); err != nil {
+	if bb, err := readFileOrStdin(val); err != nil {
 		return err
 	} else if err := json.Unmarshal(bb, (*schema.PodManifest)(pmjf)); err != nil {
 		return err
