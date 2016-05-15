@@ -15,11 +15,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pborman/uuid"
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/go-multierror"
 	"github.com/juju/errors"
+	"github.com/pborman/uuid"
 
 	"github.com/3ofcoins/jetpack/lib/drain"
 	"github.com/3ofcoins/jetpack/lib/run"
@@ -181,7 +181,12 @@ func CreatePod(h *Host, pm *schema.PodManifest) (pod *Pod, rErr error) {
 		if err := os.Mkdir(filepath.Join(appRootfs, "dev"), 0555); err != nil && !os.IsExist(err) {
 			return nil, errors.Trace(err)
 		}
-		fstab = append(fstab, fmt.Sprintf(". %v devfs ruleset=4 0 0\n", filepath.Join(appRootfs, "dev")))
+
+		devfsRuleset, devfsRulesetFound := pod.Manifest.Annotations.Get("jetpack/devfs-ruleset")
+		if !devfsRulesetFound {
+			devfsRuleset = "4"
+		}
+		fstab = append(fstab, fmt.Sprintf(". %v devfs ruleset=%v 0 0\n", filepath.Join(appRootfs, "dev"), devfsRuleset))
 
 		if os_, _ := img.Manifest.GetLabel("os"); os_ == "linux" {
 			for _, dir := range []string{"sys", "proc"} {
