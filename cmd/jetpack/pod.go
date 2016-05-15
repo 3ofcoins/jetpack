@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/appc/spec/schema/types"
 	"github.com/juju/errors"
+	"github.com/pborman/uuid"
 
 	"github.com/3ofcoins/jetpack/lib/jetpack"
 	"github.com/3ofcoins/jetpack/lib/run"
@@ -26,6 +29,7 @@ func init() {
 	AddCommand("killall POD [ARGS...]", "Kill pod's processes", cmdWrapPod(cmdPodCmd("/usr/bin/killall", "-j")), nil)
 	AddCommand("console POD[:APP]", "Open a console in app", cmdWrapApp0(cmdConsole), flConsole)
 	AddCommand("exec POD[:APP] COMMAND...", "Run a command in app", cmdWrapApp(cmdExec), nil)
+	AddCommand("cp [FLAGS] ARGS...", "Copy files to/from pod (use POD:[APP|@VOL]:PATH for pod paths)", cmdCp, nil)
 }
 
 var flDryRun bool
@@ -146,4 +150,63 @@ func cmdConsole(app *jetpack.App) error {
 
 func cmdExec(app *jetpack.App, args []string) error {
 	return errors.Trace(app.Stage2(os.Stdin, os.Stdout, os.Stderr, "", "", "", args...))
+}
+
+// Arguments for cp to leave unprocessed (switches and local paths):
+//  - switches (starting with '-')
+//  - absolute paths (starting with '/')
+//  - current and parent dir (literal "." and "..")
+//  - relative paths (starting with "./" or "../")
+var cmdCpSwitchOrLocalFileRegexp = regexp.MustCompile(`^(?:[-/]|\.\.?(?:$|/))`)
+
+func cmdCp(args []string) error {
+	// caches
+	pods := map[string]*jetpack.Pod{}
+
+	for i, arg := range args {
+		// Leave switches and local paths alone
+		if cmdCpSwitchOrLocalFileRegexp.MatchString(arg) {
+			continue
+		}
+		pieces := strings.SplitN(arg, ":", 3)
+		if len(pieces) != 3 {
+			return ErrUsage
+		}
+
+		podUUID := uuid.Parse(pieces[0])
+		if podUUID == nil {
+			return ErrUsage
+		}
+
+		pod := pods[podUUID.String()]
+		if pod == nil {
+			pod_, err := Host.GetPod(podUUID)
+			if err != nil {
+				return err
+			}
+			pod = pod_
+			pods[podUUID.String()] = pod_
+		}
+
+		isVolume := false
+		if pieces[1] == "" {
+			if len(pod.Manifest.Apps) != 1 {
+				return ErrUsage
+			}
+			pieces[1] = pod.Manifest.Apps[0].Name.String()
+		} else if pieces[1][0] == '@' {
+			isVolume = true
+			pieces[1] = pieces[1][1:]
+		}
+
+		// TODO: sanity check on paths?
+		if isVolume {
+			args[i] = pod.Path("rootfs", "vol", pieces[1], pieces[2])
+		} else {
+			args[i] = pod.Path("rootfs", "app", pieces[1], "rootfs", pieces[2])
+		}
+	}
+
+	// fmt.Printf("cp %#v\n", args)
+	return errors.Trace(run.Command("/bin/cp", args...).Run())
 }
