@@ -101,7 +101,7 @@ func (app *App) Console(username string) error {
 	if username == "" {
 		username = "root"
 	}
-	return errors.Trace(app.Stage2(os.Stdin, os.Stdout, os.Stderr, "0", "0", "", "/usr/bin/login", "-fp", username))
+	return errors.Trace(app.Stage2(os.Stdin, os.Stdout, os.Stderr, "0", "0", "", "/usr/bin/login", "-p", "-f", username))
 }
 
 // IsRunning returns true if the app currently executes a stage2 command.
