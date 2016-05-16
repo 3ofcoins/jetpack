@@ -12,7 +12,7 @@ static char *argv0;
 
 void usage()
 {
-     fprintf(stderr, "Usage: %s JID:UID:GID:APP:CWD [VAR=val...] PROG ARG...\n", argv0);
+     fprintf(stderr, "Usage: %s JID:UID:GID[,SGID,SGID,...]:APP:CWD [VAR=val...] /PATH/TO/PROG ARG...\n", argv0);
      exit(1);
 }
 
