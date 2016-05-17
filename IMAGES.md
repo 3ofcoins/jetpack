@@ -64,17 +64,13 @@ depend on them.
 
 The basic structure of image Makefile is:
 
-    # Add sharedir (/usr/local/share/jetpack for system-wide
-    # installation, ./share for in-place build) to the include path.
-    .MAKEFLAGS: -I${/path/to/sharedir:L:tA}
-    
     VARIABLES = values
     
     targets:
     	commands
     
-    # Include Jetpack macros. They need to be at the end.
-    .include "jetpack.image.mk"
+    # Include Jetpack macros. They need to be at the end. Sorry about the line noise.
+    .include <${.jetpack.image.mk:U${${JETPACK:Ujetpack} config path.share:L:sh}/jetpack.image.mk}>
 
 ### Invocation
 
@@ -94,11 +90,12 @@ The `image` task itself, after `prepare`, will run `jetpack image build`:
     ${JETPACK} image ${PARENT_IMAGE} build ${BUILD_COMMAND} ${BUILD_ARGS}
 
 If `BUILD_COMMAND` haven't been redefined by user, it is `make
-.jetpack.build.`, so the process wraps back into the Makefile. The
-`.jetpack.build.` target calls the `build` wildcard target (which
-should prepare the image), and then `manifest.json` to ensure that the
-manifest file exists, and give Make a chance to build it. The
-following variables can be used to modify this process:
+.jetpack.build. .jetpack.image.mk=./jetpack.image.mk`, so the process
+wraps back into the Makefile. The `.jetpack.build.` target calls the
+`build` wildcard target (which should prepare the image), and then
+`manifest.json` to ensure that the manifest file exists, and give Make
+a chance to build it. The following variables can be used to modify
+this process:
 
  - `BUILD_DIR` can specify a build directory other than `.`.
  - `BUILD_CP` can specify a list of files to copy to the work

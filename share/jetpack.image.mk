@@ -4,11 +4,11 @@
 
 JETPACK ?= jetpack
 JETPACK_FLAGS ?=
-BUILD_COMMAND ?= /usr/bin/make .jetpack.build.
 # BUILD_DIR ?= .
 CLEAN_FILES += ${ACI_ID_FILE} ${ACI_FILE} ${FLAT_ACI_FILE}
 BUILD_CP ?=
 BUILD_CP_JETPACK_IMAGE_MK ?= yes
+BUILD_COMMAND ?= /usr/bin/make .jetpack.build.${"${BUILD_CP_JETPACK_IMAGE_MK}" == "yes":? .jetpack.image.mk=./${.jetpack.image.mk.path:T}:}
 ACI_FILE ?= image.aci
 ACI_ID_FILE ?= ${ACI_FILE}.id
 FLAT_ACI_FILE ?= ${ACI_FILE:R}.flat.aci

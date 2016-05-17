@@ -1,5 +1,3 @@
-.MAKEFLAGS: -I${../../share:L:tA}
-
 CODENAME ?=	xenial
 RELEASE ?=	${RELEASE_${CODENAME}}
 ARCH ?=			amd64
@@ -94,4 +92,4 @@ BUILD_COMMAND =	/bin/sh ./build.sh
 
 prepare: ${CLOUDIMG_ACI}.id
 
-.include "jetpack.image.mk"
+.include <${.jetpack.image.mk:U${${JETPACK:Ujetpack} config path.share:L:sh}/jetpack.image.mk}>

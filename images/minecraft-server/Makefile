@@ -1,5 +1,3 @@
-.MAKEFLAGS: -I${../../share:L:tA}
-
 PARENT_IMAGE = 3ofcoins.net/freebsd-base
 
 SERVER_VERSION = 1.9.4
@@ -34,4 +32,4 @@ build:
 	install -d -o mcserver -g mcserver /vol/minecraft-server
 	rm -rf /var/cache/pkg/* 
 
-.include "jetpack.image.mk"
+.include <${.jetpack.image.mk:U${${JETPACK:Ujetpack} config path.share:L:sh}/jetpack.image.mk}>

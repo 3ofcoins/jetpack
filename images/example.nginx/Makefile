@@ -1,5 +1,3 @@
-.MAKEFLAGS: -I${${JETPACK:Ujetpack} config path.share:L:sh}
-
 PARENT_IMAGE = 3ofcoins.net/freebsd-base
 BUILD_VARS = DEVEL http_proxy
 PKG_INSTALL = nginx${DEVEL:D-devel}
@@ -10,4 +8,4 @@ build:
 manifest.json:
 	./manifest.json.sh > $@
 
-.include "jetpack.image.mk"
+.include <${.jetpack.image.mk:U${${JETPACK:Ujetpack} config path.share:L:sh}/jetpack.image.mk}>

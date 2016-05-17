@@ -1,5 +1,3 @@
-.MAKEFLAGS: -I${../../share:L:tA}
-
 PARENT_IMAGE = `cat base.aci.id`
 TIDY_FILES   = manifest.json base.aci.id 
 CLEAN_FILES  = ${TIDY_FILES} base.manifest.json base.txz base.txz.dl base.aci appc-metadata-client
@@ -57,6 +55,4 @@ manifest.json:
 tidy:
 	rm -rf ${TIDY_FILES}
 
-.include "jetpack.image.mk"
-
-
+.include <${.jetpack.image.mk:U${${JETPACK:Ujetpack} config path.share:L:sh}/jetpack.image.mk}>

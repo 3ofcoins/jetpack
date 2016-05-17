@@ -1,5 +1,3 @@
-.MAKEFLAGS: -I${../../share:L:tA}
-
 PARENT_IMAGE = 3ofcoins.net/freebsd-base
 PKG_INSTALL = dialog4ports
 
@@ -8,4 +6,4 @@ build:
 	install -v make.conf /etc/make.conf
 	install -v -m 0755 portbuild.sh portbuild.pre-start.sh /usr/local/bin/
 
-.include "jetpack.image.mk"
+.include <${.jetpack.image.mk:U${${JETPACK:Ujetpack} config path.share:L:sh}/jetpack.image.mk}>
