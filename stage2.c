@@ -118,8 +118,12 @@ int main(int argc, char *argv[])
           err(1, "snprintf");
      }
 
-     if ( chroot(rootdir) < 0 ) {
-          err(1, "chroot: %s", rootdir);
+     if ( chdir(rootdir) < 0 ) {
+          err(1, "chdir: %s", rootdir);
+     }
+     
+     if ( chroot(".") < 0 ) {
+          err(1, "chroot(\".\") // %s", rootdir);
      }
 
      if ( chdir(cwd) < 0 ) {
