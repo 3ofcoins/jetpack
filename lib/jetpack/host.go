@@ -215,9 +215,6 @@ func (h *Host) ReifyPodManifest(pm *schema.PodManifest) (*schema.PodManifest, er
 			app = img.Manifest.App
 		}
 		if app == nil {
-			if len(rtapp.Mounts) > 0 {
-				return nil, errors.New("No app (is it valid at all?), yet mounts given")
-			}
 			continue
 		}
 
