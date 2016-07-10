@@ -1,9 +1,9 @@
 PARENT_IMAGE = 3ofcoins.net/freebsd-base
 
-SERVER_VERSION = 1.9.4
+SERVER_VERSION = 1.10.2
 SERVER_JAR = minecraft_server.${SERVER_VERSION}.jar
 SERVER_JAR_URL = https://s3.amazonaws.com/Minecraft.Download/versions/${SERVER_VERSION}/${SERVER_JAR}
-SERVER_JAR_SHA256 = 13fea7aa10d804dd14ed7ebde2493dc64c7d3c8173369309bd7f6ea4c0ea40ad
+SERVER_JAR_SHA256 = 195f468227c5f9218f3919538b9b16ba34adced67fc7d7b652c508a5e8d07a21
 
 PKG_INSTALL = openjdk8
 
