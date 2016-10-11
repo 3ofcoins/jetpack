@@ -1,8 +1,8 @@
-prefix?=	/usr/local
+prefix?=	/usr/local/
 
-gopath =	gopath
+gopath =	${.CURDIR:tA}/gopath
 gopkg =		github.com/3ofcoins/jetpack
-goenv =		env -u GOBIN GOPATH=${gopath:tA} GO15VENDOREXPERIMENT=1 CC=clang
+goenv =		env -u GOBIN GOPATH=${gopath} GO15VENDOREXPERIMENT=1 CC=clang
 
 all: bin/jetpack bin/mds bin/stage2
 
