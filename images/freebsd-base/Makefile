@@ -1,29 +1,41 @@
-PARENT_IMAGE = `cat base.aci.id`
-TIDY_FILES   = manifest.json base.aci.id 
+FREEBSD_VERSION ?= 11
+ACI_FILE = image${FREEBSD_VERSION}.aci
+PARENT_IMAGE = `cat base${FREEBSD_VERSION}.aci.id`
+TIDY_FILES   = manifest.json base.aci.id
 CLEAN_FILES  = ${TIDY_FILES} base.manifest.json base.txz base.txz.dl base.aci appc-metadata-client
 BUILD_VARS   = http_proxy NO_UPDATE
 NO_UPDATE   ?= 0
 
 # Download base.txz and roll a base ACI off it. Needs security/fakeroot, is nicer with deskutils/pv
 
+.if ${FREEBSD_VERSION} == 10
 BASE_VERSION = 10.3
 BASE_URL = ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/${BASE_VERSION}-RELEASE/base.txz
 BASE_SHA256 = e7c4c961694e34b2b60598d9668a185b5de1c6241bedfc4891cd9ea8fbff2dc4
+.elif ${FREEBSD_VERSION} == 11
+BASE_VERSION = 11.0
+BASE_URL = ftp://ftp2.freebsd.org/pub/FreeBSD/releases/amd64/amd64/${BASE_VERSION}-RELEASE/base.txz
+BASE_SHA256 = bb80ededf207c48122434833b83110225b798fb31273051fcb64316ff782c1ef
+.else
+.error "FREEBSD_VERSION needs to be 10 or 11"
+.endif
 
-base.txz:
+JETPACK_FLAGS = -o ace.jailConf.osrelease=${BASE_VERSION}-RELEASE
+
+base${FREEBSD_VERSION}.txz:
 	rm -f $@.dl
 	fetch -o $@.dl ${BASE_URL}
 	sha256 -c ${BASE_SHA256} $@.dl
 	mv -v $@.dl $@
 
-base.aci: base.txz
-	./base.manifest.json.sh ${BASE_VERSION} > ./base.manifest.json
-	${MAKEACI} ./base.txz ./base.manifest.json $@
+base${FREEBSD_VERSION}.aci: base${FREEBSD_VERSION}.txz
+	./base.manifest.json.sh ${BASE_VERSION} > ./base${FREEBSD_VERSION}.manifest.json
+	${MAKEACI} ./base${FREEBSD_VERSION}.txz ./base${FREEBSD_VERSION}.manifest.json $@
 
-base.aci.id: base.aci
-	jetpack import -saveid=$@ ./base.aci
+base${FREEBSD_VERSION}.aci.id: base${FREEBSD_VERSION}.aci
+	jetpack import -saveid=$@ ./base${FREEBSD_VERSION}.aci
 
-prepare.base: base.aci.id
+prepare.base: base${FREEBSD_VERSION}.aci.id
 
 # Clone and compile metadata client
 
@@ -42,7 +54,7 @@ build:
 	install -v -d -m 0755 /usr/local/bin
 	install -v -m 0755 appc-metadata-client/ac-mdc /usr/local/bin/ac-mdc
 	install -v -m 0644 rc.conf /etc/rc.conf
-.if ${NO_UPDATE} == 0 
+.if ${NO_UPDATE} == 0
 	BOOTFILE=`sysctl -n kern.bootfile` ; mkdir -v $${BOOTFILE%/kernel}
 	env PAGER=cat freebsd-update -s update6.freebsd.org fetch install
 	BOOTFILE=`sysctl -n kern.bootfile` ; rmdir -v $${BOOTFILE%/kernel}
