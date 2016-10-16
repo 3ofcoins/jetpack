@@ -35,7 +35,7 @@ The App Container (appc) spec aims to have the following properties:
 
 ## What is the promise of the App Container Spec?
 
-By explicitly defining - separate of any particular implementation - how an app is packaged into an image, downloaded over a network, and executed as a container, we hope to enable a community of engineers to build tooling around the fundamental building block of a container.
+By explicitly defining - separate of any particular implementation - how an app is packaged into an App Container Image (ACI), downloaded over a network, and executed as a container, we hope to enable a community of engineers to build tooling around the fundamental building block of a container.
 Some examples of build systems and tools that have been built so far include:
 
 - [goaci](https://github.com/appc/goaci) - ACI builder for Go projects
@@ -83,7 +83,7 @@ $ find /tmp/my-app/
 $ cat /tmp/my-app/manifest
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.8.1",
+    "acVersion": "0.8.7",
     "name": "my-app",
     "labels": [
         {"name": "os", "value": "linux"},
@@ -115,7 +115,7 @@ and verify that the manifest was embedded appropriately
 $ tar xf /tmp/my-app.aci manifest -O | python -m json.tool
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.8.1",
+    "acVersion": "0.8.7",
     "annotations": null,
     "app": {
         "environment": [],

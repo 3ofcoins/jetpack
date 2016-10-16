@@ -187,6 +187,7 @@ func (w *CodeWriter) writeValue(v reflect.Value) {
 
 // WriteString writes a string literal.
 func (w *CodeWriter) WriteString(s string) {
+	s = strings.Replace(s, `\`, `\\`, -1)
 	io.WriteString(w.Hash, s) // content hash
 	w.Size += len(s)
 
@@ -216,7 +217,7 @@ func (w *CodeWriter) WriteString(s string) {
 		r, sz = utf8.DecodeRuneInString(s[p:])
 		out := s[p : p+sz]
 		chars := 1
-		if !unicode.IsPrint(r) || r == utf8.RuneError {
+		if !unicode.IsPrint(r) || r == utf8.RuneError || r == '"' {
 			switch sz {
 			case 1:
 				out = fmt.Sprintf("\\x%02x", s[p])

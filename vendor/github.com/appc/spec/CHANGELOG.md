@@ -1,3 +1,48 @@
+### v0.8.7
+
+This is a minor but significant release of the spec with several new features, one notable bugfix, and some changes to the tooling codebase.
+
+Changes to the spec since the previous release:
+- Added an optional image manifest annotation, `appc.io/executor/supports-systemd-notify`, to allow apps to express whether they support notifications using `sd_notify()`. This may be used to signal that services within a pod are ready (#626)
+- Added several new architectures to the validated whitelist: ppc64, ppc64le, s390x (#639, #651)
+- Added a new `os/unix/sysctl` isolator class to the spec, and associated schema code (#647)
+
+Tooling and code changes:
+- Added the ability to override capability isolators to `actool patch-manifest`. This changes the behaviour of the `--capability` and `--revoke-capability` flags (#638)
+- Fixed a bug in the ACE validator where it was not correctly merging annotations it was checking (#649)
+- Increased default timeout for connections in the discovery code (#644)
+- Moved from using godeps to using glide to manage dependencies and vendoring. This included updating the go-semver dependency and a new build/test script. Dependency changes are now managed with `scripts/glide-update` (#632)
+
+### v0.8.6
+
+This is a minor release of the spec with one new feature and some updated dependencies:
+- Added optional _recursive_ field to volumes in the spec (#630)
+- Update vendored Kubernetes dependencies (#635)
+
+### v0.8.5
+
+This is a minor release of the spec, containing one new backwards-compatible feature, and several tooling improvements:
+- Added seccomp support, via the `os/linux/seccomp-remove-set` and `os/linux/seccomp-retain-set` isolator types. This includes `actool patch-manifest` support (#521)
+- Moved to using `vendor/` directory with Godeps (#618)
+- Added a port parameter to the discovery code, allowing users to perform discovery on arbitrary ports (#629)
+- Changed schema code to fail more gracefully (return error instead of panic) if users inadvertently create a bad Isolator value (#633)
+
+### v0.8.4
+
+This is a minor release of the spec; the only changes over 0.8.3 are that some of the Godeps are updated to use tagged releases.
+This should help downstream developers trying to vendor and package the appc/spec code.
+
+### v0.8.3
+
+Minor release of the spec adding one backwards-compatible feature:
+- Added a `os/linux/no-new-privileges` isolator type. Support also added to actool `patch-manifest` (#611)
+
+### v0.8.2
+
+Minor release of the spec with two tooling fixes:
+- Updated Godeps to the latest k8s.io packages, which should help downstream users attempting to vendor schema code (#607)
+- Minor fixes to the ACE validator (#605)
+
 ### v0.8.1
 
 Minor release of the spec which introduces one new backwards-compatible feature: the field `readOnlyRootFS` in the pod spec. 

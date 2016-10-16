@@ -39,17 +39,8 @@ spec = vendor/github.com/appc/spec
 
 validator-aci: ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci
 ${spec}/bin/ace-validator-main.aci ${spec}/bin/ace-validator-sidekick.aci:
-	cd ${spec} && bash ./build && env NO_SIGNATURE=1 bash ./ace/build_aci
+	cd ${spec} && ./build.sh && env NO_SIGNATURE=1 ./scripts/build-ace-validator-acis
 
-
-# gvt for dependency management
-
-${gopath}/bin/gvt: ${.gopath}
-	${goenv} go get -u github.com/FiloSottile/gvt
-	touch $@
-
-gvt: ${gopath}/bin/gvt
-	${goenv} ${gopath}/bin/gvt ${CMD}
 
 clean: .PHONY
 	rm -rf ${gopath} bin tmp ${spec}/bin ${spec}/gopath

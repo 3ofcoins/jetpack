@@ -85,6 +85,15 @@ func (r ResourceBase) AssertValid() error {
 	return nil
 }
 
+// TODO(lucab): both need to be clarified in spec,
+// see https://github.com/appc/spec/issues/625
+func (l ResourceBase) multipleAllowed() bool {
+	return true
+}
+func (l ResourceBase) Conflicts() []ACIdentifier {
+	return nil
+}
+
 type ResourceBlockBandwidth struct {
 	ResourceBase
 }
@@ -155,8 +164,8 @@ func NewResourceCPUIsolator(request, limit string) (*ResourceCPU, error) {
 	res := &ResourceCPU{
 		ResourceBase{
 			resourceValue{
-				Request: req,
-				Limit:   lim,
+				Request: &req,
+				Limit:   &lim,
 			},
 		},
 	}
@@ -209,8 +218,8 @@ func NewResourceMemoryIsolator(request, limit string) (*ResourceMemory, error) {
 	res := &ResourceMemory{
 		ResourceBase{
 			resourceValue{
-				Request: req,
-				Limit:   lim,
+				Request: &req,
+				Limit:   &lim,
 			},
 		},
 	}
