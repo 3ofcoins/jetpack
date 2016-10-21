@@ -29,8 +29,8 @@ install: .PHONY bin/jetpack bin/stage2
 	    install -m 0755 -s bin/stage2 bin/mds ${DESTDIR}$${prefix}/libexec/jetpack/ ; \
 	    install -m 0644 share/*[^~] ${DESTDIR}$${prefix}/share/jetpack/ ; \
 	    for section in 5 ; do \
-	        install -m 0755 -d ${DESTDIR}$${prefix}/share/man/man$${section} ; \
-	        install -m 0644 man/*.$${section} ${DESTDIR}$${prefix}/share/man/man$${section} ; \
+	        install -m 0755 -d ${DESTDIR}$${prefix}/man/man$${section} ; \
+	        install -m 0644 man/*.$${section} ${DESTDIR}$${prefix}/man/man$${section} ; \
 	    done ; \
 	    install -m 0644 jetpack.conf.sample ${DESTDIR}$${prefix}/etc/jetpack.conf.sample
 
