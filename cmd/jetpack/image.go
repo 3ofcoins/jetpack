@@ -23,7 +23,7 @@ func init() {
 	AddCommand("image-manifest IMAGE", "Show image manifest", cmdWrapImage0(cmdImageManifest, true), nil)
 	AddCommand("destroy-image IMAGE", "Destroy an image", cmdWrapImage0(cmdDestroyImage, true), nil)
 	AddCommand("export IMAGE [FILE]", "Export image to an ACI file", cmdWrapImage(cmdExportImage, true), flExport)
-	AddCommand("build IMAGE COMMAND ARGS...", "Build a niew image", cmdWrapImage(cmdBuild, false), flBuild)
+	AddCommand("build IMAGE COMMAND ARGS...", "Build a new image", cmdWrapImage(cmdBuild, false), flBuild)
 }
 
 var flExportFlat bool
