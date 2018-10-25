@@ -1,7 +1,7 @@
 {
   "name": "example/showenv",
   "labels": [
-    { "name": "version", "value": "1.2.0" }
+    { "name": "version", "value": "1.2.1" }
   ],
   "app": {
     "exec": [
@@ -14,7 +14,7 @@
     "user": "games",
     "group": "guest",
     "eventHandlers": [
-      { "name": "pre-start", "exec": [ "/bin/sh", "-c", "id > /opt/data/pre-start-id.txt" ] },
+      { "name": "pre-start", "exec": [ "/bin/sh", "-c", "id > /opt/data/pre-start-id.txt; chown games /opt/data" ] },
       { "name": "post-stop", "exec": [ "/bin/sh", "-c", "id > /opt/data/post-stop-id.txt" ] }
     ],
     "workingDirectory": "/opt/data",
